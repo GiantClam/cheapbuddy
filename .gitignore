@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.omx/
+.playwright-cli/
+test-results/
+.tmp-*
+buddy-headers.txt
+buddy-page.html

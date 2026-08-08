@@ -1,0 +1,14 @@
+name = "cheapbuddy-api-proxy"
+main = "index.js"
+compatibility_date = "2026-08-01"
+workers_dev = false
+
+routes = [
+  { pattern = "api.cheapbuddy.cc/v1/*", zone_name = "cheapbuddy.cc" },
+  { pattern = "api.cheapbuddy.cc/api/*", zone_name = "cheapbuddy.cc" },
+  { pattern = "cheapbuddy.cc/api/*", zone_name = "cheapbuddy.cc" },
+  { pattern = "www.cheapbuddy.cc/api/*", zone_name = "cheapbuddy.cc" },
+  # Backward-compatible alias for already-downloaded WorkBuddy configurations.
+  { pattern = "cheapbuddy.cc/v1/*", zone_name = "cheapbuddy.cc" },
+  { pattern = "www.cheapbuddy.cc/v1/*", zone_name = "cheapbuddy.cc" },
+]
