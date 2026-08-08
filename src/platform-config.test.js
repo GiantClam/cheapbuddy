@@ -38,9 +38,11 @@ const options = {
   baseUrl: 'https://api.cheapbuddy.cc/v1/',
   models: selectedModels,
 };
+const singleModelOptions = { ...options, models: [selectedModels[0]] };
 
 test('publishes every supported target platform', () => {
   assert.deepEqual(platformOptions.map(({ id }) => id), ['workbuddy', 'claude', 'opencode', 'codex']);
+  assert.deepEqual(platformOptions.map(({ maxModels }) => maxModels), [null, 2, null, 1]);
 });
 
 test('builds the existing WorkBuddy models file', () => {
@@ -63,6 +65,7 @@ test('builds a Claude Code user gateway config using the Messages endpoint base'
   assert.equal(config.env.ANTHROPIC_BASE_URL, 'https://api.cheapbuddy.cc');
   assert.equal(config.env.ANTHROPIC_AUTH_TOKEN, options.apiKey);
   assert.equal(config.env.ANTHROPIC_MODEL, 'glm-5.2');
+  assert.equal(config.env.ANTHROPIC_DEFAULT_HAIKU_MODEL, 'MiniMax-M3');
   assert.equal(config.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY, '1');
 });
 
@@ -78,10 +81,13 @@ test('builds an OpenCode provider with all selected models', () => {
   assert.equal(provider.options.baseURL, 'https://api.cheapbuddy.cc/v1');
   assert.equal(provider.options.apiKey, options.apiKey);
   assert.deepEqual(Object.keys(provider.models), ['glm-5.2', 'MiniMax-M3']);
+  assert.deepEqual(provider.models['glm-5.2'].modalities, { input: ['text'], output: ['text'] });
+  assert.equal(provider.models['glm-5.2'].tool_call, true);
+  assert.equal(provider.models['MiniMax-M3'].attachment, true);
 });
 
 test('builds a Codex Responses API provider with the first model as default', () => {
-  const artifact = createPlatformArtifact('codex', options);
+  const artifact = createPlatformArtifact('codex', { ...options, models: [selectedModels[0]] });
 
   assert.equal(artifact.filename, 'config.toml');
   assert.equal(artifact.configPath, '~/.codex/config.toml');
@@ -97,10 +103,12 @@ test('builds a Codex Responses API provider with the first model as default', ()
 test('rejects invalid generator inputs', () => {
   assert.throws(() => createPlatformArtifact('codex', { ...options, models: [] }), /model/i);
   assert.throws(() => createPlatformArtifact('unknown', options), /platform/i);
-  assert.throws(() => createPlatformArtifact('codex', { ...options, baseUrl: 'not a URL' }), /URL/i);
-  assert.throws(() => createPlatformArtifact('codex', { ...options, baseUrl: 'http://api.cheapbuddy.cc/v1' }), /HTTPS/i);
-  assert.throws(() => createPlatformArtifact('codex', { ...options, models: [{ ...selectedModels[0], maxInputTokens: 0 }] }), /maxInputTokens/i);
-  assert.throws(() => createPlatformArtifact('codex', { ...options, models: [selectedModels[0], { ...selectedModels[0] }] }), /Duplicate/i);
+  assert.throws(() => createPlatformArtifact('codex', { ...singleModelOptions, baseUrl: 'not a URL' }), /URL/i);
+  assert.throws(() => createPlatformArtifact('codex', { ...singleModelOptions, baseUrl: 'http://api.cheapbuddy.cc/v1' }), /HTTPS/i);
+  assert.throws(() => createPlatformArtifact('codex', { ...singleModelOptions, models: [{ ...selectedModels[0], maxInputTokens: 0 }] }), /maxInputTokens/i);
+  assert.throws(() => createPlatformArtifact('workbuddy', { ...options, models: [selectedModels[0], { ...selectedModels[0] }] }), /Duplicate/i);
+  assert.throws(() => createPlatformArtifact('codex', options), /at most 1/i);
+  assert.throws(() => createPlatformArtifact('claude', { ...options, models: [...selectedModels, { ...selectedModels[0], id: 'third-model' }] }), /at most 2/i);
 });
 
 test('allows a local HTTP gateway during development', () => {

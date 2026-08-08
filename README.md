@@ -34,7 +34,7 @@ docker compose -f docker-compose.local.yml up -d
 | OpenCode | `opencode.json` | `~/.config/opencode/opencode.json` | Chat Completions |
 | Codex | `config.toml` | `~/.codex/config.toml` | Responses API |
 
-登录后选择平台和模型，页面会使用当前用户 API Key 生成配置预览。可以复制自动配置提示词，让目标 Agent 备份并合并现有配置；也可以复制或下载原生配置文件后手动合并。Claude Code 和 Codex 使用第一个已选模型作为默认模型，WorkBuddy 和 OpenCode 会写入全部已选模型。
+登录后选择平台和模型，页面会使用当前用户 API Key 生成配置预览。预览会显示完整文件内容和已包含模型，复制或下载动作使用完整文件内容。可以复制自动配置提示词，让目标 Agent 备份并合并现有配置；也可以复制或下载原生配置文件后手动合并。WorkBuddy 和 OpenCode 会把全部已选模型写入原生模型目录；Claude Code 最多选择两个模型，分别作为主模型和小型快速模型，其余模型由网关模型发现；Codex 原生配置只支持一个默认模型，因此页面会限制为单选。
 
 生成文件包含个人 API Key。只能保存在用户自己的设备上，不应提交到 Git、公开工单或聊天记录。合并配置前应先备份旧文件，并保留已有 Provider、权限和其他无关设置。
 

@@ -1,8 +1,8 @@
 export const platformOptions = [
-  { id: 'workbuddy', name: 'WorkBuddy', mark: 'WB' },
-  { id: 'claude', name: 'Claude Code', mark: 'CL' },
-  { id: 'opencode', name: 'OpenCode', mark: 'OC' },
-  { id: 'codex', name: 'Codex', mark: 'CX' },
+  { id: 'workbuddy', name: 'WorkBuddy', mark: 'WB', modelMode: 'all', maxModels: null },
+  { id: 'claude', name: 'Claude Code', mark: 'CL', modelMode: 'primary-and-fast', maxModels: 2 },
+  { id: 'opencode', name: 'OpenCode', mark: 'OC', modelMode: 'all', maxModels: null },
+  { id: 'codex', name: 'Codex', mark: 'CX', modelMode: 'single', maxModels: 1 },
 ];
 
 function normalizeBaseUrl(value) {
@@ -41,13 +41,17 @@ function validateModels(models) {
 }
 
 function requireOptions(platformId, { apiKey, baseUrl, models } = {}) {
-  if (!platformOptions.some(({ id }) => id === platformId)) {
+  const platform = platformOptions.find(({ id }) => id === platformId);
+  if (!platform) {
     throw new Error(`Unsupported platform: ${platformId}`);
   }
   if (!Array.isArray(models) || models.length === 0) {
     throw new Error('Select at least one model');
   }
   if (!apiKey) throw new Error('An API key is required');
+  if (platform.maxModels && models.length > platform.maxModels) {
+    throw new Error(`${platform.name} supports at most ${platform.maxModels} selected model${platform.maxModels === 1 ? '' : 's'}`);
+  }
   validateModels(models);
   validateBaseUrl(baseUrl);
 }
@@ -75,6 +79,7 @@ function makeWorkBuddyConfig(models, apiKey, apiBaseUrl) {
 
 function makeClaudeConfig(models, apiKey, apiBaseUrl) {
   const defaultModel = models[0];
+  const fastModel = models[1] || defaultModel;
   return {
     env: {
       ANTHROPIC_BASE_URL: apiBaseUrl.replace(/\/v1$/i, ''),
@@ -82,6 +87,7 @@ function makeClaudeConfig(models, apiKey, apiBaseUrl) {
       ANTHROPIC_MODEL: defaultModel.id,
       ANTHROPIC_CUSTOM_MODEL_OPTION: defaultModel.id,
       ANTHROPIC_CUSTOM_MODEL_OPTION_NAME: defaultModel.short,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: fastModel.id,
       CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: '1',
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(defaultModel.maxInputTokens),
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(defaultModel.maxOutputTokens),
@@ -94,6 +100,13 @@ function makeOpenCodeConfig(models, apiKey, apiBaseUrl) {
     model.id,
     {
       name: model.short,
+      modalities: {
+        input: model.supportsImages ? ['text', 'image'] : ['text'],
+        output: ['text'],
+      },
+      tool_call: model.supportsToolCall,
+      reasoning: model.supportsReasoning,
+      attachment: model.supportsImages,
       limit: {
         context: model.maxInputTokens,
         output: model.maxOutputTokens,
