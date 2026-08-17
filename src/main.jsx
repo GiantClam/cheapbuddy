@@ -295,8 +295,17 @@ function App() {
   }, [language]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setCampaignNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
+    const updateCampaignState = () => setCampaignNow(new Date());
+    const campaignEndDelay = Date.parse(CAMPAIGN.endAt) - Date.now();
+    const endTimer = campaignEndDelay > 0
+      ? window.setTimeout(updateCampaignState, campaignEndDelay + 100)
+      : undefined;
+    const heartbeatTimer = window.setInterval(updateCampaignState, 60_000);
+
+    return () => {
+      if (endTimer !== undefined) window.clearTimeout(endTimer);
+      window.clearInterval(heartbeatTimer);
+    };
   }, []);
 
   const selectedModels = useMemo(() => models.filter((model) => selected.includes(model.id)), [selected]);
