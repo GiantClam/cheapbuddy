@@ -691,7 +691,7 @@ function App() {
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
           <div className="status-line"><span className="status-dot" />{t('channelOnline')}</div>
-          {billing.active && <div className="campaign-banner"><strong>{t('campaignTitle')}</strong><span>{t('campaignOffer', { multiplier: billing.multiplier.toFixed(1) })}</span><small>{t('campaignEnd', { end: campaignEnd })}</small></div>}
+          {billing.active && <aside className="campaign-banner" aria-label={t('campaignTitle')}><div className="campaign-banner-head"><strong>{t('campaignTitle')}</strong><span>{t('campaignSavings')}</span></div><div className="campaign-rates"><div className="campaign-rate regular"><small>{t('campaignRegularRate')}</small><b>{t('campaignRegularDiscount')}</b></div><span className="campaign-rate-arrow" aria-hidden="true">→</span><div className="campaign-rate sale"><small>{t('campaignSaleRate')}</small><b>{t('campaignSaleDiscount')}</b></div></div><p>{t('campaignDuration', { end: campaignEnd })}</p></aside>}
           <h1>{t('heroTitle')}<br /><em>{t('heroTitleAccent')}</em></h1>
           <p className="hero-lead">{t('heroLead1')}<br className="hero-mobile-break" />{t('heroLead2', { multiplier: billing.multiplier.toFixed(1) })}<br className="hero-mobile-break" />{t('heroLead3')}</p>
           <div className="hero-actions"><button className="button button-primary" onClick={openGenerator}>{t('generateConfig')} <Icon name="arrow" /></button><a className="button button-ghost" href="#models">{t('viewModels')} <Icon name="chevron" size={16} /></a></div>
