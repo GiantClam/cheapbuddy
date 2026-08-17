@@ -3,7 +3,7 @@ import pg from 'pg';
 
 const groupId = Number(process.env.CAMPAIGN_GROUP_ID || 2);
 const expectedMultiplier = Number(process.env.CAMPAIGN_MULTIPLIER || 0.2);
-const restoreMultiplier = Number(process.env.RESTORE_MULTIPLIER || 1);
+const restoreMultiplier = Number(process.env.RESTORE_MULTIPLIER || 0.6);
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl || !Number.isInteger(groupId) || groupId <= 0) {

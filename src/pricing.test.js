@@ -13,5 +13,5 @@ test('restores the regular multiplier at the campaign end time', () => {
   const billing = getBillingState(new Date(CAMPAIGN.endAt));
 
   assert.equal(billing.active, false);
-  assert.equal(billing.multiplier, 1);
+  assert.equal(billing.multiplier, 0.6);
 });

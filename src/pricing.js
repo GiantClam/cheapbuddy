@@ -1,7 +1,7 @@
 export const CAMPAIGN = {
   endAt: '2026-09-06T17:10:00+08:00',
   multiplier: 0.2,
-  regularMultiplier: 1,
+  regularMultiplier: 0.6,
 };
 
 export function getBillingState(now = new Date()) {

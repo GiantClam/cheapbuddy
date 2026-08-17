@@ -96,6 +96,6 @@ CheapBuddy uses pay-as-you-go balance rather than a monthly subscription. New re
 | Heavy | ¥90 | 30,000 points |
 | Team | ¥150 | 50,000 points |
 
-The CheapBuddy group normally bills model usage at `1.0 ×` the reference official price. From 2026-08-17 through 2026-09-06 17:10 China Standard Time, the group is running a time-limited promotion at `0.2 ×` the official price. The campaign restore job returns the group to `1.0 ×` after the end time. The page describes this as a pricing multiplier, not as a conversion rate between balance and legacy credits. Balances are shared across models and devices and do not reset monthly.
+The CheapBuddy group normally bills model usage at `0.6 ×` the reference official price. From 2026-08-17 through 2026-09-06 17:10 China Standard Time, the group is running a time-limited promotion at `0.2 ×` the official price. The campaign restore job returns the group to `0.6 ×` after the end time. The page describes this as a pricing multiplier, not as a conversion rate between balance and legacy credits. Balances are shared across models and devices and do not reset monthly.
 
 推荐生产域名分工：`cheapbuddy.cc` 官网、`console.cheapbuddy.cc` 用户中心、`api.cheapbuddy.cc` WorkBuddy API、`admin.cheapbuddy.cc` 私有管理入口。官网不展示管理域名，管理入口也不挂载到官网或 API Worker 路由。
