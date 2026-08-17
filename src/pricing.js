@@ -1,6 +1,17 @@
-export const BILLING = {
-  multiplier: 0.6,
+export const CAMPAIGN = {
+  endAt: '2026-09-06T17:10:00+08:00',
+  multiplier: 0.2,
+  regularMultiplier: 1,
 };
+
+export function getBillingState(now = new Date()) {
+  const active = now.getTime() < Date.parse(CAMPAIGN.endAt);
+  return {
+    active,
+    multiplier: active ? CAMPAIGN.multiplier : CAMPAIGN.regularMultiplier,
+    endsAt: CAMPAIGN.endAt,
+  };
+}
 
 // Customer-facing recharge tiers. The backend receives the amount field in yuan;
 // Sub2API remains the source of truth for the user's balance and billing.

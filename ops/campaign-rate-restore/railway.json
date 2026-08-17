@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK"
+  },
+  "deploy": {
+    "startCommand": "node restore-rate.mjs",
+    "cronSchedule": "10 9 6 9 *",
+    "restartPolicyType": "NEVER"
+  }
+}

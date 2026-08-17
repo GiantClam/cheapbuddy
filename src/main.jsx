@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { clearSession, createApiKey, createPaymentOrder, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listApiKeys, loginUser, registerUser, saveSession } from './api';
-import { BILLING, defaultPricingPlan, pricingPlans } from './pricing';
+import { CAMPAIGN, defaultPricingPlan, getBillingState, pricingPlans } from './pricing';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
 
@@ -151,6 +151,17 @@ function formatCompactNumber(value) {
   return number.toLocaleString('en-US');
 }
 
+function formatCampaignEnd(endsAt, language) {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+    timeZone: 'Asia/Shanghai',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(endsAt));
+}
+
 function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -239,6 +250,7 @@ function ConfigGeneratorModal({
 
 function App() {
   const [language, setLanguage] = useState(getInitialLanguage);
+  const [campaignNow, setCampaignNow] = useState(() => new Date());
   const [selected, setSelected] = useState(models.map((model) => model.id));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -268,6 +280,8 @@ function App() {
   const [testLatency, setTestLatency] = useState(0);
 
   const t = (key, variables) => translate(language, key, variables);
+  const billing = getBillingState(campaignNow);
+  const campaignEnd = formatCampaignEnd(CAMPAIGN.endAt, language);
 
   const turnstileSiteKey = publicTurnstile.siteKey || configuredTurnstileSiteKey;
   const turnstileEnabled = publicTurnstile.enabled || Boolean(configuredTurnstileSiteKey);
@@ -279,6 +293,11 @@ function App() {
     const description = document.querySelector('meta[name="description"]');
     if (description) description.setAttribute('content', language === 'en' ? 'CheapBuddy — Use multiple leading models in WorkBuddy.' : 'CheapBuddy — 在 WorkBuddy 中使用多个主流最新模型。');
   }, [language]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCampaignNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const selectedModels = useMemo(() => models.filter((model) => selected.includes(model.id)), [selected]);
   const activePlatform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
@@ -672,8 +691,9 @@ function App() {
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
           <div className="status-line"><span className="status-dot" />{t('channelOnline')}</div>
+          {billing.active && <div className="campaign-banner"><strong>{t('campaignTitle')}</strong><span>{t('campaignOffer', { multiplier: billing.multiplier.toFixed(1) })}</span><small>{t('campaignEnd', { end: campaignEnd })}</small></div>}
           <h1>{t('heroTitle')}<br /><em>{t('heroTitleAccent')}</em></h1>
-          <p className="hero-lead">{t('heroLead1')}<br className="hero-mobile-break" />{t('heroLead2')}<br className="hero-mobile-break" />{t('heroLead3')}</p>
+          <p className="hero-lead">{t('heroLead1')}<br className="hero-mobile-break" />{t('heroLead2', { multiplier: billing.multiplier.toFixed(1) })}<br className="hero-mobile-break" />{t('heroLead3')}</p>
           <div className="hero-actions"><button className="button button-primary" onClick={openGenerator}>{t('generateConfig')} <Icon name="arrow" /></button><a className="button button-ghost" href="#models">{t('viewModels')} <Icon name="chevron" size={16} /></a></div>
           <div className="hero-trust"><span><Icon name="check" size={15} /> {t('streaming')}</span><span><Icon name="check" size={15} /> {t('toolCalls')}</span><span><Icon name="check" size={15} /> {t('usageAvailable')}</span></div>
         </div>
@@ -681,15 +701,15 @@ function App() {
           <div className="routing-grid" />
           <div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit orbit-three" />
           <div className="visual-core"><span className="core-spark">✦</span><small>ONE BALANCE</small><strong>{t('balanceCore')}<br />{t('modelsCore')}</strong><span className="core-url">cheapbuddy.cc / v1</span></div>
-          {displayModels.slice(0, 4).map((model, index) => <div className={`floating-card route-card route-${index + 1}`} key={model.id}><ModelMark model={model} /><div><small>{model.vendor}</small><strong>{model.short}</strong></div><b>0.6×</b></div>)}
+          {displayModels.slice(0, 4).map((model, index) => <div className={`floating-card route-card route-${index + 1}`} key={model.id}><ModelMark model={model} /><div><small>{model.vendor}</small><strong>{model.short}</strong></div><b>{billing.multiplier.toFixed(1)}×</b></div>)}
           <div className="visual-caption"><span className="live-line" /> <span>ROUTING / READY</span><span className="caption-separator" /><span>OPENAI COMPATIBLE</span></div>
         </div>
       </section>
 
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead')}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
-        <div className="model-grid">{displayModels.map((model) => <article className="model-card" key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices"><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></div><div className="model-card-meta"><span>{t('officialPrice')}</span><b>× 0.6</b></div></article>)}</div>
-        <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote')}</span><span className="shelf-line" /></div>
+        <div className="model-grid">{displayModels.map((model) => <article className="model-card" key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices"><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></div><div className="model-card-meta"><span>{t('officialPrice')}</span><b>× {billing.multiplier.toFixed(1)}</b></div></article>)}</div>
+        <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote', { multiplier: billing.multiplier.toFixed(1) })}</span><span className="shelf-line" /></div>
       </section>
 
       <section id="how" className="steps-section section-wrap">
@@ -703,7 +723,7 @@ function App() {
         <div className="generator-panel"><div className="generator-copy"><span className="section-index">03</span><h2>{t('generatorTitle')}<br /><em>{t('generatorTitleAccent')}</em></h2><p>{t('generatorLead')}</p><div className="generator-perks"><span><Icon name="shield" size={17} /> {t('boundKey')}</span><span><Icon name="bolt" size={17} /> {t('readyNow')}</span></div><button className="button button-primary" onClick={openGenerator}>{t('openConfigCenter')} <Icon name="arrow" /></button></div><div className="mini-console"><div className="console-bar"><span><i /><i /><i /></span><small>cheapbuddy / models.json</small><span className="console-live">● {t('live')}</span></div><pre><code><span className="code-key">models</span>: [<br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"glm-5.2"</span>,<br />    <span className="code-key">name</span>: <span className="code-string">"GLM 5.2"</span>,<br />    <span className="code-key">url</span>: <span className="code-string">{JSON.stringify(`${baseUrl}/chat/completions`)}</span><br />  {'}'},<br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"kimi-k3"</span>, ... {'}'}<br />]</code></pre><div className="console-footer"><span><span className="mini-dot" /> {t('modelsReady')}</span><span>JSON</span></div></div></div>
       </section>
 
-      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead', { multiplier: BILLING.multiplier.toFixed(1) })}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price">¥<strong>{formatAmount(plan.amount)}</strong></div><div className="pricing-plan-balance"><b>{plan.workbuddyPoints.toLocaleString()}</b><span>{t('workbuddyPoints')}</span></div><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount(plan.amount) })} <Icon name="arrow" size={15} /></button></article>)}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>¥<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>× {BILLING.multiplier.toFixed(1)}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{displayModels.slice(0, 5).map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b>{model.input} / {model.output}</b><i><em style={{ width: `${Math.min(92, 18 + displayModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
+      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead', { multiplier: billing.multiplier.toFixed(1) })}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price">¥<strong>{formatAmount(plan.amount)}</strong></div><div className="pricing-plan-balance"><b>{plan.workbuddyPoints.toLocaleString()}</b><span>{t('workbuddyPoints')}</span></div><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount(plan.amount) })} <Icon name="arrow" size={15} /></button></article>)}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>¥<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>× {billing.multiplier.toFixed(1)}</strong><small>{t('officialPriceBilling', { multiplier: billing.multiplier.toFixed(1) })}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{displayModels.slice(0, 5).map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b>{model.input} / {model.output}</b><i><em style={{ width: `${Math.min(92, 18 + displayModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
 
           <section id="guide" className="guide-section section-wrap"><div className="guide-copy"><span className="section-index">05</span><h2>{t('guideTitle')}<br />{t('guideTitleAccent')}</h2><p>{t('guideLead')}</p><button className="button button-primary guide-config-button" type="button" onClick={openGenerator}>{t('choosePlatformAndGenerate')} <Icon name="arrow" size={15} /></button><p className="guide-prompt-hint">{t('promptDescription')}</p></div><div className="guide-detail"><div className="guide-method"><span className="guide-method-mark">01</span><div><b>{t('guideStepDownload')}</b><p>{t('guideStepDownloadText')}</p></div></div><div className="guide-method"><span className="guide-method-mark">02</span><div><b>{t('guideStepRestart')}</b><p>{t('guideStepRestartText')}</p></div></div><div className="os-list platform-guide-list">{platformOptions.map((platform) => <button className={platform.id === platformId ? 'os-row active' : 'os-row'} key={platform.id} type="button" onClick={() => { changePlatform(platform.id); openGenerator(); }}><span className="os-icon">{platform.mark}</span><div><b>{platform.name}</b><small>{t(`platform_${platform.id}`)}</small></div><Icon name="arrow" size={17} /></button>)}</div></div></section>
     </main>
