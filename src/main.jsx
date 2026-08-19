@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { clearSession, createApiKey, createPaymentOrder, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listApiKeys, loginUser, registerUser, saveSession } from './api';
+import { clearSession, createApiKey, createPaymentOrder, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, loginUser, registerUser, saveSession } from './api';
 import { CAMPAIGN, defaultPricingPlan, getBillingState, pricingPlans } from './pricing';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
@@ -121,8 +121,35 @@ function Icon({ name, size = 18 }) {
     shield: <><path d="M12 3 20 6v5c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z" /><path d="m8.5 12 2.2 2.2 4.8-4.8" /></>,
     globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3c2.2 2.4 3.3 5.4 3.3 9s-1.1 6.6-3.3 9c-2.2-2.4-3.3-5.4-3.3-9S9.8 5.4 12 3Z" /></>,
     menu: <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>,
+    bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
   };
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
+function announcementId(item, index) {
+  return String(item?.id ?? item?.announcement_id ?? item?.created_at ?? index);
+}
+
+function formatAnnouncementDate(value, language) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+    timeZone: 'Asia/Shanghai',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function AnnouncementsPanel({ announcements, loading, error, language, onClose, onRefresh, t }) {
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="announcements-modal" role="dialog" aria-modal="true" aria-labelledby="announcements-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY UPDATES</span><h2 id="announcements-title">{t('announcements')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
+      <div className="announcements-toolbar"><p>{t('announcementsIntro')}</p><button className="text-button" onClick={onRefresh} disabled={loading}>{loading ? t('syncing') : t('refreshData')}</button></div>
+      {error && <p className="account-error">{error}</p>}
+      {loading ? <div className="account-loading"><span /><span /><span /></div> : announcements.length ? <div className="announcement-list">{announcements.map((item, index) => <article className="announcement-item" key={announcementId(item, index)}><div className="announcement-item-head"><h3>{item.title || t('announcementUntitled')}</h3><time>{formatAnnouncementDate(item.created_at || item.published_at || item.start_time, language)}</time></div><p>{item.content || item.content_md || item.body || ''}</p></article>)}</div> : <div className="account-empty">{t('noAnnouncements')}</div>}
+    </div>
+  </div>;
 }
 
 function Logo({ t = (key) => translate('zh', key) }) {
@@ -257,6 +284,17 @@ function App() {
   const [showGenerator, setShowGenerator] = useState(false);
   const [platformId, setPlatformId] = useState('workbuddy');
   const [showAccount, setShowAccount] = useState(false);
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [announcementError, setAnnouncementError] = useState('');
+  const [readAnnouncementIds, setReadAnnouncementIds] = useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem('cheapbuddy_read_announcements') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '' });
@@ -333,6 +371,10 @@ function App() {
     });
   }, [session.token]);
 
+  useEffect(() => {
+    window.localStorage.setItem('cheapbuddy_read_announcements', JSON.stringify(readAnnouncementIds));
+  }, [readAnnouncementIds]);
+
   const notify = (message) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 2600);
@@ -400,6 +442,43 @@ function App() {
     setShowAccount(true);
     await loadUsage();
   };
+
+  const loadAnnouncements = async () => {
+    if (!session.token) return [];
+    setAnnouncementLoading(true);
+    setAnnouncementError('');
+    try {
+      const result = await listAnnouncements();
+      const next = Array.isArray(result) ? result : [];
+      setAnnouncements(next);
+      return next;
+    } catch (error) {
+      setAnnouncementError(error.message || t('announcementsLoadFailed'));
+      return [];
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  const openAnnouncements = async () => {
+    if (!session.token) {
+      setShowAuth(true);
+      return;
+    }
+    setShowAnnouncements(true);
+    const items = await loadAnnouncements();
+    if (items.length) {
+      setReadAnnouncementIds((current) => Array.from(new Set([...current, ...items.map(announcementId)])));
+    }
+  };
+
+  useEffect(() => {
+    if (session.token) loadAnnouncements();
+    else {
+      setAnnouncements([]);
+      setShowAnnouncements(false);
+    }
+  }, [session.token]);
 
   const openGenerator = async () => {
     if (!session.token) {
@@ -671,9 +750,12 @@ function App() {
     setUsageSummary(null);
     setUsageModels([]);
     setShowAccount(false);
+    setShowAnnouncements(false);
     setShowGenerator(false);
     notify(t('loggedOut'));
   };
+
+  const unreadAnnouncementCount = announcements.filter((item, index) => !readAnnouncementIds.includes(announcementId(item, index))).length;
 
   return <div id="top" className="app-shell">
     <div className="noise" />
@@ -685,10 +767,12 @@ function App() {
           <a href="#how" onClick={closeNav}>{t('navHow')}</a>
           <a href="#pricing" onClick={closeNav}>{t('navPricing')}</a>
           <a href="#guide" onClick={closeNav}>{t('navGuide')}</a>
+          <button className="mobile-announcement-link" onClick={() => { closeNav(); openAnnouncements(); }}><Icon name="bell" size={16} />{t('announcements')}{unreadAnnouncementCount > 0 && <span className="announcement-count">{unreadAnnouncementCount > 9 ? '9+' : unreadAnnouncementCount}</span>}</button>
           <button className="mobile-account-link" onClick={() => { closeNav(); openAccount(); }}>{session.token ? t('accountOverview') : t('authAction')}</button>
         </nav>
         <div className="nav-actions">
           <LanguageToggle language={language} onChange={setLanguage} />
+          <button className="announcement-trigger" type="button" onClick={openAnnouncements} aria-label={t('announcements')} title={t('announcements')}><Icon name="bell" size={17} />{unreadAnnouncementCount > 0 && <span className="announcement-count">{unreadAnnouncementCount > 9 ? '9+' : unreadAnnouncementCount}</span>}</button>
           <button className="text-button" onClick={openAccount}>{session.token ? t('account') : t('authAction')}</button>
           <button className="button button-small button-blue" onClick={openGenerator}>{t('generateConfig')} <Icon name="arrow" size={15} /></button>
         </div>
@@ -740,6 +824,8 @@ function App() {
     <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
     {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={() => { setShowAccount(false); startRecharge(); }} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
+
+    {showAnnouncements && <AnnouncementsPanel announcements={announcements} loading={announcementLoading} error={announcementError} language={language} onClose={() => setShowAnnouncements(false)} onRefresh={loadAnnouncements} t={t} />}
 
     {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={displayModels} selected={selected} onToggleModel={toggleModel} session={session} apiKeyLoading={apiKeyLoading} onSyncKey={ensureApiKey} balance={balance} onRecharge={startRecharge} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
     {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button><button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button></div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p><form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}

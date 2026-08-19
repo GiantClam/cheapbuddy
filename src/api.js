@@ -73,6 +73,12 @@ export function getUsageDashboardModels(params) {
   return request(`/usage/dashboard/models${query ? `?${query}` : ''}`);
 }
 
+export async function listAnnouncements() {
+  const result = await request('/announcements');
+  const candidates = [result, result?.items, result?.announcements, result?.data, result?.data?.items];
+  return candidates.find(Array.isArray) || [];
+}
+
 export async function listApiKeys() {
   const result = await request('/keys?page=1&page_size=20');
   return result?.items || result?.data || [];
