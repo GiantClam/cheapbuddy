@@ -1,4 +1,6 @@
-const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || 'https://api.cheapbuddy.cc/api/v1').replace(/\/+$/, '');
+// Keep user-facing account and announcement requests on the CheapBuddy origin.
+// Deployments can override this for a separate console, but the default remains same-origin.
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
 
 export function getApiBaseUrl() {
   return API_BASE_URL;

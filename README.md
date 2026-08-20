@@ -59,6 +59,7 @@ Linux：打开或创建 `~/.workbuddy`，按相同方式合并 `models.json`。
 - 余额：`GET /api/v1/user/profile`
 - API Key：`GET/POST /api/v1/keys`
 - 充值：`GET /api/v1/payment/checkout-info`，然后 `POST /api/v1/payment/orders`
+- 官网公告：登录后的 CheapBuddy 官网通过同源 `GET /api/v1/announcements` 加载公告，并在导航栏铃铛入口展示；Sub2API 的公告页面仅供管理员发布和维护，不作为用户展示入口。
 - WorkBuddy 配置：生成的 `models.json` 使用 WorkBuddy 的 `url` 字段，直接指向 Sub2API 的 `/v1/chat/completions` OpenAI 兼容接口
 
 本地开发服务器已将 `/api` 代理到 `http://127.0.0.1:8080`。生产官网的用户中心 API 使用同域 `https://cheapbuddy.cc/api/v1`，Worker 会拒绝其中的管理接口；WorkBuddy API 使用独立的 `https://api.cheapbuddy.cc/v1`。如果官网和 Sub2API 不在同一域名，设置：
