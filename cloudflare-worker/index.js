@@ -1,4 +1,5 @@
 import { EmailMessage } from 'cloudflare:email';
+import { addRechargeGuidance, isTextModelPath, isUserBalanceInsufficientResponse } from './balance-recharge.mjs';
 
 const UPSTREAM_BASE = 'https://sub2api-production-493f.up.railway.app';
 const SUB2API_ADMIN_BASE = 'https://admin.cheapbuddy.cc';
@@ -138,6 +139,23 @@ async function handleAnnouncementSend(request, env) {
   }
 }
 
+async function enrichUserBalanceError(response, pathname) {
+  // Successful and streaming model responses must pass through untouched. Only
+  // bounded JSON errors from public text routes are eligible for enrichment.
+  if (response.ok || !isTextModelPath(pathname) || !response.headers.get('Content-Type')?.includes('application/json')) return response;
+  const payload = await response.clone().json().catch(() => null);
+  if (!isUserBalanceInsufficientResponse(payload, response.status)) return response;
+
+  const headers = new Headers(response.headers);
+  headers.delete('Content-Length');
+  headers.set('Content-Type', 'application/json; charset=utf-8');
+  return new Response(JSON.stringify(addRechargeGuidance(payload)), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async email(message) {
     try { await message.forward(FORWARD_TO); } catch (error) { console.error('inbound email forwarding failed', error); message.setReject('Forwarding temporarily unavailable'); }
@@ -157,6 +175,7 @@ export default {
     if (url.pathname === '/health' && request.method === 'GET') return withCors(json({ ok: true }), request);
     if (url.pathname === PUBLIC_API_ADMIN_PREFIX || url.pathname.startsWith(`${PUBLIC_API_ADMIN_PREFIX}/`)) return withCors(json({ message: '管理接口仅对私有管理域名开放' }, 404), request);
     const upstreamUrl = new URL(`${url.pathname}${url.search}`, UPSTREAM_BASE);
-    return withCors(await fetch(new Request(upstreamUrl, request)), request);
+    const upstreamResponse = await fetch(new Request(upstreamUrl, request));
+    return withCors(await enrichUserBalanceError(upstreamResponse, url.pathname), request);
   },
 };

@@ -56,12 +56,21 @@ function requireOptions(platformId, { apiKey, baseUrl, models } = {}) {
   validateBaseUrl(baseUrl);
 }
 
+function workBuddyVendor(model) {
+  if (typeof model.vendor === 'string') return model.vendor;
+  if (model.vendor && typeof model.vendor === 'object') {
+    return String(model.vendor.zh || model.vendor.en || 'CheapBuddy');
+  }
+  return 'CheapBuddy';
+}
+
 function makeWorkBuddyConfig(models, apiKey, apiBaseUrl) {
   return {
     models: models.map((model) => ({
       id: model.id,
-      name: model.short,
-      vendor: model.vendor,
+      name: 'CheapBuddy',
+      // WorkBuddy 5.5.x validates vendor as a plain string, not a localized object.
+      vendor: workBuddyVendor(model),
       apiKey,
       url: `${apiBaseUrl}/chat/completions`,
       maxInputTokens: model.maxInputTokens,
@@ -74,6 +83,8 @@ function makeWorkBuddyConfig(models, apiKey, apiBaseUrl) {
       reasoning: model.reasoning,
       useCustomProtocol: false,
     })),
+    // Keep the generated models visible in WorkBuddy's model selector.
+    availableModels: models.map(({ id }) => id),
   };
 }
 
@@ -100,13 +111,17 @@ function makeOpenCodeConfig(models, apiKey, apiBaseUrl) {
     model.id,
     {
       name: model.short,
-      modalities: {
+      // OpenCode v2 uses the upstream model ID explicitly. This is important
+      // for IDs containing slashes (for example provider/model variants).
+      modelID: model.id,
+      capabilities: {
+        tools: model.supportsToolCall,
         input: model.supportsImages ? ['text', 'image'] : ['text'],
         output: ['text'],
       },
-      tool_call: model.supportsToolCall,
-      reasoning: model.supportsReasoning,
-      attachment: model.supportsImages,
+      ...(model.supportsReasoning
+        ? { compatibility: { reasoningField: 'reasoning_content' } }
+        : {}),
       limit: {
         context: model.maxInputTokens,
         output: model.maxOutputTokens,
@@ -117,11 +132,11 @@ function makeOpenCodeConfig(models, apiKey, apiBaseUrl) {
   return {
     $schema: 'https://opencode.ai/config.json',
     model: `cheapbuddy/${models[0].id}`,
-    provider: {
+    providers: {
       cheapbuddy: {
-        npm: '@ai-sdk/openai-compatible',
         name: 'CheapBuddy',
-        options: {
+        package: '@opencode-ai/ai/providers/openai-compatible',
+        settings: {
           baseURL: apiBaseUrl,
           apiKey,
         },
@@ -179,6 +194,31 @@ const artifactMetadata = {
   },
 };
 
+function platformCompatibilityNote(platformId, language) {
+  if (language === 'en') {
+    if (platformId === 'opencode') {
+      return ' For current OpenCode v2, keep the top-level `providers` object, `package`, and `settings` fields exactly as generated; replace any existing CheapBuddy provider block and remove its legacy `provider`/`npm`/`options` form. Store this file at the user-level OpenCode path so it is loaded globally.';
+    }
+    if (platformId === 'codex') {
+      return ' Codex provider settings must be written to the user-level `~/.codex/config.toml` (Windows: `%USERPROFILE%\\.codex\\config.toml`); project-local config may not override provider settings.';
+    }
+    if (platformId === 'claude') {
+      return ' Claude Code gateway settings belong in `~/.claude/settings.json`; keep `ANTHROPIC_BASE_URL` at the relay root without `/v1` and do not append `/chat/completions`.';
+    }
+    return '';
+  }
+  if (platformId === 'opencode') {
+    return '当前 OpenCode v2 使用 `providers`（复数）、`package` 和 `settings` 字段；请替换已有 CheapBuddy provider 配置并删除旧版 `provider`/`npm`/`options` 结构，保持生成格式，并保存到用户级配置路径以便全局加载。';
+  }
+  if (platformId === 'codex') {
+    return 'Codex 的 provider 配置必须写入用户级 `~/.codex/config.toml`（Windows：`%USERPROFILE%\\.codex\\config.toml`）；项目目录下的配置可能不会覆盖 provider 设置。';
+  }
+  if (platformId === 'claude') {
+    return 'Claude Code 网关配置写入 `~/.claude/settings.json`；`ANTHROPIC_BASE_URL` 保持为不带 `/v1` 的中继根地址，不要再拼接 `/chat/completions`。';
+  }
+  return '';
+}
+
 export function createPlatformArtifact(platformId, options) {
   requireOptions(platformId, options);
   const apiBaseUrl = normalizeBaseUrl(options.baseUrl);
@@ -207,14 +247,19 @@ export function createPlatformArtifact(platformId, options) {
 
 export function buildInstallPrompt(artifact, language = 'zh') {
   const platform = platformOptions.find(({ id }) => id === artifact.platformId)?.name || artifact.platformId;
+  const workBuddyNote = artifact.platformId === 'workbuddy'
+    ? language === 'en'
+      ? ' For WorkBuddy 5.5.x, keep each vendor value as a plain string and replace the selected model entry instead of nesting localized vendor objects.'
+      : 'WorkBuddy 5.5.x 要求每个模型的 vendor 是普通字符串；请替换对应模型条目，不要把 vendor 嵌套成中英文对象。'
+    : '';
   const credentialStep = artifact.credentialEnvKey
     ? `\n4. Set ${artifact.credentialEnvKey} to this API key in your user environment before launching ${platform}: ${artifact.apiKey}\n5. Save the file, keep the API key private, and report the final path.\n6. Fully restart ${platform}.`
     : `\n4. Save the file, keep the API key private, and report the final path.\n5. Fully restart ${platform}.`;
   if (language === 'en') {
-    return `Configure ${platform} to use CheapBuddy. Perform the file operation instead of only explaining it.\n\n1. Open ${artifact.configPath} (Windows: ${artifact.windowsPath}) and create the parent directory if needed.\n2. Back up the existing file if present.\n3. Merge the configuration below into the existing file, preserving unrelated settings. The generated values win on conflicts.${credentialStep}\n\nGenerated ${artifact.filename}:\n${artifact.content}`;
+    return `Configure ${platform} to use CheapBuddy. Perform the file operation instead of only explaining it.\n\n1. Open ${artifact.configPath} (Windows: ${artifact.windowsPath}) and create the parent directory if needed.\n2. Back up the existing file if present.\n3. Merge the configuration below into the existing file, preserving unrelated settings. The generated values win on conflicts.${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${credentialStep}\n\nGenerated ${artifact.filename}:\n${artifact.content}`;
   }
   const chineseCredentialStep = artifact.credentialEnvKey
     ? `\n4. 在启动 ${platform} 前，将用户环境变量 ${artifact.credentialEnvKey} 设置为此 API Key：${artifact.apiKey}\n5. 保存文件、保护好 API Key，并告知最终路径。\n6. 完全退出并重新启动 ${platform}。`
     : `\n4. 保存文件、保护好 API Key，并告知最终路径。\n5. 完全退出并重新启动 ${platform}。`;
-  return `请将 ${platform} 配置为使用 CheapBuddy，并直接执行文件操作，不要只解释步骤。\n\n1. 打开 ${artifact.configPath}（Windows：${artifact.windowsPath}），目录不存在时先创建。\n2. 如果已有配置文件，先创建备份。\n3. 将下面的配置合并到现有文件中，保留无关设置；字段冲突时以新配置为准。${chineseCredentialStep}\n\n生成的 ${artifact.filename}：\n${artifact.content}`;
+  return `请将 ${platform} 配置为使用 CheapBuddy，并直接执行文件操作，不要只解释步骤。\n\n1. 打开 ${artifact.configPath}（Windows：${artifact.windowsPath}），目录不存在时先创建。\n2. 如果已有配置文件，先创建备份。\n3. 将下面的配置合并到现有文件中，保留无关设置；字段冲突时以新配置为准。${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${chineseCredentialStep}\n\n生成的 ${artifact.filename}：\n${artifact.content}`;
 }

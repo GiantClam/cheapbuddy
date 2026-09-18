@@ -1,17 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CAMPAIGN, getBillingState } from './pricing.js';
+import { GROUP_RATE_MULTIPLIER, OFFICIAL_PRICE_MULTIPLIER } from './pricing.js';
 
-test('uses the campaign multiplier before the campaign end time', () => {
-  const billing = getBillingState(new Date('2026-09-06T17:09:59+08:00'));
-
-  assert.equal(billing.active, true);
-  assert.equal(billing.multiplier, 0.2);
-});
-
-test('restores the regular multiplier at the campaign end time', () => {
-  const billing = getBillingState(new Date(CAMPAIGN.endAt));
-
-  assert.equal(billing.active, false);
-  assert.equal(billing.multiplier, 0.6);
+test('keeps public pricing disclosure aligned with the production group rate', () => {
+  assert.equal(GROUP_RATE_MULTIPLIER, 4);
+  assert.equal(OFFICIAL_PRICE_MULTIPLIER, 4);
 });

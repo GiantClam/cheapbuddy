@@ -40,8 +40,11 @@ const server = createServer(async (request, response) => {
     servedPath = resolve(root, 'index.html');
   }
 
+  const isHtmlDocument = extname(servedPath) === '.html';
   response.writeHead(200, {
-    'Cache-Control': extname(servedPath) ? 'public, max-age=31536000, immutable' : 'no-cache',
+    // The HTML shell selects the current hashed bundle, so it must always be
+    // revalidated after a deploy. Only immutable asset files may be cached long-term.
+    'Cache-Control': isHtmlDocument ? 'no-cache' : 'public, max-age=31536000, immutable',
     'Content-Type': mimeTypes[extname(servedPath)] || 'application/octet-stream',
   });
   createReadStream(servedPath).on('error', () => response.destroy()).pipe(response);

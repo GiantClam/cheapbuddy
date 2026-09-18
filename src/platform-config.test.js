@@ -39,6 +39,32 @@ const options = {
   models: selectedModels,
 };
 const singleModelOptions = { ...options, models: [selectedModels[0]] };
+const grokModel = {
+  id: 'grok-4.6',
+  short: 'Grok 4.6',
+  vendor: 'xAI',
+  maxInputTokens: 500000,
+  maxOutputTokens: 32768,
+  temperature: 1,
+  supportsToolCall: true,
+  supportsImages: true,
+  supportsReasoning: true,
+  onlyReasoning: false,
+  reasoning: { effort: 'high', supportedEfforts: ['low', 'medium', 'high', 'xhigh'] },
+};
+const gpt6AstraModel = {
+  id: 'gpt-6-astra',
+  short: 'GPT-6 Astra',
+  vendor: 'OpenAI',
+  maxInputTokens: 1050000,
+  maxOutputTokens: 128000,
+  temperature: 1,
+  supportsToolCall: true,
+  supportsImages: true,
+  supportsReasoning: true,
+  onlyReasoning: false,
+  reasoning: { effort: 'high' },
+};
 
 test('publishes every supported target platform', () => {
   assert.deepEqual(platformOptions.map(({ id }) => id), ['workbuddy', 'claude', 'opencode', 'codex']);
@@ -54,6 +80,20 @@ test('builds the existing WorkBuddy models file', () => {
   assert.equal(config.models.length, 2);
   assert.equal(config.models[0].url, 'https://api.cheapbuddy.cc/v1/chat/completions');
   assert.equal(config.models[0].apiKey, options.apiKey);
+  assert.equal(config.models[0].id, 'glm-5.2');
+  assert.equal(config.models[0].name, 'CheapBuddy');
+  assert.equal(config.models[0].vendor, 'Zhipu');
+  assert.deepEqual(config.availableModels, ['glm-5.2', 'MiniMax-M3']);
+  assert.match(buildInstallPrompt(artifact), /vendor 是普通字符串/);
+});
+
+test('normalizes localized vendor objects for WorkBuddy', () => {
+  const artifact = createPlatformArtifact('workbuddy', {
+    ...singleModelOptions,
+    models: [{ ...selectedModels[0], vendor: { zh: '智谱', en: 'Zhipu' } }],
+  });
+
+  assert.equal(JSON.parse(artifact.content).models[0].vendor, '智谱');
 });
 
 test('builds a Claude Code user gateway config using the Messages endpoint base', () => {
@@ -67,23 +107,31 @@ test('builds a Claude Code user gateway config using the Messages endpoint base'
   assert.equal(config.env.ANTHROPIC_MODEL, 'glm-5.2');
   assert.equal(config.env.ANTHROPIC_DEFAULT_HAIKU_MODEL, 'MiniMax-M3');
   assert.equal(config.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY, '1');
+  assert.match(buildInstallPrompt(artifact), /ANTHROPIC_BASE_URL.*不带.*\/v1/);
 });
 
 test('builds an OpenCode provider with all selected models', () => {
   const artifact = createPlatformArtifact('opencode', options);
   const config = JSON.parse(artifact.content);
-  const provider = config.provider.cheapbuddy;
+  const provider = config.providers.cheapbuddy;
 
   assert.equal(artifact.filename, 'opencode.json');
   assert.equal(artifact.configPath, '~/.config/opencode/opencode.json');
   assert.equal(config.model, 'cheapbuddy/glm-5.2');
-  assert.equal(provider.npm, '@ai-sdk/openai-compatible');
-  assert.equal(provider.options.baseURL, 'https://api.cheapbuddy.cc/v1');
-  assert.equal(provider.options.apiKey, options.apiKey);
+  assert.equal(provider.package, '@opencode-ai/ai/providers/openai-compatible');
+  assert.equal(provider.settings.baseURL, 'https://api.cheapbuddy.cc/v1');
+  assert.equal(provider.settings.apiKey, options.apiKey);
   assert.deepEqual(Object.keys(provider.models), ['glm-5.2', 'MiniMax-M3']);
-  assert.deepEqual(provider.models['glm-5.2'].modalities, { input: ['text'], output: ['text'] });
-  assert.equal(provider.models['glm-5.2'].tool_call, true);
-  assert.equal(provider.models['MiniMax-M3'].attachment, true);
+  assert.equal(provider.models['glm-5.2'].modelID, 'glm-5.2');
+  assert.deepEqual(provider.models['glm-5.2'].capabilities, {
+    tools: true,
+    input: ['text'],
+    output: ['text'],
+  });
+  assert.deepEqual(provider.models['glm-5.2'].compatibility, { reasoningField: 'reasoning_content' });
+  assert.deepEqual(provider.models['MiniMax-M3'].capabilities.input, ['text', 'image']);
+  assert.match(buildInstallPrompt(artifact), /providers.*package.*settings/);
+  assert.match(buildInstallPrompt(artifact, 'en'), /legacy.*provider.*npm.*options/);
 });
 
 test('builds a Codex Responses API provider with the first model as default', () => {
@@ -98,6 +146,38 @@ test('builds a Codex Responses API provider with the first model as default', ()
   assert.match(artifact.content, /^env_key = "CHEAPBUDDY_API_KEY"/m);
   assert.doesNotMatch(artifact.content, /experimental_bearer_token/);
   assert.match(buildInstallPrompt(artifact, 'en'), new RegExp(`CHEAPBUDDY_API_KEY.*${generatedApiKey}`, 's'));
+  assert.match(buildInstallPrompt(artifact, 'en'), /user-level.*config\.toml/);
+});
+
+test('keeps Grok 4.6 in generated platform configurations', () => {
+  const grokOptions = { ...options, models: [grokModel] };
+
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', grokOptions).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', grokOptions).content);
+  const claude = JSON.parse(createPlatformArtifact('claude', grokOptions).content);
+  const codex = createPlatformArtifact('codex', grokOptions).content;
+
+  assert.equal(workbuddy.models[0].id, 'grok-4.6');
+  assert.equal(workbuddy.models[0].maxInputTokens, 500000);
+  assert.equal(opencode.providers.cheapbuddy.models['grok-4.6'].limit.context, 500000);
+  assert.equal(claude.env.ANTHROPIC_MODEL, 'grok-4.6');
+  assert.match(codex, /^model = "grok-4\.6"/m);
+});
+
+test('keeps GPT-6 Astra in every generated platform configuration', () => {
+  const astraOptions = { ...options, models: [gpt6AstraModel] };
+
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', astraOptions).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', astraOptions).content);
+  const claude = JSON.parse(createPlatformArtifact('claude', astraOptions).content);
+  const codex = createPlatformArtifact('codex', astraOptions).content;
+
+  assert.equal(workbuddy.models[0].id, 'gpt-6-astra');
+  assert.equal(workbuddy.models[0].name, 'CheapBuddy');
+  assert.equal(opencode.providers.cheapbuddy.models['gpt-6-astra'].modelID, 'gpt-6-astra');
+  assert.equal(opencode.providers.cheapbuddy.models['gpt-6-astra'].limit.context, 1050000);
+  assert.equal(claude.env.ANTHROPIC_MODEL, 'gpt-6-astra');
+  assert.match(codex, /^model = "gpt-6-astra"/m);
 });
 
 test('rejects invalid generator inputs', () => {

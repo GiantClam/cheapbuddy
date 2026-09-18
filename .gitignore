@@ -6,3 +6,10 @@ test-results/
 .tmp-*
 buddy-headers.txt
 buddy-page.html
+relay/relay.exe
+.gstack/
+docker-compose.local.yml
+marketing_assets/
+newapi-upstream/
+relay/
+sub2api-bridge/

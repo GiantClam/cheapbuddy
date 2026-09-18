@@ -1,17 +1,8 @@
-export const CAMPAIGN = {
-  endAt: '2026-09-06T17:10:00+08:00',
-  multiplier: 0.2,
-  regularMultiplier: 0.6,
-};
-
-export function getBillingState(now = new Date()) {
-  const active = now.getTime() < Date.parse(CAMPAIGN.endAt);
-  return {
-    active,
-    multiplier: active ? CAMPAIGN.multiplier : CAMPAIGN.regularMultiplier,
-    endsAt: CAMPAIGN.endAt,
-  };
-}
+// Customer billing is controlled by the production Sub2API group multiplier.
+// Keep this value aligned with the CheapBuddy OpenAI group so public pricing
+// copy cannot claim a discount when the configured rate is above official list.
+export const GROUP_RATE_MULTIPLIER = 4;
+export const OFFICIAL_PRICE_MULTIPLIER = GROUP_RATE_MULTIPLIER;
 
 // Customer-facing recharge tiers. The backend receives the amount field in yuan;
 // Sub2API remains the source of truth for the user's balance and billing.

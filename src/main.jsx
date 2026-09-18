@@ -1,54 +1,36 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { clearSession, createApiKey, createPaymentOrder, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, loginUser, registerUser, saveSession } from './api';
-import { CAMPAIGN, defaultPricingPlan, getBillingState, pricingPlans } from './pricing';
+import { clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
+import { OFFICIAL_PRICE_MULTIPLIER, defaultPricingPlan, pricingPlans } from './pricing';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
 
-const models = [
-  {
-    id: 'doubao-seed-2.0-code', short: 'Seed Code', vendor: '豆包', vendorKey: 'vendorDoubao', description: '编码、调试与工具调用', descriptionKey: 'modelCode', input: '$0.44', output: '$2.22', accent: 'mint', mark: 'DS',
-    maxInputTokens: 128000, maxOutputTokens: 8192, temperature: 1,
-    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
-    reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'medium', 'high'], summary: 'auto', canDisableThinking: true },
-  },
-  {
-    id: 'glm-5.2', short: 'GLM 5.2', vendor: '智谱', vendorKey: 'vendorZhipu', description: '长文分析与复杂交付', descriptionKey: 'modelAnalysis', input: '$1.11', output: '$3.89', accent: 'blue', mark: 'G5',
-    maxInputTokens: 128000, maxOutputTokens: 8192, temperature: 1,
-    supportsToolCall: true, supportsImages: false, supportsReasoning: true, onlyReasoning: false,
-    reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: true },
-  },
-  {
-    id: 'MiniMax-M3', short: 'MiniMax M3', vendor: 'MiniMax', vendorKey: 'vendorMiniMax', description: '长上下文与 Agent 任务', descriptionKey: 'modelAgent', input: '$0.60', output: '$2.40', accent: 'violet', mark: 'M3',
-    maxInputTokens: 128000, maxOutputTokens: 8192, temperature: 1,
-    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
-    reasoning: { effort: 'medium', defaultEffort: 'medium', supportedEfforts: [], summary: 'auto', canDisableThinking: true },
-  },
-  {
-    id: 'doubao-seed-2.0-pro', short: 'Seed Pro', vendor: '豆包', vendorKey: 'vendorDoubao', description: '通用问答与高质量写作', descriptionKey: 'modelWriting', input: '$0.44', output: '$2.22', accent: 'orange', mark: 'DP',
-    maxInputTokens: 128000, maxOutputTokens: 8192, temperature: 1,
-    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
-    reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'medium', 'high'], summary: 'auto', canDisableThinking: true },
-  },
-  {
-    id: 'qwen3.8-max-preview', short: 'Qwen 3.8 Max', vendor: '通义千问', vendorKey: 'vendorQwen', description: '研究、规划与深度推理', descriptionKey: 'modelReasoning', input: '$2.50', output: '$7.50', accent: 'yellow', mark: 'QW',
-    maxInputTokens: 128000, maxOutputTokens: 8192, temperature: 0.6,
-    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: true,
-    reasoning: { effort: 'xhigh', defaultEffort: 'xhigh', supportedEfforts: ['low', 'medium', 'xhigh'], summary: 'auto', canDisableThinking: false },
-  },
-  {
-    id: 'kimi-k3', short: 'Kimi K3', vendor: 'Kimi', vendorKey: 'vendorKimi', description: '知识工作与软件工程', descriptionKey: 'modelEngineering', input: '$3.00', output: '$15.00', accent: 'pink', mark: 'K3',
-    maxInputTokens: 128000, maxOutputTokens: 8192, temperature: 1,
-    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: true,
-    reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
-  },
-];
+import { localizeModels, modelCatalog as models } from './models';
 
 const baseUrl = String(import.meta.env.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc/v1').replace(/\/+$/, '');
 const cheapBuddyGroupId = Number(import.meta.env.VITE_CHEAPBUDDY_GROUP_ID || 1);
 const configuredTurnstileSiteKey = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
 const turnstileRequiredByEnv = String(import.meta.env.VITE_TURNSTILE_REQUIRED || '').toLowerCase() === 'true';
+const adminPortalHost = String(import.meta.env.VITE_ADMIN_PORTAL_HOST || 'admin.cheapbuddy.cc').trim().toLowerCase();
+const isAdminPortalHost = typeof window !== 'undefined' && window.location.hostname.toLowerCase() === adminPortalHost;
+
+function getAdminConsoleUrl(value) {
+  const candidate = String(value || '').trim();
+  if (!candidate) return '';
+  try {
+    const url = new URL(candidate);
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString().replace(/\/+$/, '') : '';
+  } catch {
+    return '';
+  }
+}
+
+const adminConsoleUrls = {
+  sub2api: getAdminConsoleUrl(import.meta.env.VITE_ADMIN_SUB2API_URL),
+  newapi: getAdminConsoleUrl(import.meta.env.VITE_ADMIN_NEWAPI_URL),
+};
 let turnstileScriptPromise;
 
 function loadTurnstileScript() {
@@ -178,17 +160,6 @@ function formatCompactNumber(value) {
   return number.toLocaleString('en-US');
 }
 
-function formatCampaignEnd(endsAt, language) {
-  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
-    timeZone: 'Asia/Shanghai',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(endsAt));
-}
-
 function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -216,17 +187,74 @@ async function writeClipboard(text) {
   if (!copied) throw new Error('Clipboard unavailable');
 }
 
-function AccountPanel({ user, balance, usageSummary, usageModels, usageLoading, usageError, onClose, onRefresh, onRecharge, onConfig, onLogout, t }) {
+function AccountPanel({ user, balance, usageSummary, usageModels, usageLoading, usageError, onAffiliate, onClose, onRefresh, onRecharge, onConfig, onLogout, t }) {
   const stats = usageSummary || {};
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="account-title">{t('accountTitle')}</h2><p className="account-email">{user?.email || t('cheapbuddyUser')}</p></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
-      <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>¥ {formatAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button></div></div>
+      <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>¥ {formatAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button><button className="button button-ghost" onClick={onAffiliate}>{t('affiliate')}</button></div></div>
       <div className="account-stats"><div><span>{t('totalRequests')}</span><strong>{formatCompactNumber(stats.total_requests)}</strong></div><div><span>{t('totalTokens')}</span><strong>{formatCompactNumber(stats.total_tokens)}</strong></div><div><span>{t('todayCost')}</span><strong>${formatAmount(stats.today_actual_cost || 0)}</strong></div></div>
       <div className="account-usage-head"><div><span className="modal-kicker">USAGE</span><h3>{t('recentUsage')}</h3></div><button className="text-button" onClick={onRefresh} disabled={usageLoading}>{usageLoading ? t('syncing') : t('refreshData')}</button></div>
       {usageError && <p className="account-error">{usageError}</p>}
-      {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 6).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = item.total_requests ?? item.requests ?? 0; return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}</small></div><strong>{formatCompactNumber(item.total_tokens)} <small>tokens</small></strong><i><em style={{ width: `${Math.min(100, Math.max(7, (Number(item.total_tokens || 0) / Math.max(...usageModels.map((entry) => Number(entry.total_tokens || 0)), 1)) * 100))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
+      {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 7).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = item.total_requests ?? item.requests ?? 0; return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}</small></div><strong>{formatCompactNumber(item.total_tokens)} <small>tokens</small></strong><i><em style={{ width: `${Math.min(100, Math.max(7, (Number(item.total_tokens || 0) / Math.max(...usageModels.map((entry) => Number(entry.total_tokens || 0)), 1)) * 100))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
       <div className="account-footer"><p className="account-source">{t('readOnlyData')}</p><button className="text-button account-logout" onClick={onLogout}>{t('logout')}</button></div>
+    </div>
+  </div>;
+}
+
+function formatAffiliateDate(value, language) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+    timeZone: 'Asia/Shanghai',
+    dateStyle: 'medium',
+  }).format(date);
+}
+
+function AffiliatePanel({ detail, error, language, loading, transferring, onClose, onCopyCode, onCopyLink, onRefresh, onTransfer, t }) {
+  const inviteLink = buildAffiliateInviteLink(detail?.affCode);
+  const stats = [
+    ['affiliateRebateRate', `${formatAmount(detail?.rebateRatePercent || 0)}%`],
+    ['affiliateInvitedUsers', formatCompactNumber(detail?.invitedCount || 0)],
+    ['affiliateAvailableBalance', `¥ ${formatAmount(detail?.availableQuota || 0)}`],
+    ['affiliateTotalBalance', `¥ ${formatAmount(detail?.totalQuota || 0)}`],
+  ];
+
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="account-modal affiliate-modal" role="dialog" aria-modal="true" aria-labelledby="affiliate-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY AFFILIATE</span><h2 id="affiliate-title">{t('affiliate')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
+      <div className="affiliate-toolbar"><p>{t('affiliateAccountData')}</p><button className="text-button" onClick={onRefresh} disabled={loading}>{loading ? t('syncing') : t('refreshData')}</button></div>
+      {error && <p className="account-error">{error}</p>}
+      {loading ? <div className="account-loading"><span /><span /><span /></div> : detail ? <>
+        <div className="affiliate-stat-grid">{stats.map(([key, value]) => <div key={key}><span>{t(key)}</span><strong>{value}</strong></div>)}</div>
+        {detail.frozenQuota > 0 && <p className="affiliate-frozen">{t('affiliateFrozenBalance', { amount: formatAmount(detail.frozenQuota) })}</p>}
+        <section className="affiliate-share-card"><div><span className="modal-kicker">INVITE</span><h3>{t('affiliateInviteLink')}</h3></div><div className="affiliate-code-row"><code>{inviteLink || '—'}</code><button className="button button-ghost" type="button" disabled={!inviteLink} onClick={() => onCopyLink(inviteLink)}><Icon name="copy" size={15} /> {t('copy')}</button></div><div className="affiliate-code-meta"><span>{t('affiliateCode')}</span><code>{detail.affCode || '—'}</code><button className="text-button" type="button" disabled={!detail.affCode} onClick={() => onCopyCode(detail.affCode)}>{t('affiliateCopyCode')}</button></div></section>
+        <section className="affiliate-transfer"><div><span className="modal-kicker">BALANCE</span><h3>{t('affiliateTransferTitle')}</h3><p>{t('affiliateTransferDescription')}</p></div><button className="button button-primary" type="button" disabled={transferring || detail.availableQuota <= 0} onClick={onTransfer}>{transferring ? t('processing') : t('affiliateTransfer')}</button></section>
+        <section className="affiliate-invitees"><div className="account-usage-head"><div><span className="modal-kicker">RECORDS</span><h3>{t('affiliateInviteRecords')}</h3></div></div>{detail.invitees.length ? <div className="affiliate-table-wrap"><table><thead><tr><th>{t('affiliateInvitee')}</th><th>{t('affiliateJoinedAt')}</th><th>{t('affiliateRebate')}</th></tr></thead><tbody>{detail.invitees.map((invitee) => <tr key={`${invitee.userId}-${invitee.email}`}><td><b>{invitee.email || '—'}</b><small>{invitee.username || '—'}</small></td><td>{formatAffiliateDate(invitee.createdAt, language)}</td><td>¥ {formatAmount(invitee.totalRebate)}</td></tr>)}</tbody></table></div> : <div className="account-empty">{t('affiliateNoInvitees')}</div>}</section>
+      </> : <div className="account-empty">{t('affiliateUnavailable')}</div>}
+    </div>
+  </div>;
+}
+
+function AdminConsolePicker({ onClose, t }) {
+  const consoles = [
+    { id: 'sub2api', mark: 'S2', titleKey: 'adminSub2ApiTitle', descriptionKey: 'adminSub2ApiDescription', url: adminConsoleUrls.sub2api },
+    { id: 'newapi', mark: 'N', titleKey: 'adminNewApiTitle', descriptionKey: 'adminNewApiDescription', url: adminConsoleUrls.newapi },
+  ];
+
+  return <div className="modal-backdrop admin-picker-backdrop" role="presentation" onClick={onClose}>
+    <div className="admin-picker-modal" role="dialog" aria-modal="true" aria-labelledby="admin-picker-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ADMIN</span><h2 id="admin-picker-title">{t('adminPickerTitle')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
+      <p className="admin-picker-intro">{t('adminPickerIntro')}</p>
+      <div className="admin-console-grid">
+        {consoles.map((consoleItem) => consoleItem.url ? <a className={`admin-console-card admin-console-${consoleItem.id}`} key={consoleItem.id} href={consoleItem.url} target="_blank" rel="noopener noreferrer" onClick={onClose}>
+          <span className="admin-console-mark">{consoleItem.mark}</span><span className="admin-console-copy"><strong>{t(consoleItem.titleKey)}</strong><small>{t(consoleItem.descriptionKey)}</small></span><Icon name="arrow" size={17} />
+        </a> : <div className="admin-console-card admin-console-disabled" key={consoleItem.id} aria-disabled="true">
+          <span className="admin-console-mark">{consoleItem.mark}</span><span className="admin-console-copy"><strong>{t(consoleItem.titleKey)}</strong><small>{t('adminConsoleNotConfigured')}</small></span><span className="admin-console-status">ENV</span>
+        </div>)}
+      </div>
+      <p className="admin-picker-note">{t('adminPickerNote')}</p>
     </div>
   </div>;
 }
@@ -277,13 +305,13 @@ function ConfigGeneratorModal({
 
 function App() {
   const [language, setLanguage] = useState(getInitialLanguage);
-  const [campaignNow, setCampaignNow] = useState(() => new Date());
   const [selected, setSelected] = useState(models.map((model) => model.id));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [showGenerator, setShowGenerator] = useState(false);
   const [platformId, setPlatformId] = useState('workbuddy');
   const [showAccount, setShowAccount] = useState(false);
+  const [showAffiliate, setShowAffiliate] = useState(false);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [announcementLoading, setAnnouncementLoading] = useState(false);
@@ -296,6 +324,7 @@ function App() {
     }
   });
   const [showAuth, setShowAuth] = useState(false);
+  const [showAdminPicker, setShowAdminPicker] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '' });
   const [authLoading, setAuthLoading] = useState(false);
@@ -315,15 +344,17 @@ function App() {
   const [usageModels, setUsageModels] = useState([]);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState('');
+  const [affiliateDetail, setAffiliateDetail] = useState(null);
+  const [affiliateLoading, setAffiliateLoading] = useState(false);
+  const [affiliateError, setAffiliateError] = useState('');
+  const [affiliateTransferLoading, setAffiliateTransferLoading] = useState(false);
   const [testLatency, setTestLatency] = useState(0);
 
   const t = (key, variables) => translate(language, key, variables);
-  const billing = getBillingState(campaignNow);
-  const campaignEnd = formatCampaignEnd(CAMPAIGN.endAt, language);
-
   const turnstileSiteKey = publicTurnstile.siteKey || configuredTurnstileSiteKey;
   const turnstileEnabled = publicTurnstile.enabled || Boolean(configuredTurnstileSiteKey);
   const turnstileRequired = turnstileRequiredByEnv || turnstileEnabled;
+  const referralCode = useMemo(() => getAffiliateCodeFromSearch(window.location.search), []);
 
   useEffect(() => {
     setStoredLanguage(language);
@@ -332,24 +363,15 @@ function App() {
     if (description) description.setAttribute('content', language === 'en' ? 'CheapBuddy — Use multiple leading models in WorkBuddy.' : 'CheapBuddy — 在 WorkBuddy 中使用多个主流最新模型。');
   }, [language]);
 
-  useEffect(() => {
-    const updateCampaignState = () => setCampaignNow(new Date());
-    const campaignEndDelay = Date.parse(CAMPAIGN.endAt) - Date.now();
-    const endTimer = campaignEndDelay > 0
-      ? window.setTimeout(updateCampaignState, campaignEndDelay + 100)
-      : undefined;
-    const heartbeatTimer = window.setInterval(updateCampaignState, 60_000);
-
-    return () => {
-      if (endTimer !== undefined) window.clearTimeout(endTimer);
-      window.clearInterval(heartbeatTimer);
-    };
-  }, []);
-
-  const selectedModels = useMemo(() => models.filter((model) => selected.includes(model.id)), [selected]);
   const activePlatform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
-  const displayModels = useMemo(() => models.map((model) => ({ ...model, vendor: t(model.vendorKey || ''), description: t(model.descriptionKey || '') })), [language]);
+  const displayModels = useMemo(() => localizeModels(models, language), [language]);
+  const selectedModels = useMemo(() => displayModels.filter((model) => selected.includes(model.id)), [displayModels, selected]);
+  const configDisplayModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)];
+  const heroModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)].slice(0, 4);
+  const usageExampleModels = [...displayModels.filter((model) => model.showInUsageExample), ...displayModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
+  const consoleModels = displayModels.slice(0, 2);
   const displayPricingPlans = useMemo(() => pricingPlans.map((plan) => ({ ...plan, name: t(plan.nameKey), description: t(plan.descriptionKey), tag: t(plan.tagKey) })), [language]);
+  const officialMultiplier = `${OFFICIAL_PRICE_MULTIPLIER.toFixed(1)}×`;
 
   useEffect(() => {
     getPublicSettings().then((settings) => {
@@ -361,15 +383,31 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!session.token) return;
-    getProfile().then((profile) => {
-      setSession((current) => ({ ...current, user: profile }));
-      setBalance(profile?.balance ?? null);
-    }).catch(() => {
-      clearSession();
-      setSession({ token: null, user: null, apiKey: '' });
-    });
+    if (!session.token) return undefined;
+    let active = true;
+    const loadSession = async () => {
+      try {
+        if (isAdminPortalHost) await verifyAdminAccess();
+        const profile = await getProfile();
+        if (!active) return;
+        setSession((current) => ({ ...current, user: profile }));
+        setBalance(profile?.balance ?? null);
+      } catch {
+        if (!active) return;
+        clearSession();
+        setSession({ token: null, user: null, apiKey: '' });
+      }
+    };
+    loadSession();
+    return () => { active = false; };
   }, [session.token]);
+
+  useEffect(() => {
+    if (referralCode && !session.token && !isAdminPortalHost) {
+      setAuthMode('register');
+      setShowAuth(true);
+    }
+  }, [referralCode, session.token]);
 
   useEffect(() => {
     window.localStorage.setItem('cheapbuddy_read_announcements', JSON.stringify(readAnnouncementIds));
@@ -434,6 +472,19 @@ function App() {
     }
   };
 
+  const loadAffiliate = async () => {
+    if (!session.token) return;
+    setAffiliateLoading(true);
+    setAffiliateError('');
+    try {
+      setAffiliateDetail(normalizeAffiliateDetail(await getAffiliateDetail()));
+    } catch (error) {
+      setAffiliateError(error.message || t('affiliateLoadFailed'));
+    } finally {
+      setAffiliateLoading(false);
+    }
+  };
+
   const openAccount = async () => {
     if (!session.token) {
       setShowAuth(true);
@@ -441,6 +492,44 @@ function App() {
     }
     setShowAccount(true);
     await loadUsage();
+  };
+
+  const openAffiliate = async () => {
+    if (!session.token) {
+      setShowAuth(true);
+      return;
+    }
+    setShowAffiliate(true);
+    await loadAffiliate();
+  };
+
+  const copyAffiliateValue = async (value, successKey) => {
+    try {
+      await writeClipboard(value);
+      notify(t(successKey));
+    } catch {
+      notify(t('copyFailed'));
+    }
+  };
+
+  const transferAffiliateBalance = async () => {
+    if (!affiliateDetail || affiliateDetail.availableQuota <= 0 || affiliateTransferLoading) return;
+    setAffiliateTransferLoading(true);
+    setAffiliateError('');
+    try {
+      const result = await transferAffiliateQuota();
+      const nextBalance = Number(result?.balance);
+      if (Number.isFinite(nextBalance)) {
+        setBalance(nextBalance);
+        setSession((current) => ({ ...current, user: current.user ? { ...current.user, balance: nextBalance } : current.user }));
+      }
+      notify(t('affiliateTransferSuccess', { amount: formatAmount(result?.transferred_quota || 0) }));
+      await loadAffiliate();
+    } catch (error) {
+      setAffiliateError(error.message || t('affiliateTransferFailed'));
+    } finally {
+      setAffiliateTransferLoading(false);
+    }
   };
 
   const loadAnnouncements = async () => {
@@ -505,6 +594,10 @@ function App() {
 
   const submitLogin = async (event) => {
     event.preventDefault();
+    if (isAdminPortalHost && authMode === 'register') {
+      setAuthError(t('adminLoginOnly'));
+      return;
+    }
     if (turnstileRequired && !turnstileSiteKey) {
       setAuthError(t('turnstileNotConfigured'));
       return;
@@ -520,7 +613,7 @@ function App() {
       let action = authMode;
       if (authMode === 'register') {
         try {
-          result = await registerUser(authForm.email.trim(), authForm.password, turnstileToken);
+          result = await registerUser(authForm.email.trim(), authForm.password, turnstileToken, referralCode);
         } catch (error) {
           if (!isExistingUserError(error)) throw error;
           setAuthMode('login');
@@ -534,6 +627,14 @@ function App() {
       if (result.requires_2fa) throw new Error(t('twoFactorRequired'));
       saveSession(result);
       const nextSession = { token: result.access_token, user: result.user, apiKey: '' };
+      if (isAdminPortalHost && action === 'login') {
+        try {
+          await verifyAdminAccess();
+        } catch {
+          clearSession();
+          throw new Error(t('adminAccessDenied'));
+        }
+      }
       setSession(nextSession);
       setBalance(result.user?.balance ?? null);
       setShowAuth(false);
@@ -551,6 +652,7 @@ function App() {
           setApiKeyLoading(false);
         }
       } else {
+        if (isAdminPortalHost) setShowAdminPicker(true);
         notify(t('loginSuccess'));
       }
     } catch (error) {
@@ -749,7 +851,10 @@ function App() {
     setBalance(null);
     setUsageSummary(null);
     setUsageModels([]);
+    setAffiliateDetail(null);
+    setAffiliateError('');
     setShowAccount(false);
+    setShowAffiliate(false);
     setShowAnnouncements(false);
     setShowGenerator(false);
     notify(t('loggedOut'));
@@ -783,26 +888,25 @@ function App() {
     <main>
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
-          <div className="status-line"><span className="status-dot" />{t('channelOnline')}</div>
-          {billing.active && <aside className="campaign-banner" aria-label={t('campaignTitle')}><div className="campaign-banner-head"><strong>{t('campaignTitle')}</strong><span className="campaign-saving-badge"><small>{t('campaignSavingsLabel')}</small><b>{t('campaignSavings')}</b></span></div><div className="campaign-rates"><div className="campaign-rate sale"><small>{t('campaignSaleRate')}</small><b>{t('campaignSaleDiscount')}</b><span>{t('campaignSaleMultiplier')}</span></div><span className="campaign-rate-arrow" aria-hidden="true">←</span><div className="campaign-rate regular"><small>{t('campaignRegularRate')}</small><b>{t('campaignRegularDiscount')}</b><span>{t('campaignRegularMultiplier')}</span></div></div><p>{t('campaignDuration', { end: campaignEnd })}</p></aside>}
+          <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: models.length })}</div>
           <h1>{t('heroTitle')}<br /><em>{t('heroTitleAccent')}</em></h1>
-          <p className="hero-lead">{t('heroLead1')}<br className="hero-mobile-break" />{t('heroLead2', { multiplier: billing.multiplier.toFixed(1) })}<br className="hero-mobile-break" />{t('heroLead3')}</p>
+          <p className="hero-lead">{t('heroLead1')}<br className="hero-mobile-break" />{t('heroLead2', { officialMultiplier })}<br className="hero-mobile-break" />{t('heroLead3')}</p>
           <div className="hero-actions"><button className="button button-primary" onClick={openGenerator}>{t('generateConfig')} <Icon name="arrow" /></button><a className="button button-ghost" href="#models">{t('viewModels')} <Icon name="chevron" size={16} /></a></div>
           <div className="hero-trust"><span><Icon name="check" size={15} /> {t('streaming')}</span><span><Icon name="check" size={15} /> {t('toolCalls')}</span><span><Icon name="check" size={15} /> {t('usageAvailable')}</span></div>
         </div>
         <div className="hero-visual reveal reveal-delay" aria-label={t('currentBalance')}>
           <div className="routing-grid" />
           <div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit orbit-three" />
-          <div className="visual-core"><span className="core-spark">✦</span><small>ONE BALANCE</small><strong>{t('balanceCore')}<br />{t('modelsCore')}</strong><span className="core-url">cheapbuddy.cc / v1</span></div>
-          {displayModels.slice(0, 4).map((model, index) => <div className={`floating-card route-card route-${index + 1}`} key={model.id}><ModelMark model={model} /><div><small>{model.vendor}</small><strong>{model.short}</strong></div><b>{billing.multiplier.toFixed(1)}×</b></div>)}
+          <div className="visual-core"><span className="core-spark">✦</span><small>ONE BALANCE</small><strong>{t('balanceCore')}<br />{t('modelsCore', { count: models.length })}</strong><span className="core-url">cheapbuddy.cc / v1</span></div>
+          {heroModels.map((model, index) => <div className={`floating-card route-card route-${index + 1}`} key={model.id}><ModelMark model={model} /><div><small>{model.vendor}</small><strong>{model.short}</strong></div><b>{officialMultiplier}</b></div>)}
           <div className="visual-caption"><span className="live-line" /> <span>ROUTING / READY</span><span className="caption-separator" /><span>OPENAI COMPATIBLE</span></div>
         </div>
       </section>
 
       <section id="models" className="models-section section-wrap">
-        <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead')}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
-        <div className="model-grid">{displayModels.map((model) => <article className="model-card" key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices"><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></div><div className="model-card-meta"><span>{t('officialPrice')}</span><b>× {billing.multiplier.toFixed(1)}</b></div></article>)}</div>
-        <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote', { multiplier: billing.multiplier.toFixed(1) })}</span><span className="shelf-line" /></div>
+        <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
+        <div className="model-grid">{displayModels.map((model) => <article className="model-card" key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices"><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></div><div className="model-card-meta"><span>{t('officialPrice')}</span><b>{officialMultiplier}</b></div></article>)}</div>
+        <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote', { officialMultiplier })}</span><span className="shelf-line" /></div>
       </section>
 
       <section id="how" className="steps-section section-wrap">
@@ -813,22 +917,25 @@ function App() {
       </section>
 
       <section id="generator" className="generator-section section-wrap">
-        <div className="generator-panel"><div className="generator-copy"><span className="section-index">03</span><h2>{t('generatorTitle')}<br /><em>{t('generatorTitleAccent')}</em></h2><p>{t('generatorLead')}</p><div className="generator-perks"><span><Icon name="shield" size={17} /> {t('boundKey')}</span><span><Icon name="bolt" size={17} /> {t('readyNow')}</span></div><button className="button button-primary" onClick={openGenerator}>{t('openConfigCenter')} <Icon name="arrow" /></button></div><div className="mini-console"><div className="console-bar"><span><i /><i /><i /></span><small>cheapbuddy / models.json</small><span className="console-live">● {t('live')}</span></div><pre><code><span className="code-key">models</span>: [<br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"glm-5.2"</span>,<br />    <span className="code-key">name</span>: <span className="code-string">"GLM 5.2"</span>,<br />    <span className="code-key">url</span>: <span className="code-string">{JSON.stringify(`${baseUrl}/chat/completions`)}</span><br />  {'}'},<br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"kimi-k3"</span>, ... {'}'}<br />]</code></pre><div className="console-footer"><span><span className="mini-dot" /> {t('modelsReady')}</span><span>JSON</span></div></div></div>
+        <div className="generator-panel"><div className="generator-copy"><span className="section-index">03</span><h2>{t('generatorTitle')}<br /><em>{t('generatorTitleAccent')}</em></h2><p>{t('generatorLead')}</p><div className="generator-perks"><span><Icon name="shield" size={17} /> {t('boundKey')}</span><span><Icon name="bolt" size={17} /> {t('readyNow')}</span></div><button className="button button-primary" onClick={openGenerator}>{t('openConfigCenter')} <Icon name="arrow" /></button></div><div className="mini-console"><div className="console-bar"><span><i /><i /><i /></span><small>cheapbuddy / models.json</small><span className="console-live">● {t('live')}</span></div><pre><code><span className="code-key">models</span>: [{consoleModels.map((model, index) => <span key={model.id}><br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"{model.id}"</span>,<br />    <span className="code-key">name</span>: <span className="code-string">"{model.short}"</span>,<br />    <span className="code-key">url</span>: <span className="code-string">{JSON.stringify(baseUrl + '/chat/completions')}</span><br />  {'}'}{index < consoleModels.length - 1 ? ',' : ''}</span>)}<br />]</code></pre><div className="console-footer"><span><span className="mini-dot" /> {t('modelsReady', { count: models.length })}</span><span>JSON</span></div></div></div>
       </section>
 
-      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead', { multiplier: billing.multiplier.toFixed(1) })}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price">¥<strong>{formatAmount(plan.amount)}</strong></div><div className="pricing-plan-balance"><b>{plan.workbuddyPoints.toLocaleString()}</b><span>{t('workbuddyPoints')}</span></div><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount(plan.amount) })} <Icon name="arrow" size={15} /></button></article>)}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>¥<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>× {billing.multiplier.toFixed(1)}</strong><small>{t('officialPriceBilling', { multiplier: billing.multiplier.toFixed(1) })}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{displayModels.slice(0, 5).map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b>{model.input} / {model.output}</b><i><em style={{ width: `${Math.min(92, 18 + displayModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
+      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead', { officialMultiplier })}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price">¥<strong>{formatAmount(plan.amount)}</strong></div><div className="pricing-plan-balance"><b>{plan.workbuddyPoints.toLocaleString()}</b><span>{t('workbuddyPoints')}</span></div><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount(plan.amount) })} <Icon name="arrow" size={15} /></button></article>)}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>¥<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{officialMultiplier}</strong><small>{t('officialPriceBilling', { officialMultiplier })}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b>{model.input} / {model.output}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
 
           <section id="guide" className="guide-section section-wrap"><div className="guide-copy"><span className="section-index">05</span><h2>{t('guideTitle')}<br />{t('guideTitleAccent')}</h2><p>{t('guideLead')}</p><button className="button button-primary guide-config-button" type="button" onClick={openGenerator}>{t('choosePlatformAndGenerate')} <Icon name="arrow" size={15} /></button><p className="guide-prompt-hint">{t('promptDescription')}</p></div><div className="guide-detail"><div className="guide-method"><span className="guide-method-mark">01</span><div><b>{t('guideStepDownload')}</b><p>{t('guideStepDownloadText')}</p></div></div><div className="guide-method"><span className="guide-method-mark">02</span><div><b>{t('guideStepRestart')}</b><p>{t('guideStepRestartText')}</p></div></div><div className="os-list platform-guide-list">{platformOptions.map((platform) => <button className={platform.id === platformId ? 'os-row active' : 'os-row'} key={platform.id} type="button" onClick={() => { changePlatform(platform.id); openGenerator(); }}><span className="os-icon">{platform.mark}</span><div><b>{platform.name}</b><small>{t(`platform_${platform.id}`)}</small></div><Icon name="arrow" size={17} /></button>)}</div></div></section>
     </main>
 
     <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
-    {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={() => { setShowAccount(false); startRecharge(); }} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
+    {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={() => { setShowAccount(false); startRecharge(); }} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
+
+    {showAffiliate && <AffiliatePanel detail={affiliateDetail} error={affiliateError} language={language} loading={affiliateLoading} transferring={affiliateTransferLoading} onClose={() => setShowAffiliate(false)} onCopyCode={(code) => copyAffiliateValue(code, 'affiliateCodeCopied')} onCopyLink={(link) => copyAffiliateValue(link, 'affiliateLinkCopied')} onRefresh={loadAffiliate} onTransfer={transferAffiliateBalance} t={t} />}
 
     {showAnnouncements && <AnnouncementsPanel announcements={announcements} loading={announcementLoading} error={announcementError} language={language} onClose={() => setShowAnnouncements(false)} onRefresh={loadAnnouncements} t={t} />}
 
-    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={displayModels} selected={selected} onToggleModel={toggleModel} session={session} apiKeyLoading={apiKeyLoading} onSyncKey={ensureApiKey} balance={balance} onRecharge={startRecharge} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
-    {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button><button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button></div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p><form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}
+    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} session={session} apiKeyLoading={apiKeyLoading} onSyncKey={ensureApiKey} balance={balance} onRecharge={startRecharge} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
+    {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>{!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}</div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>{authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}<form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}
+    {showAdminPicker && <AdminConsolePicker onClose={() => setShowAdminPicker(false)} t={t} />}
     {toast && <div className="toast"><span className="toast-icon">✓</span>{toast}</div>}
   </div>;
 }

@@ -1,6 +1,8 @@
 // Keep user-facing account and announcement requests on the CheapBuddy origin.
 // Deployments can override this for a separate console, but the default remains same-origin.
-const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
+import { normalizeAffiliateCode } from './affiliate.js';
+
+const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
 
 export function getApiBaseUrl() {
   return API_BASE_URL;
@@ -51,10 +53,20 @@ export function loginUser(email, password, turnstileToken = '') {
   });
 }
 
-export function registerUser(email, password, turnstileToken = '') {
+export function verifyAdminAccess() {
+  return request('/admin/users?page=1&page_size=1');
+}
+
+export function registerUser(email, password, turnstileToken = '', affiliateCode = '') {
+  const affCode = normalizeAffiliateCode(affiliateCode);
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password, turnstile_token: turnstileToken || undefined }),
+    body: JSON.stringify({
+      email,
+      password,
+      turnstile_token: turnstileToken || undefined,
+      aff_code: affCode || undefined,
+    }),
   });
 }
 
@@ -64,6 +76,14 @@ export function getPublicSettings() {
 
 export function getProfile() {
   return request('/user/profile');
+}
+
+export function getAffiliateDetail() {
+  return request('/user/aff');
+}
+
+export function transferAffiliateQuota() {
+  return request('/user/aff/transfer', { method: 'POST' });
 }
 
 export function getUsageDashboardStats() {
