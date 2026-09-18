@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { cancelPaymentOrder, clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
 import { OFFICIAL_PRICE_MULTIPLIER, defaultPricingPlan, pricingPlans } from './pricing';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
@@ -187,17 +187,51 @@ async function writeClipboard(text) {
   if (!copied) throw new Error('Clipboard unavailable');
 }
 
-function AccountPanel({ user, balance, usageSummary, usageModels, usageLoading, usageError, onAffiliate, onClose, onRefresh, onRecharge, onConfig, onLogout, t }) {
+function AccountPanel({ user, balance, usageSummary, usageModels, usageLoading, usageError, onAffiliate, onOrders, onClose, onRefresh, onRecharge, onConfig, onLogout, t }) {
   const stats = usageSummary || {};
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="account-title">{t('accountTitle')}</h2><p className="account-email">{user?.email || t('cheapbuddyUser')}</p></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
-      <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>¥ {formatAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button><button className="button button-ghost" onClick={onAffiliate}>{t('affiliate')}</button></div></div>
+      <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>¥ {formatAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onOrders}>{t('paymentOrders')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button><button className="button button-ghost" onClick={onAffiliate}>{t('affiliate')}</button></div></div>
       <div className="account-stats"><div><span>{t('totalRequests')}</span><strong>{formatCompactNumber(stats.total_requests)}</strong></div><div><span>{t('totalTokens')}</span><strong>{formatCompactNumber(stats.total_tokens)}</strong></div><div><span>{t('todayCost')}</span><strong>${formatAmount(stats.today_actual_cost || 0)}</strong></div></div>
       <div className="account-usage-head"><div><span className="modal-kicker">USAGE</span><h3>{t('recentUsage')}</h3></div><button className="text-button" onClick={onRefresh} disabled={usageLoading}>{usageLoading ? t('syncing') : t('refreshData')}</button></div>
       {usageError && <p className="account-error">{usageError}</p>}
       {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 7).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = item.total_requests ?? item.requests ?? 0; return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}</small></div><strong>{formatCompactNumber(item.total_tokens)} <small>tokens</small></strong><i><em style={{ width: `${Math.min(100, Math.max(7, (Number(item.total_tokens || 0) / Math.max(...usageModels.map((entry) => Number(entry.total_tokens || 0)), 1)) * 100))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
       <div className="account-footer"><p className="account-source">{t('readOnlyData')}</p><button className="text-button account-logout" onClick={onLogout}>{t('logout')}</button></div>
+    </div>
+  </div>;
+}
+
+function paymentOrderStatusKey(status) {
+  const normalized = String(status || '').toUpperCase();
+  return {
+    PENDING: 'paymentOrderPending',
+    PAID: 'paymentOrderPaid',
+    COMPLETED: 'paymentOrderCompleted',
+    EXPIRED: 'paymentOrderExpired',
+    CANCELLED: 'paymentOrderCancelled',
+    CANCELED: 'paymentOrderCancelled',
+    FAILED: 'paymentOrderFailed',
+  }[normalized] || 'paymentOrderStatusUnknown';
+}
+
+function PaymentOrdersPanel({ orders, error, language, loading, cancellingId, onClose, onRefresh, onCancel, t }) {
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="account-modal payment-orders-modal" role="dialog" aria-modal="true" aria-labelledby="payment-orders-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY PAYMENTS</span><h2 id="payment-orders-title">{t('paymentOrders')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
+      <div className="affiliate-toolbar"><p>{t('paymentOrdersIntro')}</p><button className="text-button" onClick={onRefresh} disabled={loading}>{loading ? t('syncing') : t('refreshData')}</button></div>
+      {error && <p className="account-error">{error}</p>}
+      {loading ? <div className="account-loading"><span /><span /><span /></div> : orders.length ? <div className="payment-orders-list">{orders.map((order) => {
+        const statusKey = paymentOrderStatusKey(order.status);
+        const pending = String(order.status || '').toUpperCase() === 'PENDING';
+        const amount = order.pay_amount ?? order.amount ?? 0;
+        const orderId = order.id ?? order.order_id ?? order.out_trade_no;
+        return <article className="payment-order-row" key={orderId}>
+          <div className="payment-order-main"><strong>¥ {formatAmount(amount)}</strong><span>{order.out_trade_no || `#${order.id ?? '—'}`}</span></div>
+          <div className="payment-order-meta"><span>{t(statusKey)}</span><time>{formatAffiliateDate(order.created_at || order.createdAt, language)}</time></div>
+          {pending && <button className="text-button payment-order-cancel" onClick={() => onCancel(orderId)} disabled={cancellingId === orderId}>{cancellingId === orderId ? t('paymentOrderCancelling') : t('paymentOrderCancel')}</button>}
+        </article>;
+      })}</div> : <div className="account-empty">{t('paymentOrdersEmpty')}</div>}
     </div>
   </div>;
 }
@@ -311,6 +345,7 @@ function App() {
   const [showGenerator, setShowGenerator] = useState(false);
   const [platformId, setPlatformId] = useState('workbuddy');
   const [showAccount, setShowAccount] = useState(false);
+  const [showPaymentOrders, setShowPaymentOrders] = useState(false);
   const [showAffiliate, setShowAffiliate] = useState(false);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
@@ -349,6 +384,10 @@ function App() {
   const [affiliateLoading, setAffiliateLoading] = useState(false);
   const [affiliateError, setAffiliateError] = useState('');
   const [affiliateTransferLoading, setAffiliateTransferLoading] = useState(false);
+  const [paymentOrders, setPaymentOrders] = useState([]);
+  const [paymentOrdersLoading, setPaymentOrdersLoading] = useState(false);
+  const [paymentOrdersError, setPaymentOrdersError] = useState('');
+  const [paymentOrderCancellingId, setPaymentOrderCancellingId] = useState(null);
   const [testLatency, setTestLatency] = useState(0);
 
   const t = (key, variables) => translate(language, key, variables);
@@ -486,6 +525,21 @@ function App() {
     }
   };
 
+  const loadPaymentOrders = async () => {
+    if (!session.token) return;
+    setPaymentOrdersLoading(true);
+    setPaymentOrdersError('');
+    try {
+      const result = await listPaymentOrders();
+      const items = Array.isArray(result) ? result : result?.items || result?.data?.items || [];
+      setPaymentOrders(items);
+    } catch (error) {
+      setPaymentOrdersError(error.message || t('paymentOrdersLoadFailed'));
+    } finally {
+      setPaymentOrdersLoading(false);
+    }
+  };
+
   const openAccount = async () => {
     if (!session.token) {
       setShowAuth(true);
@@ -502,6 +556,30 @@ function App() {
     }
     setShowAffiliate(true);
     await loadAffiliate();
+  };
+
+  const openPaymentOrders = async () => {
+    if (!session.token) {
+      setShowAuth(true);
+      return;
+    }
+    setShowAccount(false);
+    setShowPaymentOrders(true);
+    await loadPaymentOrders();
+  };
+
+  const cancelUserPaymentOrder = async (orderId) => {
+    if (!orderId || paymentOrderCancellingId) return;
+    setPaymentOrderCancellingId(orderId);
+    try {
+      await cancelPaymentOrder(orderId);
+      notify(t('paymentOrderCancelSuccess'));
+      await loadPaymentOrders();
+    } catch (error) {
+      setPaymentOrdersError(error.message || t('paymentOrdersLoadFailed'));
+    } finally {
+      setPaymentOrderCancellingId(null);
+    }
   };
 
   const copyAffiliateValue = async (value, successKey) => {
@@ -687,6 +765,9 @@ function App() {
       if (error?.reason === 'TOO_MANY_PENDING') {
         const maxPending = error.metadata?.max || '';
         notify(t('paymentTooManyPending', { max: maxPending }));
+        setShowAccount(false);
+        setShowPaymentOrders(true);
+        loadPaymentOrders();
       } else {
         notify(error.message || t('paymentFailed'));
       }
@@ -936,7 +1017,8 @@ function App() {
 
     <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
-    {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={() => { setShowAccount(false); startRecharge(); }} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
+    {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={() => { setShowAccount(false); startRecharge(); }} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
+    {showPaymentOrders && <PaymentOrdersPanel orders={paymentOrders} error={paymentOrdersError} language={language} loading={paymentOrdersLoading} cancellingId={paymentOrderCancellingId} onClose={() => setShowPaymentOrders(false)} onRefresh={loadPaymentOrders} onCancel={cancelUserPaymentOrder} t={t} />}
 
     {showAffiliate && <AffiliatePanel detail={affiliateDetail} error={affiliateError} language={language} loading={affiliateLoading} transferring={affiliateTransferLoading} onClose={() => setShowAffiliate(false)} onCopyCode={(code) => copyAffiliateValue(code, 'affiliateCodeCopied')} onCopyLink={(link) => copyAffiliateValue(link, 'affiliateLinkCopied')} onRefresh={loadAffiliate} onTransfer={transferAffiliateBalance} t={t} />}
 

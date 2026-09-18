@@ -137,3 +137,12 @@ export function getCheckoutInfo() {
 export function createPaymentOrder(payload) {
   return request('/payment/orders', { method: 'POST', body: JSON.stringify(payload) });
 }
+
+export function listPaymentOrders(params = {}) {
+  const query = new URLSearchParams({ page: '1', page_size: '50', ...params }).toString();
+  return request(`/payment/orders/my?${query}`);
+}
+
+export function cancelPaymentOrder(orderId) {
+  return request(`/payment/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST' });
+}

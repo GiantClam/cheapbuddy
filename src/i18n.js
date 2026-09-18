@@ -307,6 +307,20 @@ Object.assign(messages.zh, {
   affiliateNoInvitees: '暂无邀请记录',
   affiliateUnavailable: '邀请返利暂时不可用',
   affiliateRegistrationNotice: '你正通过邀请码 {code} 注册，成功后将自动关联邀请关系。',
+  paymentOrders: '我的订单',
+  paymentOrdersIntro: '查看充值订单状态；待支付订单可以在这里取消。',
+  paymentOrdersEmpty: '暂无充值订单。',
+  paymentOrdersLoadFailed: '充值订单暂时无法加载',
+  paymentOrderPending: '待支付',
+  paymentOrderPaid: '已支付',
+  paymentOrderCompleted: '已完成',
+  paymentOrderExpired: '已过期',
+  paymentOrderCancelled: '已取消',
+  paymentOrderFailed: '失败',
+  paymentOrderStatusUnknown: '处理中',
+  paymentOrderCancel: '取消订单',
+  paymentOrderCancelling: '取消中…',
+  paymentOrderCancelSuccess: '订单已取消，可以重新充值',
 });
 
 Object.assign(messages.en, {
@@ -335,6 +349,20 @@ Object.assign(messages.en, {
   affiliateNoInvitees: 'No invite records yet',
   affiliateUnavailable: 'Affiliate rebates are temporarily unavailable',
   affiliateRegistrationNotice: 'You are registering with invite code {code}; the invitation will be linked automatically.',
+  paymentOrders: 'My orders',
+  paymentOrdersIntro: 'Review recharge status here. Pending orders can be cancelled.',
+  paymentOrdersEmpty: 'No recharge orders yet.',
+  paymentOrdersLoadFailed: 'Recharge orders are temporarily unavailable',
+  paymentOrderPending: 'Pending payment',
+  paymentOrderPaid: 'Paid',
+  paymentOrderCompleted: 'Completed',
+  paymentOrderExpired: 'Expired',
+  paymentOrderCancelled: 'Cancelled',
+  paymentOrderFailed: 'Failed',
+  paymentOrderStatusUnknown: 'Processing',
+  paymentOrderCancel: 'Cancel order',
+  paymentOrderCancelling: 'Cancelling…',
+  paymentOrderCancelSuccess: 'Order cancelled. You can recharge again.',
 });
 
 Object.assign(messages.zh, {

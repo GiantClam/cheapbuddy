@@ -172,9 +172,21 @@ a { color: inherit; text-decoration: none; }
   .affiliate-code-row { align-items: stretch; flex-direction: column; }
   .affiliate-code-row code { white-space: normal; overflow-wrap: anywhere; }
   .affiliate-code-row .button { width: 100%; }
+  .payment-order-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .payment-order-meta { grid-column: 1 / -1; }
+  .payment-order-cancel { grid-column: 2; grid-row: 1; }
 }
 
 .account-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; }
+.payment-orders-modal { width: min(760px, 100%); }
+.payment-orders-list { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.payment-order-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 10px; background: rgba(4, 15, 27, .28); }
+.payment-order-main, .payment-order-meta { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.payment-order-main strong { color: var(--ink); font: 17px 'DM Mono'; }
+.payment-order-main span, .payment-order-meta span, .payment-order-meta time { overflow: hidden; color: #708b98; font: 9px 'DM Mono'; text-overflow: ellipsis; white-space: nowrap; }
+.payment-order-meta span { color: var(--green); }
+.payment-order-cancel { color: #ffb0a8; white-space: nowrap; }
+.payment-order-cancel:hover { color: #ffd1ca; }
 .account-footer .account-source { margin: 0; }
 .account-logout { color: #d38e88; font: 10px 'DM Mono'; }
 .account-logout:hover { color: #ffb0a8; }

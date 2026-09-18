@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiRequestError, createPaymentOrder, getAffiliateDetail, registerUser, transferAffiliateQuota } from './api.js';
+import { ApiRequestError, cancelPaymentOrder, createPaymentOrder, getAffiliateDetail, listPaymentOrders, registerUser, transferAffiliateQuota } from './api.js';
 
 function mockWindow(value = 'fixture') {
   globalThis.window = {
@@ -77,6 +77,30 @@ test('preserves pending-order details from a payment API error', async () => {
         && error.reason === 'TOO_MANY_PENDING'
         && error.metadata.max === '3',
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('lists and cancels authenticated payment orders', async () => {
+  mockWindow();
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify({ data: { items: [] } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await listPaymentOrders();
+    await cancelPaymentOrder(42);
+    assert.equal(calls[0].url, '/api/v1/payment/orders/my?page=1&page_size=50');
+    assert.equal(calls[1].url, '/api/v1/payment/orders/42/cancel');
+    assert.equal(calls[1].options.method, 'POST');
+    assert.equal(calls[1].options.headers.Authorization, 'Bearer fixture');
   } finally {
     globalThis.fetch = originalFetch;
   }
