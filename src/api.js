@@ -4,6 +4,17 @@ import { normalizeAffiliateCode } from './affiliate.js';
 
 const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
 
+export class ApiRequestError extends Error {
+  constructor(message, details = {}) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = details.status;
+    this.code = details.code;
+    this.reason = details.reason;
+    this.metadata = details.metadata;
+  }
+}
+
 export function getApiBaseUrl() {
   return API_BASE_URL;
 }
@@ -41,7 +52,16 @@ async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || (typeof body.code === 'number' && body.code !== 0)) {
-    throw new Error(body.message || body.error?.message || `请求失败（${response.status}）`);
+    const errorBody = body.error && typeof body.error === 'object' ? body.error : body;
+    throw new ApiRequestError(
+      body.message || errorBody.message || `请求失败（${response.status}）`,
+      {
+        status: response.status,
+        code: body.code || errorBody.code,
+        reason: body.reason || errorBody.reason,
+        metadata: body.metadata || errorBody.metadata,
+      },
+    );
   }
   return Object.prototype.hasOwnProperty.call(body, 'data') ? body.data : body;
 }

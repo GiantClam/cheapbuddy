@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAffiliateDetail, registerUser, transferAffiliateQuota } from './api.js';
+import { ApiRequestError, createPaymentOrder, getAffiliateDetail, registerUser, transferAffiliateQuota } from './api.js';
 
 function mockWindow(value = 'fixture') {
   globalThis.window = {
@@ -51,6 +51,32 @@ test('sends a validated affiliate code only when registering from an invite link
     assert.equal(payload.aff_code, 'ABCD2345');
     await registerUser('new@example.com', 'secret1', 'turnstile', 'not a valid code');
     assert.equal(payload.aff_code, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('preserves pending-order details from a payment API error', async () => {
+  mockWindow();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    code: 429,
+    message: 'too_many_pending',
+    reason: 'TOO_MANY_PENDING',
+    metadata: { max: '3' },
+  }), {
+    status: 429,
+    headers: { 'content-type': 'application/json' },
+  });
+
+  try {
+    await assert.rejects(
+      createPaymentOrder({ amount: 30 }),
+      (error) => error instanceof ApiRequestError
+        && error.status === 429
+        && error.reason === 'TOO_MANY_PENDING'
+        && error.metadata.max === '3',
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

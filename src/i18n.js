@@ -211,6 +211,7 @@ const messages = {
     paymentNotConfigured: '当前 CheapBuddy 尚未配置 z-pay.cn / 支付宝通道',
     orderCreatedQr: '订单已创建，请使用支付宝扫码完成支付',
     orderCreated: '订单已创建，请在账户中心查看支付状态',
+    paymentTooManyPending: '已有 {max} 个待支付订单，请先完成支付或取消现有订单后再充值。',
     paymentFailed: '暂时无法创建充值订单',
     selectModelFirst: '至少选择一个模型',
     loginForKey: '请先登录并生成 API Key',
@@ -277,6 +278,7 @@ Object.assign(messages.en, {
   adminPickerNote: 'The two systems keep separate admin sessions. If prompted, use the administrator account for that system.',
   adminAccessDenied: 'This account is not authorized for the CheapBuddy admin portal.',
   adminLoginOnly: 'The admin portal is for administrator login only.',
+  paymentTooManyPending: 'You already have {max} pending payment orders. Complete or cancel an existing order before recharging.',
 });
 
 Object.assign(messages.zh, {

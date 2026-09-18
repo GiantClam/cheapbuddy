@@ -337,6 +337,7 @@ function App() {
   const [balance, setBalance] = useState(null);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const paymentRequestRef = useRef(false);
   const [selectedPlanId, setSelectedPlanId] = useState(defaultPricingPlan.id);
   const [testing, setTesting] = useState(false);
   const [testState, setTestState] = useState('idle');
@@ -663,11 +664,13 @@ function App() {
   };
 
   const startRecharge = async (plan = defaultPricingPlan) => {
+    if (paymentRequestRef.current) return;
     if (!session.token) {
       setSelectedPlanId(plan.id);
       setShowAuth(true);
       return;
     }
+    paymentRequestRef.current = true;
     setSelectedPlanId(plan.id);
     setPaymentLoading(true);
     try {
@@ -681,9 +684,15 @@ function App() {
       else if (order.qr_code) notify(t('orderCreatedQr'));
       else notify(t('orderCreated'));
     } catch (error) {
-      notify(error.message || t('paymentFailed'));
+      if (error?.reason === 'TOO_MANY_PENDING') {
+        const maxPending = error.metadata?.max || '';
+        notify(t('paymentTooManyPending', { max: maxPending }));
+      } else {
+        notify(error.message || t('paymentFailed'));
+      }
     } finally {
       setPaymentLoading(false);
+      paymentRequestRef.current = false;
     }
   };
 
