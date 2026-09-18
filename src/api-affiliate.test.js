@@ -34,6 +34,29 @@ test('uses authenticated Sub2API affiliate endpoints', async () => {
   }
 });
 
+test('fails a hanging affiliate transfer instead of leaving the UI blocked', async () => {
+  mockWindow();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (_url, options = {}) => new Promise((_, reject) => {
+    options.signal?.addEventListener('abort', () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      reject(error);
+    }, { once: true });
+  });
+
+  try {
+    await assert.rejects(
+      transferAffiliateQuota({ timeoutMs: 10 }),
+      (error) => error instanceof ApiRequestError
+        && error.code === 'REQUEST_TIMEOUT'
+        && error.status === 408,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('sends a validated affiliate code only when registering from an invite link', async () => {
   mockWindow(null);
   const originalFetch = globalThis.fetch;

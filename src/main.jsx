@@ -519,7 +519,7 @@ function App() {
     try {
       setAffiliateDetail(normalizeAffiliateDetail(await getAffiliateDetail()));
     } catch (error) {
-      setAffiliateError(error.message || t('affiliateLoadFailed'));
+      setAffiliateError(error.code === 'REQUEST_TIMEOUT' ? t('affiliateRequestTimeout') : error.message || t('affiliateLoadFailed'));
     } finally {
       setAffiliateLoading(false);
     }
@@ -605,7 +605,7 @@ function App() {
       notify(t('affiliateTransferSuccess', { amount: formatAmount(result?.transferred_quota || 0) }));
       await loadAffiliate();
     } catch (error) {
-      setAffiliateError(error.message || t('affiliateTransferFailed'));
+      setAffiliateError(error.code === 'REQUEST_TIMEOUT' ? t('affiliateRequestTimeout') : error.message || t('affiliateTransferFailed'));
     } finally {
       setAffiliateTransferLoading(false);
     }

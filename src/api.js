@@ -3,6 +3,7 @@
 import { normalizeAffiliateCode } from './affiliate.js';
 
 const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
+export const API_REQUEST_TIMEOUT_MS = 20_000;
 
 export class ApiRequestError extends Error {
   constructor(message, details = {}) {
@@ -49,21 +50,61 @@ async function request(path, options = {}) {
   const token = getAuthToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || (typeof body.code === 'number' && body.code !== 0)) {
-    const errorBody = body.error && typeof body.error === 'object' ? body.error : body;
-    throw new ApiRequestError(
-      body.message || errorBody.message || `请求失败（${response.status}）`,
-      {
-        status: response.status,
-        code: body.code || errorBody.code,
-        reason: body.reason || errorBody.reason,
-        metadata: body.metadata || errorBody.metadata,
-      },
-    );
+  const { timeoutMs = API_REQUEST_TIMEOUT_MS, signal: callerSignal, ...fetchOptions } = options;
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  let timeoutId;
+  let timedOut = false;
+  let removeCallerAbortListener;
+
+  if (controller) {
+    if (callerSignal) {
+      if (callerSignal.aborted) controller.abort(callerSignal.reason);
+      else {
+        const abortCallerRequest = () => controller.abort(callerSignal.reason);
+        callerSignal.addEventListener('abort', abortCallerRequest, { once: true });
+        removeCallerAbortListener = () => callerSignal.removeEventListener('abort', abortCallerRequest);
+      }
+    }
+    if (!controller.signal.aborted && timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+    }
+    fetchOptions.signal = controller.signal;
+  } else if (callerSignal) {
+    fetchOptions.signal = callerSignal;
   }
-  return Object.prototype.hasOwnProperty.call(body, 'data') ? body.data : body;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...fetchOptions, headers });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || (typeof body.code === 'number' && body.code !== 0)) {
+      const errorBody = body.error && typeof body.error === 'object' ? body.error : body;
+      throw new ApiRequestError(
+        body.message || errorBody.message || `请求失败（${response.status}）`,
+        {
+          status: response.status,
+          code: body.code || errorBody.code,
+          reason: body.reason || errorBody.reason,
+          metadata: body.metadata || errorBody.metadata,
+        },
+      );
+    }
+    return Object.prototype.hasOwnProperty.call(body, 'data') ? body.data : body;
+  } catch (error) {
+    if (timedOut) {
+      throw new ApiRequestError('请求超时，请刷新返利数据后重试，避免重复转账', {
+        status: 408,
+        code: 'REQUEST_TIMEOUT',
+        reason: 'REQUEST_TIMEOUT',
+      });
+    }
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    removeCallerAbortListener?.();
+  }
 }
 
 export function loginUser(email, password, turnstileToken = '') {
@@ -102,8 +143,8 @@ export function getAffiliateDetail() {
   return request('/user/aff');
 }
 
-export function transferAffiliateQuota() {
-  return request('/user/aff/transfer', { method: 'POST' });
+export function transferAffiliateQuota(options = {}) {
+  return request('/user/aff/transfer', { method: 'POST', ...options });
 }
 
 export function getUsageDashboardStats() {
