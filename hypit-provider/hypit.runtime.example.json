@@ -1,0 +1,28 @@
+{
+  "format": "hypit.runtime-local@1",
+  "dataRoot": ".hypit/execution",
+  "credentials": {
+    "platform": { "use": "@hypit/credential-store-platform" }
+  },
+  "endpoints": {
+    "cheapbuddy.media": {
+      "use": "@cheapbuddy/provider-hypit",
+      "pool": "cheapbuddy-media",
+      "config": {
+        "baseUrl": "https://api.cheapbuddy.cc",
+        "apiKey": { "store": "platform", "key": "cheapbuddy.api" },
+        "concurrency": 2,
+        "pollIntervalMs": 5000
+      }
+    }
+  },
+  "bindings": {
+    "@hypit/gpt-image@1#gpt-image-2": "cheapbuddy.media",
+    "@hypit/seedance@1#seedance-2-mini": "cheapbuddy.media",
+    "@hypit/minimax-h3@1#minimax-h3": "cheapbuddy.media",
+    "@hypit/mimo-speech@1#mimo-v2.5-tts-voicedesign": "cheapbuddy.media",
+    "@hypit/fishaudio-speech@1#voice-design-1": "cheapbuddy.media",
+    "@hypit/fishaudio-speech@1#voice-clone": "cheapbuddy.media",
+    "@hypit/whisperx@1#whisperx-alignment": "cheapbuddy.media"
+  }
+}
