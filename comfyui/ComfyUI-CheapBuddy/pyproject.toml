@@ -1,0 +1,11 @@
+[project]
+name = "comfyui-cheapbuddy"
+version = "0.1.0"
+description = "Text, image, and video generation nodes backed by CheapBuddy"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.comfy]
+PublisherId = "cheapbuddy"
+DisplayName = "CheapBuddy"
+Icon = ""

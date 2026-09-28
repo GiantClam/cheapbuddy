@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiRequestError, cancelPaymentOrder, createPaymentOrder, getAffiliateDetail, listPaymentOrders, registerUser, transferAffiliateQuota } from './api.js';
+import { ApiRequestError, cancelPaymentOrder, createPaymentOrder, getAffiliateDetail, getMediaUsageDashboardModels, listPaymentOrders, registerUser, transferAffiliateQuota } from './api.js';
 
 function mockWindow(value = 'fixture') {
   globalThis.window = {
@@ -124,6 +124,28 @@ test('lists and cancels authenticated payment orders', async () => {
     assert.equal(calls[1].url, '/api/v1/payment/orders/42/cancel');
     assert.equal(calls[1].options.method, 'POST');
     assert.equal(calls[1].options.headers.Authorization, 'Bearer fixture');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('loads media usage through the API-key scoped Relay endpoint', async () => {
+  mockWindow();
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options = {}) => {
+    request = { url, options };
+    return new Response(JSON.stringify({ models: [{ model: 'MiniMax-H3', requests: 1, media_units: 800 }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const result = await getMediaUsageDashboardModels('media-key', { start_date: '2026-09-01', end_date: '2026-09-23' });
+    assert.equal(request.url, 'https://api.cheapbuddy.cc/v1/usage/dashboard/media?start_date=2026-09-01&end_date=2026-09-23');
+    assert.equal(request.options.headers.Authorization, 'Bearer media-key');
+    assert.equal(result.models[0].model, 'MiniMax-H3');
   } finally {
     globalThis.fetch = originalFetch;
   }

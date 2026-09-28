@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config.js';
+import { modelCatalog } from './models.js';
 
 const selectedModels = [
   {
@@ -40,8 +41,8 @@ const options = {
 };
 const singleModelOptions = { ...options, models: [selectedModels[0]] };
 const grokModel = {
-  id: 'grok-4.6',
-  short: 'Grok 4.6',
+  id: 'grok-4.7',
+  short: 'Grok 4.7',
   vendor: 'xAI',
   maxInputTokens: 500000,
   maxOutputTokens: 32768,
@@ -68,7 +69,7 @@ const gpt6AstraModel = {
 
 test('publishes every supported target platform', () => {
   assert.deepEqual(platformOptions.map(({ id }) => id), ['workbuddy', 'claude', 'opencode', 'codex']);
-  assert.deepEqual(platformOptions.map(({ maxModels }) => maxModels), [null, 2, null, 1]);
+  assert.deepEqual(platformOptions.map(({ maxModels }) => maxModels), [null, null, null, null]);
 });
 
 test('builds the existing WorkBuddy models file', () => {
@@ -143,13 +144,13 @@ test('builds a Codex Responses API provider with the first model as default', ()
   assert.match(artifact.content, /^model_provider = "cheapbuddy"/m);
   assert.match(artifact.content, /^base_url = "https:\/\/api\.cheapbuddy\.cc\/v1"/m);
   assert.match(artifact.content, /^wire_api = "responses"/m);
-  assert.match(artifact.content, /^env_key = "CHEAPBUDDY_API_KEY"/m);
+  assert.match(artifact.content, new RegExp(`^http_headers = \\{ Authorization = "Bearer ${generatedApiKey}" \\}$`, 'm'));
   assert.doesNotMatch(artifact.content, /experimental_bearer_token/);
-  assert.match(buildInstallPrompt(artifact, 'en'), new RegExp(`CHEAPBUDDY_API_KEY.*${generatedApiKey}`, 's'));
+  assert.match(buildInstallPrompt(artifact, 'en'), new RegExp(`Authorization.*Bearer ${generatedApiKey}`, 's'));
   assert.match(buildInstallPrompt(artifact, 'en'), /user-level.*config\.toml/);
 });
 
-test('keeps Grok 4.6 in generated platform configurations', () => {
+test('keeps Grok 4.7 in generated platform configurations', () => {
   const grokOptions = { ...options, models: [grokModel] };
 
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', grokOptions).content);
@@ -157,11 +158,11 @@ test('keeps Grok 4.6 in generated platform configurations', () => {
   const claude = JSON.parse(createPlatformArtifact('claude', grokOptions).content);
   const codex = createPlatformArtifact('codex', grokOptions).content;
 
-  assert.equal(workbuddy.models[0].id, 'grok-4.6');
+  assert.equal(workbuddy.models[0].id, 'grok-4.7');
   assert.equal(workbuddy.models[0].maxInputTokens, 500000);
-  assert.equal(opencode.providers.cheapbuddy.models['grok-4.6'].limit.context, 500000);
-  assert.equal(claude.env.ANTHROPIC_MODEL, 'grok-4.6');
-  assert.match(codex, /^model = "grok-4\.6"/m);
+  assert.equal(opencode.providers.cheapbuddy.models['grok-4.7'].limit.context, 500000);
+  assert.equal(claude.env.ANTHROPIC_MODEL, 'grok-4.7');
+  assert.match(codex, /^model = "grok-4\.7"/m);
 });
 
 test('keeps GPT-6 Astra in every generated platform configuration', () => {
@@ -180,6 +181,55 @@ test('keeps GPT-6 Astra in every generated platform configuration', () => {
   assert.match(codex, /^model = "gpt-6-astra"/m);
 });
 
+test('keeps media models selectable with their native endpoints and capabilities', () => {
+  const textModel = { ...selectedModels[0] };
+  const mediaModels = [
+    {
+      id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: 'OpenAI', modality: 'image', endpointPath: '/images/generations',
+      maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1, supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
+    },
+    {
+      id: 'MiniMax-H3', short: 'MiniMax H3', vendor: 'MiniMax', modality: 'video', endpointPath: '/videos',
+      maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1, supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
+    },
+  ];
+  const optionsWithMedia = { ...options, models: [textModel, ...mediaModels] };
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', optionsWithMedia).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', optionsWithMedia).content);
+  const prompt = buildInstallPrompt(createPlatformArtifact('workbuddy', optionsWithMedia));
+
+  assert.deepEqual(workbuddy.models.map(({ id }) => id), ['glm-5.2']);
+  assert.deepEqual(workbuddy.availableModels, ['glm-5.2']);
+  assert.doesNotMatch(JSON.stringify(workbuddy), /MiniMax-H3|gpt-image-2\.5/);
+  assert.deepEqual(opencode.providers.cheapbuddy.models['gpt-image-2.5'].capabilities.output, ['image']);
+  assert.deepEqual(opencode.providers.cheapbuddy.models['MiniMax-H3'].capabilities.output, ['video']);
+  assert.match(prompt, /媒体模型不会写入 WorkBuddy 的文本模型配置/);
+  assert.match(prompt, /gpt-image-2\.5.*\/images\/generations/);
+  assert.match(prompt, /MiniMax-H3.*\/videos/);
+});
+
+test('verified model catalog entries are included in WorkBuddy text configuration by canonical ID', () => {
+  const ids = ['glm-5.3-flash', 'gpt-6-sol', 'gpt-6-luna', 'qwen3.8-max'];
+  const models = modelCatalog.filter(({ id }) => ids.includes(id));
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', { ...options, models }).content);
+
+  assert.deepEqual(workbuddy.availableModels, ids);
+  assert.deepEqual(workbuddy.models.map(({ id }) => id), ids);
+  assert.ok(workbuddy.models.every(({ url }) => url === 'https://api.cheapbuddy.cc/v1/chat/completions'));
+});
+
+test('rejects a WorkBuddy configuration that contains only media models', () => {
+  const mediaOnly = {
+    ...options,
+    models: [{
+      id: 'MiniMax-H3', short: 'MiniMax H3', vendor: 'MiniMax', modality: 'video', endpointPath: '/videos',
+      maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1, supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
+    }],
+  };
+
+  assert.throws(() => createPlatformArtifact('workbuddy', mediaOnly), /at least one text model/i);
+});
+
 test('rejects invalid generator inputs', () => {
   assert.throws(() => createPlatformArtifact('codex', { ...options, models: [] }), /model/i);
   assert.throws(() => createPlatformArtifact('unknown', options), /platform/i);
@@ -187,8 +237,8 @@ test('rejects invalid generator inputs', () => {
   assert.throws(() => createPlatformArtifact('codex', { ...singleModelOptions, baseUrl: 'http://api.cheapbuddy.cc/v1' }), /HTTPS/i);
   assert.throws(() => createPlatformArtifact('codex', { ...singleModelOptions, models: [{ ...selectedModels[0], maxInputTokens: 0 }] }), /maxInputTokens/i);
   assert.throws(() => createPlatformArtifact('workbuddy', { ...options, models: [selectedModels[0], { ...selectedModels[0] }] }), /Duplicate/i);
-  assert.throws(() => createPlatformArtifact('codex', options), /at most 1/i);
-  assert.throws(() => createPlatformArtifact('claude', { ...options, models: [...selectedModels, { ...selectedModels[0], id: 'third-model' }] }), /at most 2/i);
+  assert.doesNotThrow(() => createPlatformArtifact('codex', options));
+  assert.doesNotThrow(() => createPlatformArtifact('claude', { ...options, models: [...selectedModels, { ...selectedModels[0], id: 'third-model' }] }));
 });
 
 test('allows a local HTTP gateway during development', () => {

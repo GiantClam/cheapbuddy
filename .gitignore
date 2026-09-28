@@ -13,3 +13,11 @@ marketing_assets/
 newapi-upstream/
 relay/
 sub2api-bridge/
+newapi-ecophase-verify/
+newapi-latest-verify/
+newapi-plugin/*.zip
+comfyui/*.zip
+output/
+hypit-provider.zip
+__pycache__/
+*.py[cod]

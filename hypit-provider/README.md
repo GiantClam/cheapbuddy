@@ -62,3 +62,14 @@ entries. The public Relay paths required by this package are
 
 The API key is the ordinary CheapBuddy user key. The provider never receives
 or exposes the NewAPI shadow token.
+
+Hypit's `pricing` command uses the Endpoint's authenticated rate reader:
+
+- `GET /v1/pricing?model={service-model}`
+- The Relay returns that account's matching NewAPI rate-card record, the
+  default-group ratio, and CheapBuddy's model-specific media multiplier.
+- Original billing fields and units are preserved. The reader does not guess
+  future video duration; final usage billing remains based on a successful
+  task's measured usage.
+
+The public endpoint contract is documented in `relay/ROUTE_CONTRACT.md`.

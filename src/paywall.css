@@ -1,0 +1,20 @@
+.paywall-modal {
+  width: min(920px, 100%);
+}
+
+.paywall-intro {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font: 11px/1.7 'DM Mono';
+}
+
+.paywall-modal .pricing-plan-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+@media (max-width: 650px) {
+  .paywall-modal .pricing-plan-grid {
+    grid-template-columns: 1fr;
+  }
+}

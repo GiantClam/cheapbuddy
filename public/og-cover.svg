@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">CheapBuddy WorkBuddy multi-model API</title>
+  <desc id="description">Use multiple leading AI models in WorkBuddy with one shared balance.</desc>
+  <defs>
+    <radialGradient id="glow" cx="70%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#317da8" stop-opacity=".55" />
+      <stop offset="1" stop-color="#07111f" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#78d5ff" />
+      <stop offset="1" stop-color="#d8f5ff" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#07111f" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+  <g fill="none" stroke="#78d5ff" stroke-opacity=".16">
+    <path d="M0 500h1200M0 420h1200M0 340h1200M0 260h1200M0 180h1200" />
+    <path d="M120 0v630M240 0v630M360 0v630M480 0v630M600 0v630M720 0v630M840 0v630M960 0v630M1080 0v630" />
+  </g>
+  <g font-family="Arial, sans-serif" fill="#ecf4f5">
+    <text x="92" y="154" font-size="28" letter-spacing="7" fill="#78d5ff">CHEAPBUDDY</text>
+    <text x="88" y="282" font-size="74" font-weight="700">WorkBuddy</text>
+    <text x="88" y="370" font-size="74" font-weight="700" fill="url(#accent)">multi-model API</text>
+    <text x="92" y="452" font-size="28" fill="#a9c2ca">One shared balance · OpenAI compatible · Usage-based billing</text>
+  </g>
+  <g transform="translate(950 318)" fill="none" stroke="#78d5ff" stroke-width="5">
+    <circle r="128" stroke-opacity=".22" />
+    <circle r="88" stroke-opacity=".38" />
+    <circle r="24" fill="#78d5ff" fill-opacity=".9" stroke="none" />
+    <path d="M-128 0h-56M128 0h56M0-128v-56M0 128v56" stroke-opacity=".42" />
+  </g>
+</svg>

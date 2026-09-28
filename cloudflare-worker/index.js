@@ -15,6 +15,12 @@ function json(data, status = 200) {
 function withCors(response, request) {
   const headers = new Headers(response.headers);
   const origin = request.headers.get('Origin');
+  // The upstream API also emits CORS headers. Remove them before applying the
+  // website policy so the browser never receives duplicate origin values.
+  headers.delete('Access-Control-Allow-Origin');
+  headers.delete('Access-Control-Allow-Credentials');
+  headers.delete('Access-Control-Allow-Headers');
+  headers.delete('Access-Control-Allow-Methods');
   if (origin === 'https://cheapbuddy.cc' || origin === 'https://www.cheapbuddy.cc') {
     headers.set('Access-Control-Allow-Origin', origin);
     headers.set('Access-Control-Allow-Credentials', 'true');

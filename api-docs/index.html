@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07111f" />
+    <meta name="description" content="CheapBuddy OpenAI 兼容图片与视频 API 文档，包含认证、请求参数、异步任务查询和结果下载示例。" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://cheapbuddy.cc/api-docs" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="CheapBuddy" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="CheapBuddy OpenAI 兼容图片与视频 API 文档" />
+    <meta property="og:description" content="认证、图片生成、视频生成、任务查询和结果下载接口示例。" />
+    <meta property="og:url" content="https://cheapbuddy.cc/api-docs" />
+    <meta property="og:image" content="https://cheapbuddy.cc/og-cover.svg" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="CheapBuddy OpenAI 兼容图片与视频 API 文档" />
+    <meta name="twitter:description" content="认证、图片生成、视频生成、任务查询和结果下载接口示例。" />
+    <meta name="twitter:image" content="https://cheapbuddy.cc/og-cover.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" />
+    <link rel="icon" type="image/svg+xml" href="/cheapbuddy-mark.svg" />
+    <link rel="apple-touch-icon" href="/cheapbuddy-mark.svg" />
+    <title>CheapBuddy OpenAI 兼容图片与视频 API 文档</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "CheapBuddy OpenAI 兼容图片与视频 API 文档",
+        "description": "认证、图片生成、视频生成、任务查询和结果下载接口示例。",
+        "url": "https://cheapbuddy.cc/api-docs",
+        "author": { "@type": "Organization", "name": "CheapBuddy", "url": "https://cheapbuddy.cc/" }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <main>
+        <article>
+          <h1>CheapBuddy OpenAI 兼容图片与视频 API 文档</h1>
+          <p>本文档介绍 CheapBuddy 的认证方式、图片生成、视频生成、异步任务查询和结果下载接口。</p>
+          <h2>认证</h2>
+          <p>使用 <code>Authorization: Bearer $CHEAPBUDDY_API_KEY</code> 发送 API 请求。</p>
+          <h2>视频生成</h2>
+          <p>通过 <code>POST /v1/videos</code> 创建视频任务，再使用 <code>GET /v1/videos/{id}</code> 查询状态。</p>
+          <p>大 multipart 请求建议携带唯一的 <code>Idempotency-Key</code>。上传完成后即使客户端连接断开，已接收的任务仍会继续提交；POST 仍需等待上传完成后返回任务 ID。</p>
+          <h2>图片生成</h2>
+          <p>通过 <code>POST /v1/images/generations</code> 创建图片生成请求。</p>
+          <p><a href="/">返回 CheapBuddy 首页</a></p>
+        </article>
+      </main>
+    </noscript>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

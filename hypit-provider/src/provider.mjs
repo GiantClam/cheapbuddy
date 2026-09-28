@@ -1,6 +1,7 @@
 import { canonicalize, credentialRef, defineEndpointPackage, wakeAfter } from '@hypit/hypit/endpoint-kit';
 import { compileWireRequest, generationTypes, mappingSupportsRequest, sealGeneratedAudioSet, sealGeneratedImageSet, sealGeneratedVideoSet, selectWireModelForRequest } from '@hypit/hypit/generation';
 import { capabilityRoutes, dataUrl, mappingFor, routeFor } from './mapping.mjs';
+import { pricingRequestPath, pricingSummary } from './pricing.mjs';
 import { assertWhisperXEvidenceWav, interpretWhisperXTranscript, sealAlignedTranscriptEvidence, speechEvidenceTypes, verifyWhisperXAlignmentRequest, whisperXCapabilities } from './whisperx.mjs';
 
 export const providerModule = { name: '@cheapbuddy/provider-hypit', version: '1' };
@@ -273,7 +274,24 @@ export function createCheapBuddyProvider(options) {
     credentialInputs: { apiKey: { label: 'CheapBuddy API key' } },
     defaultConcurrency: options.defaultConcurrency ?? 2,
     actionLimits: { submit: { concurrency: 1 }, poll: { concurrency: 4 }, collect: { concurrency: 2 } },
-    pricing: { kind: 'page', url: `${base}/v1/models` },
+    pricing: { kind: 'page', url: 'https://cheapbuddy.cc/api-docs/' },
+    async readPricing(context) {
+      const route = routeFor(context.request.capability);
+      const mapping = mappingFor(route);
+      const model = selectWireModelForRequest(
+        mapping,
+        context.request.constraints,
+        context.request.pendingInputs?.map((input) => input.input),
+      );
+      const path = pricingRequestPath(model);
+      const result = await request(path, key(await context.credentials()));
+      if (result.kind !== 'json') throw new Error('CheapBuddy returned binary data for pricing');
+      return [{
+        source: `${base}${path}`,
+        data: canonicalize(result.value),
+        summary: pricingSummary(result.value, model),
+      }];
+    },
     capabilities: [
       ...capabilityRoutes.map((route) => ({
         capability: route.capabilityRef,

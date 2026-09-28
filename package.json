@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage",
+    "test": "node --test src/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage src/*.test.js",
     "preview": "vite preview",
     "start": "node scripts/start.mjs"
   },

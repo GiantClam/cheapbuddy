@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, resolve, sep } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 
 const root = resolve('dist');
 const port = Number(process.env.PORT || 4173);
@@ -14,8 +14,12 @@ const mimeTypes = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
   '.webp': 'image/webp',
+  '.xml': 'application/xml; charset=utf-8',
 };
+
+const appPaths = new Set(['/', '/api-docs', '/api-docs/', '/comfyui', '/comfyui/', '/payment/result']);
 
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
@@ -28,16 +32,43 @@ const server = createServer(async (request, response) => {
 
   const requestedPath = decodeURIComponent(requestUrl.pathname);
   const candidate = resolve(root, `.${requestedPath}`);
-  const filePath = candidate === root || candidate.startsWith(`${root}${sep}`)
+  const isInsideRoot = candidate === root || candidate.startsWith(`${root}${sep}`);
+  const filePath = isInsideRoot
     ? candidate
-    : resolve(root, 'index.html');
-  let servedPath = filePath;
+    : null;
+  let servedPath = null;
 
-  try {
-    const fileInfo = await stat(servedPath);
-    if (!fileInfo.isFile()) servedPath = resolve(root, 'index.html');
-  } catch {
+  if (filePath) {
+    try {
+      const fileInfo = await stat(filePath);
+      servedPath = fileInfo.isFile() ? filePath : join(filePath, 'index.html');
+      const servedInfo = await stat(servedPath);
+      if (!servedInfo.isFile()) servedPath = null;
+    } catch {
+      servedPath = null;
+    }
+  }
+
+  if (!servedPath && appPaths.has(requestedPath)) {
     servedPath = resolve(root, 'index.html');
+  }
+
+  if (!servedPath) {
+    const notFoundPath = resolve(root, '404.html');
+    try {
+      await stat(notFoundPath);
+      servedPath = notFoundPath;
+    } catch {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('Not found');
+      return;
+    }
+    response.writeHead(404, {
+      'Cache-Control': 'no-store',
+      'Content-Type': mimeTypes[extname(servedPath)] || 'text/html; charset=utf-8',
+    });
+    createReadStream(servedPath).on('error', () => response.destroy()).pipe(response);
+    return;
   }
 
   const isHtmlDocument = extname(servedPath) === '.html';

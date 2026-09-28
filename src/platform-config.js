@@ -1,8 +1,8 @@
 export const platformOptions = [
   { id: 'workbuddy', name: 'WorkBuddy', mark: 'WB', modelMode: 'all', maxModels: null },
-  { id: 'claude', name: 'Claude Code', mark: 'CL', modelMode: 'primary-and-fast', maxModels: 2 },
+  { id: 'claude', name: 'Claude Code', mark: 'CL', modelMode: 'all', maxModels: null },
   { id: 'opencode', name: 'OpenCode', mark: 'OC', modelMode: 'all', maxModels: null },
-  { id: 'codex', name: 'Codex', mark: 'CX', modelMode: 'single', maxModels: 1 },
+  { id: 'codex', name: 'Codex', mark: 'CX', modelMode: 'all', maxModels: null },
 ];
 
 function normalizeBaseUrl(value) {
@@ -32,12 +32,36 @@ function validateModels(models) {
     }
     if (ids.has(model.id)) throw new Error(`Duplicate model id: ${model.id}`);
     ids.add(model.id);
+    if (model.endpointPath !== undefined && (typeof model.endpointPath !== 'string' || !model.endpointPath.startsWith('/'))) {
+      throw new Error(`${model.id} has an invalid endpointPath`);
+    }
     for (const field of ['maxInputTokens', 'maxOutputTokens']) {
       if (!Number.isSafeInteger(model[field]) || model[field] <= 0) {
         throw new Error(`${model.id} has an invalid ${field}`);
       }
     }
   });
+}
+
+function modelEndpointPath(model) {
+  return typeof model.endpointPath === 'string' && model.endpointPath.startsWith('/')
+    ? model.endpointPath
+    : '/chat/completions';
+}
+
+function isTextModel(model) {
+  return !model.modality || model.modality === 'text';
+}
+
+function modelInputCapabilities(model) {
+  if (model.modality === 'video') return ['text', 'image', 'video'];
+  return model.supportsImages ? ['text', 'image'] : ['text'];
+}
+
+function modelOutputCapabilities(model) {
+  if (model.modality === 'image') return ['image'];
+  if (model.modality === 'video') return ['video'];
+  return ['text'];
 }
 
 function requireOptions(platformId, { apiKey, baseUrl, models } = {}) {
@@ -65,14 +89,16 @@ function workBuddyVendor(model) {
 }
 
 function makeWorkBuddyConfig(models, apiKey, apiBaseUrl) {
+  const textModels = models.filter(isTextModel);
+  if (textModels.length === 0) throw new Error('WorkBuddy requires at least one text model');
   return {
-    models: models.map((model) => ({
+    models: textModels.map((model) => ({
       id: model.id,
       name: 'CheapBuddy',
       // WorkBuddy 5.5.x validates vendor as a plain string, not a localized object.
       vendor: workBuddyVendor(model),
       apiKey,
-      url: `${apiBaseUrl}/chat/completions`,
+      url: `${apiBaseUrl}${modelEndpointPath(model)}`,
       maxInputTokens: model.maxInputTokens,
       maxOutputTokens: model.maxOutputTokens,
       temperature: model.temperature,
@@ -84,7 +110,7 @@ function makeWorkBuddyConfig(models, apiKey, apiBaseUrl) {
       useCustomProtocol: false,
     })),
     // Keep the generated models visible in WorkBuddy's model selector.
-    availableModels: models.map(({ id }) => id),
+    availableModels: textModels.map(({ id }) => id),
   };
 }
 
@@ -92,6 +118,7 @@ function makeClaudeConfig(models, apiKey, apiBaseUrl) {
   const defaultModel = models[0];
   const fastModel = models[1] || defaultModel;
   return {
+    availableModels: models.map(({ id }) => id),
     env: {
       ANTHROPIC_BASE_URL: apiBaseUrl.replace(/\/v1$/i, ''),
       ANTHROPIC_AUTH_TOKEN: apiKey,
@@ -116,8 +143,8 @@ function makeOpenCodeConfig(models, apiKey, apiBaseUrl) {
       modelID: model.id,
       capabilities: {
         tools: model.supportsToolCall,
-        input: model.supportsImages ? ['text', 'image'] : ['text'],
-        output: ['text'],
+        input: modelInputCapabilities(model),
+        output: modelOutputCapabilities(model),
       },
       ...(model.supportsReasoning
         ? { compatibility: { reasoningField: 'reasoning_content' } }
@@ -150,9 +177,10 @@ function quoteToml(value) {
   return JSON.stringify(String(value));
 }
 
-function makeCodexConfig(models, apiBaseUrl) {
+function makeCodexConfig(models, apiKey, apiBaseUrl) {
   const defaultModel = models[0];
   return [
+    `# Selected CheapBuddy models (switch with --model): ${models.map(({ id }) => quoteToml(id)).join(', ')}`,
     `model = ${quoteToml(defaultModel.id)}`,
     'model_provider = "cheapbuddy"',
     `model_context_window = ${Number(defaultModel.maxInputTokens)}`,
@@ -160,8 +188,7 @@ function makeCodexConfig(models, apiBaseUrl) {
     '[model_providers.cheapbuddy]',
     'name = "CheapBuddy"',
     `base_url = ${quoteToml(apiBaseUrl)}`,
-    'env_key = "CHEAPBUDDY_API_KEY"',
-    'env_key_instructions = "Set CHEAPBUDDY_API_KEY in your environment before launching Codex"',
+    `http_headers = { Authorization = ${quoteToml(`Bearer ${apiKey}`)} }`,
     'wire_api = "responses"',
     '',
   ].join('\n');
@@ -219,28 +246,44 @@ function platformCompatibilityNote(platformId, language) {
   return '';
 }
 
+function mediaModelNote(mediaModels, language, platformId) {
+  if (!Array.isArray(mediaModels) || mediaModels.length === 0) return '';
+  const models = mediaModels.map((model) => `${model.id} → ${model.endpointPath}`).join(language === 'en' ? ', ' : '、');
+  if (platformId === 'workbuddy') {
+    return language === 'en'
+      ? ` Media models are not written into WorkBuddy's text-model configuration (${models}). Use the documented native media endpoints directly.`
+      : `媒体模型不会写入 WorkBuddy 的文本模型配置（${models}）；请按官网接入文档直接调用对应的媒体接口。`;
+  }
+  return language === 'en'
+    ? ` Media models are included with their native endpoints (${models}). Text-agent clients may not expose image/video generation UI; use the documented OpenAI-compatible media requests for those models.`
+    : `已包含媒体模型及其原生接口（${models}）。文本 Agent 客户端不一定提供图片/视频生成界面；请按官网接入文档直接调用对应的 OpenAI 兼容媒体接口。`;
+}
+
 export function createPlatformArtifact(platformId, options) {
   requireOptions(platformId, options);
   const apiBaseUrl = normalizeBaseUrl(options.baseUrl);
   const { apiKey, models } = options;
+  const platformModels = platformId === 'workbuddy' ? models.filter(isTextModel) : models;
+  if (platformModels.length === 0) throw new Error('WorkBuddy requires at least one text model');
   let content;
 
   if (platformId === 'workbuddy') {
-    content = JSON.stringify(makeWorkBuddyConfig(models, apiKey, apiBaseUrl), null, 2);
+    content = JSON.stringify(makeWorkBuddyConfig(platformModels, apiKey, apiBaseUrl), null, 2);
   } else if (platformId === 'claude') {
     content = JSON.stringify(makeClaudeConfig(models, apiKey, apiBaseUrl), null, 2);
   } else if (platformId === 'opencode') {
     content = JSON.stringify(makeOpenCodeConfig(models, apiKey, apiBaseUrl), null, 2);
   } else {
-    content = makeCodexConfig(models, apiBaseUrl);
+    content = makeCodexConfig(models, apiKey, apiBaseUrl);
   }
 
   return {
     platformId,
-    defaultModelId: models[0].id,
+    defaultModelId: platformModels[0].id,
     apiKey,
-    credentialEnvKey: platformId === 'codex' ? 'CHEAPBUDDY_API_KEY' : null,
+    credentialEnvKey: null,
     content,
+    mediaModels: models.filter((model) => model.modality && model.modality !== 'text').map((model) => ({ id: model.id, modality: model.modality, endpointPath: modelEndpointPath(model) })),
     ...artifactMetadata[platformId],
   };
 }
@@ -256,10 +299,10 @@ export function buildInstallPrompt(artifact, language = 'zh') {
     ? `\n4. Set ${artifact.credentialEnvKey} to this API key in your user environment before launching ${platform}: ${artifact.apiKey}\n5. Save the file, keep the API key private, and report the final path.\n6. Fully restart ${platform}.`
     : `\n4. Save the file, keep the API key private, and report the final path.\n5. Fully restart ${platform}.`;
   if (language === 'en') {
-    return `Configure ${platform} to use CheapBuddy. Perform the file operation instead of only explaining it.\n\n1. Open ${artifact.configPath} (Windows: ${artifact.windowsPath}) and create the parent directory if needed.\n2. Back up the existing file if present.\n3. Merge the configuration below into the existing file, preserving unrelated settings. The generated values win on conflicts.${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${credentialStep}\n\nGenerated ${artifact.filename}:\n${artifact.content}`;
+    return `Configure ${platform} to use CheapBuddy. Perform the file operation instead of only explaining it.\n\n1. Open ${artifact.configPath} (Windows: ${artifact.windowsPath}) and create the parent directory if needed.\n2. Back up the existing file if present.\n3. Merge the configuration below into the existing file, preserving unrelated settings. The generated values win on conflicts.${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${mediaModelNote(artifact.mediaModels, language, artifact.platformId)}${credentialStep}\n\nGenerated ${artifact.filename}:\n${artifact.content}`;
   }
   const chineseCredentialStep = artifact.credentialEnvKey
     ? `\n4. 在启动 ${platform} 前，将用户环境变量 ${artifact.credentialEnvKey} 设置为此 API Key：${artifact.apiKey}\n5. 保存文件、保护好 API Key，并告知最终路径。\n6. 完全退出并重新启动 ${platform}。`
     : `\n4. 保存文件、保护好 API Key，并告知最终路径。\n5. 完全退出并重新启动 ${platform}。`;
-  return `请将 ${platform} 配置为使用 CheapBuddy，并直接执行文件操作，不要只解释步骤。\n\n1. 打开 ${artifact.configPath}（Windows：${artifact.windowsPath}），目录不存在时先创建。\n2. 如果已有配置文件，先创建备份。\n3. 将下面的配置合并到现有文件中，保留无关设置；字段冲突时以新配置为准。${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${chineseCredentialStep}\n\n生成的 ${artifact.filename}：\n${artifact.content}`;
+  return `请将 ${platform} 配置为使用 CheapBuddy，并直接执行文件操作，不要只解释步骤。\n\n1. 打开 ${artifact.configPath}（Windows：${artifact.windowsPath}），目录不存在时先创建。\n2. 如果已有配置文件，先创建备份。\n3. 将下面的配置合并到现有文件中，保留无关设置；字段冲突时以新配置为准。${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${mediaModelNote(artifact.mediaModels, language, artifact.platformId)}${chineseCredentialStep}\n\n生成的 ${artifact.filename}：\n${artifact.content}`;
 }

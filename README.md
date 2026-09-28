@@ -34,7 +34,7 @@ docker compose -f docker-compose.local.yml up -d
 | OpenCode | `opencode.json` | `~/.config/opencode/opencode.json` | OpenAI-compatible |
 | Codex | `config.toml` | `~/.codex/config.toml` | Responses API |
 
-登录后选择平台和模型，页面会使用当前用户 API Key 生成配置预览。预览会显示完整文件内容和已包含模型，复制或下载动作使用完整文件内容。可以复制自动配置提示词，让目标 Agent 备份并合并现有配置；也可以复制或下载原生配置文件后手动合并。WorkBuddy 和 OpenCode 会把全部已选模型写入原生模型目录；OpenCode 使用当前 v2 的 `providers`、`package`、`settings`、`modelID` 和 `capabilities` 字段，支持推理的模型同时声明 `reasoning_content` 兼容字段；Claude Code 最多选择两个模型，分别作为主模型和小型快速模型，其余模型由网关模型发现；Codex 原生配置只支持一个默认模型，因此页面会限制为单选。Codex 的 provider 配置应写入用户级 `~/.codex/config.toml`，不要只放在项目级配置中。
+登录后选择平台和模型，页面会使用当前用户 API Key 生成配置预览。预览会显示完整文件内容和已包含模型，复制或下载动作使用完整文件内容。可以复制自动配置提示词，让目标 Agent 备份并合并现有配置；也可以复制或下载原生配置文件后手动合并。所有平台均可多选或一键全选模型；WorkBuddy、OpenCode 会将已选模型写入原生模型目录，Claude Code 将已选模型加入模型选择白名单，Codex 使用首个模型作为默认值并在配置注释中列出其余模型 ID。OpenCode 使用当前 v2 的 `providers`、`package`、`settings`、`modelID` 和 `capabilities` 字段，支持推理的模型同时声明 `reasoning_content` 兼容字段。Codex 的 provider 配置应写入用户级 `~/.codex/config.toml`，不要只放在项目级配置中。
 
 生成文件包含个人 API Key。只能保存在用户自己的设备上，不应提交到 Git、公开工单或聊天记录。合并配置前应先备份旧文件，并保留已有 Provider、权限和其他无关设置。
 
@@ -46,13 +46,14 @@ docker compose -f docker-compose.local.yml up -d
 
 - `id`、`short`、`vendor`、`description`：模型 ID、短名称、厂商和中英文展示文案
 - `input`、`output`：首页展示的每百万 Token 参考价格
+- `modality`、`endpointPath`、`billingUnit`：文本/图片/视频能力、原生接口路径和计费单位
 - `maxInputTokens`、`maxOutputTokens`、`temperature`：生成配置使用的上下文和输出参数
 - `supportsToolCall`、`supportsImages`、`supportsReasoning`、`onlyReasoning`、`reasoning`：平台配置能力字段
 - `featured`：是否优先出现在首屏和配置中心前列
 - `showInUsageExample`：是否优先出现在首页价格示例
 - `accent`、`mark`：模型卡片视觉标记
 
-模型文案使用 `vendor.zh/en` 和 `description.zh/en` 内联定义，不需要再修改 `src/i18n.js`。模型数量文案会根据目录长度自动计算。生成 WorkBuddy `models.json` 时会将本地化厂商对象转换为 WorkBuddy 5.5.x 要求的普通字符串，并写入 `availableModels` 以确保模型出现在选择器中。修改后运行 `npm test` 和 `npm run build`，再部署官网即可。
+模型文案使用 `vendor.zh/en` 和 `description.zh/en` 内联定义，不需要再修改 `src/i18n.js`。模型数量文案会根据目录长度自动计算。生成 WorkBuddy `models.json` 时会将本地化厂商对象转换为 WorkBuddy 5.5.x 要求的普通字符串；仅文本模型会写入 WorkBuddy 的 `models` 和 `availableModels`，图片/视频模型通过独立媒体 API 使用。修改后运行 `npm test` 和 `npm run build`，再部署官网即可。
 
 Windows：打开文件资源管理器，输入 `%USERPROFILE%`，进入或创建 `.workbuddy`，将 JSON 中的 `models` 数组合并到现有 `models.json`。如果文件不存在，直接创建。
 
@@ -64,7 +65,46 @@ Linux：打开或创建 `~/.workbuddy`，按相同方式合并 `models.json`。
 
 注册成功后，网站会自动检查当前 CheapBuddy 分组的用户 Key：已有有效 Key 则直接复用，没有则自动创建；创建完成后自动打开配置中心，可直接下载或复制包含本人 Key 和已选模型的 `models.json`。
 
-配置文件包含当前用户的 API Key，只应在自己的电脑上使用，不要转发给他人。WorkBuddy 的 API 地址应使用 CheapBuddy 的 `https://api.cheapbuddy.cc/v1/chat/completions` 接口。生产环境由 Railway API 服务承载，Cloudflare Worker 不是业务链路必需组件；部署到其他环境时通过 `VITE_WORKBUDDY_BASE_URL` 覆盖。
+配置文件包含当前用户的 API Key，只应在自己的电脑上使用，不要转发给他人。文本模型使用 `https://api.cheapbuddy.cc/v1/chat/completions`；图片模型 `gpt-image-2.5` 使用 `/v1/images/generations`，视频模型 `MiniMax-H3` 使用 `/v1/videos`，视频任务完成后通过 `/v1/videos/{video_id}/content` 下载。生产环境由 Railway API 服务承载，Cloudflare Worker 不是业务链路必需组件；部署到其他环境时通过 `VITE_WORKBUDDY_BASE_URL` 覆盖。
+
+## Media API quick reference
+
+官网的“图片 / 视频接入”文档与配置中心共用 `src/models.js` 的媒体模型目录。媒体请求仍使用登录后生成的 CheapBuddy 用户 API Key，但不要发送到 `/chat/completions`：
+
+```bash
+curl https://api.cheapbuddy.cc/v1/images/generations \
+  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-image-2.5","prompt":"a cinematic city at night","size":"1024x1024","n":1}'
+
+curl -X POST https://api.cheapbuddy.cc/v1/videos \
+  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \
+  -F "model=MiniMax-H3" \
+  -F "prompt=A slow camera move through a misty forest" \
+  -F "seconds=8" \
+  -F "ratio=16:9" \
+  -F "resolution=768P"
+
+# image-to-video: JSON accepts public HTTPS image URLs
+curl -X POST https://api.cheapbuddy.cc/v1/videos \
+  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MiniMax-H3","prompt":"Create a smooth transition between these frames.","first_frame":"https://example.com/start.png","last_frame":"https://example.com/end.png","seconds":8,"ratio":"adaptive","resolution":"768P"}'
+
+# reference-to-video: multipart accepts reference files
+curl -X POST https://api.cheapbuddy.cc/v1/videos \
+  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \
+  -F "model=MiniMax-H3" \
+  -F "prompt=Use the reference motion to create a cinematic dawn scene" \
+  -F "seconds=8" \
+  -F "ratio=adaptive" \
+  -F "resolution=768P" \
+  -F "reference_video=@reference.mp4"
+```
+
+H3 支持三种生成方式：无素材时为 text-to-video；使用 `first_frame`、`last_frame` 或 `images` 为 image-to-video；使用 `reference_image`、`reference_video` 或 `reference_audio` 为 reference-to-video。视频接口是异步任务：保存返回的 `id`，轮询 `GET /v1/videos/{id}`，完成后请求 `GET /v1/videos/{id}/content`。请求体支持 JSON 和 multipart；JSON 参考素材使用公开 HTTPS URL，multipart 参考素材使用对应文件字段，并把 `model` 字段放在文件字段之前。图片和视频任务的实际计费由媒体上游返回的用量和 CheapBuddy 媒体倍率结算。Claude Code、OpenCode、Codex 等文本 Agent 是否能直接展示媒体按钮取决于客户端；不支持时使用上述 API。
+
+发布新的媒体模型时，Relay 的 `RELAY_VERIFIED_MODELS`、`RELAY_RESERVATION_QUOTA_BY_MODEL`、`RELAY_MEDIA_MULTIPLIER_BY_MODEL` 和 `RELAY_MEDIA_BILLING_MODE_BY_MODEL` 必须同时包含完全一致的模型 ID；否则模型不会出现在 `/v1/models`，也不会被路由。
 
 ## Backend integration
 
@@ -78,7 +118,9 @@ Linux：打开或创建 `~/.workbuddy`，按相同方式合并 `models.json`。
 - 官网公告：登录后的 CheapBuddy 官网通过同源 `GET /api/v1/announcements` 加载公告，并在导航栏铃铛入口展示；Sub2API 的公告页面仅供管理员发布和维护，不作为用户展示入口。
 - WorkBuddy 配置：生成的 `models.json` 使用 WorkBuddy 的 `url` 字段，直接指向 Sub2API 的 `/v1/chat/completions` OpenAI 兼容接口
 
-本地开发服务器已将 `/api` 代理到 `http://127.0.0.1:8080`。生产官网的用户中心 API 使用同域 `https://cheapbuddy.cc/api/v1`；WorkBuddy 文本 API 使用 `https://api.cheapbuddy.cc/v1`，媒体 API 也通过同一 Railway Relay 域名提供。如果官网和 Sub2API 不在同一域名，设置：
+本地开发服务器只将 `/api/`（带结尾斜杠）代理到 `http://127.0.0.1:8080`；不能改成 `/api`，否则 `/api-docs` 会被误转发为后端请求。`/api-docs/` 和 `/comfyui/` 是 Vite 多入口页面，必须通过 HTTP 开发服务器或构建后的静态服务访问，不能直接打开 `file://` 源文件。生产官网的用户中心 API 使用同域 `https://cheapbuddy.cc/api/v1`；WorkBuddy 文本 API 使用 `https://api.cheapbuddy.cc/v1`，媒体 API 也通过同一 Railway Relay 域名提供。如果官网和 Sub2API 不在同一域名，设置：
+
+完整的前端运行限制和导航验收范围见 [`docs/project-limitations.md`](./docs/project-limitations.md)。
 
 ```powershell
 $env:VITE_API_BASE_URL = "https://console.cheapbuddy.cc/api/v1"
@@ -112,14 +154,14 @@ $env:VITE_TURNSTILE_REQUIRED = "true"
 
 CheapBuddy uses pay-as-you-go balance rather than a monthly subscription. New registrations receive a one-time ¥1 trial balance through Sub2API's `default.user_balance` setting. The customer-facing tiers are defined in `src/pricing.js` and the selected `amount` is sent to Sub2API when an order is created:
 
-| Tier | Payment | WorkBuddy points |
+| Tier | Payment | CheapBuddy balance added |
 | --- | ---: | ---: | ---: |
-| Trial | ¥3 | 1,000 points |
-| Standard | ¥15 | 5,000 points |
-| Regular | ¥30 | 10,000 points |
-| Heavy | ¥90 | 30,000 points |
-| Team | ¥150 | 50,000 points |
+| Trial | ¥3 | ¥3 |
+| Standard | ¥15 | ¥15 |
+| Regular | ¥30 | ¥30 |
+| Heavy | ¥90 | ¥90 |
+| Team | ¥150 | ¥150 |
 
-Internally, CheapBuddy applies the Sub2API group rate `1.2 ×` to the configured channel price. Customer-facing pricing is compared with official model pricing: with the current `0.6 ×` channel benchmark, the effective rate is `0.72 ×` official pricing, or about `7.2 折` (28% below official). This internal rate is intentionally not presented as a customer-facing price multiplier. Balances are shared across models and devices and do not reset monthly.
+CheapBuddy displays recharge amounts as RMB balance shared across supported models and clients. The final debit is controlled by each production backend route and model rate; no single official-price discount is advertised until those production values are verified. Check the live balance and per-model price details before making cost comparisons.
 
 推荐生产域名分工：`cheapbuddy.cc` 官网、`console.cheapbuddy.cc` 用户中心、`api.cheapbuddy.cc` WorkBuddy/媒体 API、`admin.cheapbuddy.cc` 私有管理入口。官网不展示管理域名，管理入口不挂载到官网或公开 API 路由。

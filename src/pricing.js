@@ -1,9 +1,3 @@
-// Customer billing is controlled by the production Sub2API group multiplier.
-// Keep this value aligned with the CheapBuddy OpenAI group so public pricing
-// copy cannot claim a discount when the configured rate is above official list.
-export const GROUP_RATE_MULTIPLIER = 4;
-export const OFFICIAL_PRICE_MULTIPLIER = GROUP_RATE_MULTIPLIER;
-
 // Customer-facing recharge tiers. The backend receives the amount field in yuan;
 // Sub2API remains the source of truth for the user's balance and billing.
 export const pricingPlans = [
@@ -12,7 +6,6 @@ export const pricingPlans = [
     name: '体验包',
     nameKey: 'planTrial',
     amount: 3,
-    workbuddyPoints: 1000,
     description: '先试一轮，再决定长期使用',
     descriptionKey: 'planTrialDescription',
     tag: '¥3 起',
@@ -23,7 +16,6 @@ export const pricingPlans = [
     name: '标准包',
     nameKey: 'planStandard',
     amount: 15,
-    workbuddyPoints: 5000,
     description: '日常 WorkBuddy 使用',
     descriptionKey: 'planStandardDescription',
     tag: '最常用',
@@ -35,7 +27,6 @@ export const pricingPlans = [
     name: '常用包',
     nameKey: 'planRegular',
     amount: 30,
-    workbuddyPoints: 10000,
     description: '适合持续使用多个模型',
     descriptionKey: 'planRegularDescription',
     tag: '推荐',
@@ -46,7 +37,6 @@ export const pricingPlans = [
     name: '重度包',
     nameKey: 'planHeavy',
     amount: 90,
-    workbuddyPoints: 30000,
     description: '长上下文与 Agent 任务',
     descriptionKey: 'planHeavyDescription',
     tag: '重度使用',
@@ -57,7 +47,6 @@ export const pricingPlans = [
     name: '团队包',
     nameKey: 'planTeam',
     amount: 150,
-    workbuddyPoints: 50000,
     description: '多设备、多模型共用',
     descriptionKey: 'planTeamDescription',
     tag: '大额充值',

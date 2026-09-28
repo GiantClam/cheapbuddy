@@ -3,6 +3,9 @@
 import { normalizeAffiliateCode } from './affiliate.js';
 
 const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
+const MEDIA_USAGE_API_BASE_URL = String(import.meta.env?.VITE_MEDIA_USAGE_API_BASE_URL || import.meta.env?.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc')
+  .replace(/\/+$/, '')
+  .replace(/\/v1$/, '');
 export const API_REQUEST_TIMEOUT_MS = 20_000;
 
 export class ApiRequestError extends Error {
@@ -154,6 +157,28 @@ export function getUsageDashboardStats() {
 export function getUsageDashboardModels(params) {
   const query = new URLSearchParams(params).toString();
   return request(`/usage/dashboard/models${query ? `?${query}` : ''}`);
+}
+
+export async function getMediaUsageDashboardModels(apiKey, params) {
+  if (!apiKey) return { models: [], summary: {} };
+  const query = new URLSearchParams(params).toString();
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS) : null;
+  let response;
+  try {
+    response = await fetch(`${MEDIA_USAGE_API_BASE_URL}/v1/usage/dashboard/media${query ? `?${query}` : ''}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller?.signal,
+    });
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorBody = body.error && typeof body.error === 'object' ? body.error : body;
+    throw new ApiRequestError(errorBody.message || `请求失败（${response.status}）`, { status: response.status, code: errorBody.code });
+  }
+  return body.data ?? body;
 }
 
 export async function listAnnouncements() {
