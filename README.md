@@ -1,6 +1,94 @@
 # CheapBuddy
 
-cheapbuddy.cc 的品牌化前端，后端能力直接使用 Sub2API。
+**CheapBuddy 是一个面向开发者、创作者和 AI 工作流用户的多模型 AI Gateway。**
+
+通过 [cheapbuddy.cc](https://cheapbuddy.cc/) 注册并管理账户，使用一个 CheapBuddy API Key 访问文本、图片和视频模型。CheapBuddy 提供统一的 OpenAI 兼容文本接口、图片/视频 API，以及可直接接入 ComfyUI 的三个通用节点。
+
+## 快速访问
+
+- [CheapBuddy 官网](https://cheapbuddy.cc/)
+- [注册 / 登录](https://cheapbuddy.cc/#account)
+- [图片 / 视频 API 文档](https://cheapbuddy.cc/api-docs/)
+- [ComfyUI 节点介绍](https://cheapbuddy.cc/comfyui/)
+- [下载 ComfyUI 节点 ZIP](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip)
+- [CheapBuddy GitHub](https://github.com/GiantClam/cheapbuddy)
+
+## CheapBuddy 能做什么
+
+- **统一模型入口**：文本、视觉、图片生成、图片编辑和视频生成使用统一的 CheapBuddy API Key。
+- **模型按能力发现**：客户端从 `/v1/models` 获取当前账户可用模型，按文本、图片和视频能力过滤。
+- **多客户端接入**：可用于 WorkBuddy、Claude Code、OpenCode、Codex、ComfyUI 和自定义程序。
+- **按实际用量计费**：文本按 Token 计费，图片和视频按媒体任务用量计费；最终价格以官网账户和 API 返回为准。
+- **无需自行维护上游密钥**：用户只需要管理自己的 CheapBuddy API Key。
+
+## ComfyUI 节点
+
+CheapBuddy ComfyUI 插件包含三个通用节点：
+
+| 节点 | 支持能力 |
+| --- | --- |
+| `CheapBuddy Text Generate` | 文本生成；连接图片后可调用支持 Vision 的模型 |
+| `CheapBuddy Image Generate` | 文生图、图生图、文生多图、图生多图、图片编辑和图片变体 |
+| `CheapBuddy Video Generate` | 文生视频、图生视频、参数视频生视频、首帧生视频、首尾帧生视频、参考视频/音频生视频 |
+
+节点会根据当前 API Key 动态加载模型和参数 schema。每个节点独立填写 `base_url`、API Key、模型和生成参数，不需要额外的 Config 或远端 Upload 节点。图片和视频素材由节点随任务请求发送。
+
+### 安装方式 A：下载 ZIP
+
+1. 安装 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 并确认可以正常启动。
+2. 下载 [ComfyUI-CheapBuddy ZIP](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip)。
+3. 解压后，将 `ComfyUI-CheapBuddy` 目录放入：
+
+   ```text
+   ComfyUI/custom_nodes/ComfyUI-CheapBuddy
+   ```
+
+4. 重启 ComfyUI。
+5. 在节点搜索框中搜索 `CheapBuddy`，即可看到三个节点。
+
+### 安装方式 B：从源码安装
+
+```bash
+git clone https://github.com/GiantClam/cheapbuddy.git
+cp -R cheapbuddy/comfyui/ComfyUI-CheapBuddy ComfyUI/custom_nodes/
+```
+
+Windows 可以将 `comfyui/ComfyUI-CheapBuddy` 目录复制到 `ComfyUI/custom_nodes/`。
+
+### 第一个工作流
+
+1. 打开 [CheapBuddy 官网](https://cheapbuddy.cc/)，注册或登录账户。
+2. 在账户中心创建或复制自己的 CheapBuddy API Key。
+3. 打开 ComfyUI，添加三个 CheapBuddy 节点。
+4. 在每个节点中填写：
+
+   ```text
+   base_url: https://api.cheapbuddy.cc
+   api_key: 你的 CheapBuddy API Key
+   ```
+
+5. 点击模型下拉框。节点会按当前 API Key 自动请求模型目录，并显示该节点支持的模型。
+6. 选择模型和生成类型，填写提示词及高级参数 JSON。
+7. 点击 Queue Prompt 运行工作流。
+
+也可以直接导入 `comfyui/ComfyUI-CheapBuddy/workflows/CheapBuddy-Test-Workflow.json`。该工作流覆盖文本生成、文生图、图生视频，以及图像编辑、图片变体、首尾帧和参考视频等分支。导入后只启用要运行的分支，并在对应节点中填入自己的 API Key。
+
+### API Key 安全
+
+按照 ComfyUI 的工作流使用方式，API Key 会保存在节点参数和工作流 JSON 中。不要把填入 API Key 的工作流上传到 GitHub、RunningHub、Comfy.icu、论坛或聊天记录。分享工作流前请清空或轮换 API Key。
+
+## API 快速示例
+
+文本接口：
+
+```bash
+curl https://api.cheapbuddy.cc/v1/chat/completions \
+  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-6-sol","messages":[{"role":"user","content":"Write a short product idea."}]}'
+```
+
+图片和视频请求、参数说明、任务轮询及素材字段请查看 [图片 / 视频 API 文档](https://cheapbuddy.cc/api-docs/)。
 
 ## Run
 
