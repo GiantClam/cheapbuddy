@@ -615,6 +615,118 @@ function ComfyUIDocsPage() {
   </div>;
 }
 
+function HypitDocsPage() {
+  const [language, setLanguage] = useState(getInitialLanguage);
+  const [copied, setCopied] = useState('');
+  const t = (key, variables) => translate(language, key, variables);
+
+  useEffect(() => {
+    setStoredLanguage(language);
+    updateSeoMetadata({
+      title: language === 'en' ? 'CheapBuddy Hypit provider | Install and use cheapbuddy.cc media models' : 'CheapBuddy Hypit Provider｜安装并使用 cheapbuddy.cc 图片视频模型',
+      description: language === 'en' ? 'Install the CheapBuddy provider in Hypit, configure credentials, bind media capabilities, and run image or video builds.' : '在 Hypit 中安装 CheapBuddy Provider，配置凭证、绑定图片与视频能力，并完成从检查到 Build 的操作。',
+      path: '/hypit',
+      type: 'article',
+    });
+  }, [language]);
+
+  const installCommand = `# in your Hypit project\nnpm install ./hypit-provider\n\n# or, when the package is available from your registry\nnpm install @cheapbuddy/provider-hypit`;
+  const runtimeConfig = `{
+  "format": "hypit.runtime-local@1",
+  "dataRoot": ".hypit/execution",
+  "credentials": {
+    "platform": { "use": "@hypit/credential-store-platform" }
+  },
+  "endpoints": {
+    "cheapbuddy.media": {
+      "use": "@cheapbuddy/provider-hypit",
+      "pool": "cheapbuddy-media",
+      "config": {
+        "baseUrl": "https://api.cheapbuddy.cc",
+        "apiKey": { "store": "platform", "key": "cheapbuddy.api" },
+        "concurrency": 2,
+        "pollIntervalMs": 5000
+      }
+    }
+  },
+  "bindings": {
+    "@hypit/gpt-image@1#gpt-image-2": "cheapbuddy.media",
+    "@hypit/seedance@1#seedance-2-mini": "cheapbuddy.media",
+    "@hypit/minimax-h3@1#minimax-h3": "cheapbuddy.media"
+  }
+}`;
+  const authorExample = `<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="text" from="@hypit/text@1"/>
+  <import as="h3" from="@hypit/minimax-h3@1"/>
+  <text:Value id="prompt">A calm product close-up in a bright studio, slow camera move, no captions.</text:Value>
+  <h3:TextVideo id="shot" prompt={prompt} duration="8" resolution="2k" aspect-ratio="16:9"/>
+</svml>`;
+  const runExample = `<?svml using="@hypit/run-markup@1"?>
+<svrun version="1">
+  <author source="../authors/generate.svml"/>
+  <target output="shot.video"/>
+</svrun>`;
+  const buildCommands = `hypit runtime use hypit.runtime.json
+hypit auth login cheapbuddy.media
+hypit auth status cheapbuddy.media
+hypit doctor --endpoint cheapbuddy.media
+hypit check authors/generate.svml
+hypit check runs/generate.svrun
+hypit plan runs/generate.svrun
+hypit pricing runs/generate.svrun
+hypit build runs/generate.svrun --title "CheapBuddy media build" --follow
+hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
+
+  const copyCode = async (codeId, value) => {
+    try {
+      await writeClipboard(value);
+      setCopied(codeId);
+      window.setTimeout(() => setCopied((current) => current === codeId ? '' : current), 1800);
+    } catch {
+      setCopied('');
+    }
+  };
+
+  const steps = [
+    ['01', 'hypitInstallStepTitle', 'hypitInstallStepText'],
+    ['02', 'hypitRuntimeStepTitle', 'hypitRuntimeStepText'],
+    ['03', 'hypitCredentialStepTitle', 'hypitCredentialStepText'],
+    ['04', 'hypitBindStepTitle', 'hypitBindStepText'],
+  ];
+
+  return <div className="api-docs-shell hypit-docs-shell">
+    <header className="site-header api-docs-header">
+      <div className="site-header-inner section-wrap">
+        <Logo t={t} homeHref="/" />
+        <div className="api-docs-top-actions"><a className="api-home-link" href="/">{t('apiDocsBackHome')} <Icon name="arrow" size={15} /></a><a className="api-home-link" href="/api-docs">{t('navMediaApi')} <Icon name="arrow" size={15} /></a><LanguageToggle language={language} onChange={setLanguage} /></div>
+      </div>
+    </header>
+    <main>
+      <section className="api-docs-hero section-wrap hypit-docs-hero">
+        <div className="api-docs-hero-copy"><span className="section-index">HYPIT / 01</span><h1>{t('hypitTitle')}<br /><em>{t('hypitTitleAccent')}</em></h1><p>{t('hypitLead')}</p><div className="api-docs-hero-tags"><span>INSTALL PROVIDER</span><span>CHEAPBUDDY.CC</span><span>CHECK → BUILD</span></div></div>
+        <div className="hypit-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('hypitBoardTitle')}</span><span>provider-hypit</span></div><div className="hypit-flow-row"><span>01</span><b>{t('hypitFlowInstall')}</b><code>npm install</code></div><div className="hypit-flow-row"><span>02</span><b>{t('hypitFlowRuntime')}</b><code>cheapbuddy.media</code></div><div className="hypit-flow-row"><span>03</span><b>{t('hypitFlowBuild')}</b><code>check → plan → build</code></div><div className="hypit-board-foot">{t('hypitBoardFoot')}</div></div>
+      </section>
+
+      <div className="comfy-docs-layout section-wrap">
+        <aside className="api-docs-sidebar"><span>{t('hypitOnThisPage')}</span><a href="#hypit-install">{t('hypitInstallTitle')}</a><a href="#hypit-runtime">{t('hypitRuntimeTitle')}</a><a href="#hypit-author">{t('hypitAuthorTitle')}</a><a href="#hypit-build">{t('hypitBuildTitle')}</a><a href="#hypit-safety">{t('hypitSafetyTitle')}</a></aside>
+        <article className="api-docs-content">
+          <section id="hypit-install" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">01</span><div><h2>{t('hypitInstallTitle')}</h2><p>{t('hypitInstallLead')}</p></div></div><div className="comfy-install-grid">{steps.map(([number, titleKey, textKey]) => <article className="comfy-step-card" key={number}><span>{number}</span><div><h3>{t(titleKey)}</h3><p>{t(textKey)}</p></div></article>)}</div><ApiCodeBlock label="npm" code={installCommand} codeId="hypit-install" copied={copied} onCopy={copyCode} t={t} /></section>
+
+          <section id="hypit-runtime" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">02</span><div><h2>{t('hypitRuntimeTitle')}</h2><p>{t('hypitRuntimeLead')}</p></div></div><ApiCodeBlock label="hypit.runtime.json" code={runtimeConfig} codeId="hypit-runtime" copied={copied} onCopy={copyCode} t={t} /><div className="api-callout"><strong>{t('hypitRuntimeNoteTitle')}</strong><p>{t('hypitRuntimeNote')}</p></div></section>
+
+          <section id="hypit-author" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">03</span><div><h2>{t('hypitAuthorTitle')}</h2><p>{t('hypitAuthorLead')}</p></div></div><div className="hypit-code-grid"><ApiCodeBlock label="authors/generate.svml" code={authorExample} codeId="hypit-author" copied={copied} onCopy={copyCode} t={t} /><ApiCodeBlock label="runs/generate.svrun" code={runExample} codeId="hypit-run" copied={copied} onCopy={copyCode} t={t} /></div><div className="api-field-grid hypit-capability-grid"><div className="api-field-card"><code>@hypit/gpt-image@1#gpt-image-2</code><strong>gpt-image-2</strong><p>{t('hypitImageCapability')}</p></div><div className="api-field-card"><code>@hypit/minimax-h3@1#minimax-h3</code><strong>MiniMax-H3</strong><p>{t('hypitVideoCapability')}</p></div><div className="api-field-card"><code>@hypit/seedance@1#seedance-2-mini</code><strong>Seedance</strong><p>{t('hypitSeedanceCapability')}</p></div></div></section>
+
+          <section id="hypit-build" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">04</span><div><h2>{t('hypitBuildTitle')}</h2><p>{t('hypitBuildLead')}</p></div></div><ApiCodeBlock label="Hypit CLI" code={buildCommands} codeId="hypit-build" copied={copied} onCopy={copyCode} t={t} /><div className="api-callout"><strong>{t('hypitBuildNoteTitle')}</strong><p>{t('hypitBuildNote')}</p></div></section>
+
+          <section id="hypit-safety" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">05</span><div><h2>{t('hypitSafetyTitle')}</h2><p>{t('hypitSafetyLead')}</p></div></div><div className="comfy-security-list hypit-safety-list"><span>{t('hypitSafetyItemOne')}</span><span>{t('hypitSafetyItemTwo')}</span><span>{t('hypitSafetyItemThree')}</span></div><div className="api-callout"><strong>{t('hypitSafetyWarningTitle')}</strong><p>{t('hypitSafetyWarning')}</p></div></section>
+        </article>
+      </div>
+    </main>
+    <footer className="footer api-docs-footer section-wrap"><Logo t={t} homeHref="/" /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><p>{t('hypitFooterNote')}</p></footer>
+  </div>;
+}
+
 function MediaDocs({ t }) {
   const imageRequest = `curl ${baseUrl}/images/generations \\\n  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gpt-image-2.5","prompt":"a cinematic city at night","size":"1024x1024","n":1}'`;
   const videoRequest = `curl -X POST ${baseUrl}/videos -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" -F "model=MiniMax-H3" -F "prompt=A slow camera move through a misty forest"`;
@@ -1317,6 +1429,7 @@ function HomePage() {
             <div className="nav-menu-panel" role="menu">
               <a href="/api-docs" onClick={closeNav} role="menuitem"><span>{t('navMediaApi')}</span><small>{t('navMediaApiHint')}</small></a>
               <a href="/comfyui" onClick={closeNav} role="menuitem"><span>{t('navComfyUI')}</span><small>{t('navComfyUIHint')}</small></a>
+              <a href="/hypit" onClick={closeNav} role="menuitem"><span>{t('navHypit')}</span><small>{t('navHypitHint')}</small></a>
             </div>
           </div>
           <button className="mobile-announcement-link" onClick={() => { closeNav(); openAnnouncements(); }}><Icon name="bell" size={16} />{t('announcements')}{unreadAnnouncementCount > 0 && <span className="announcement-count">{unreadAnnouncementCount > 9 ? '9+' : unreadAnnouncementCount}</span>}</button>
@@ -1372,7 +1485,7 @@ function HomePage() {
           <section id="guide" className="guide-section section-wrap"><div className="guide-copy"><span className="section-index">05</span><h2>{t('guideTitle')}<br />{t('guideTitleAccent')}</h2><p>{t('guideLead')}</p><button className="button button-primary guide-config-button" type="button" onClick={openGenerator}>{t('choosePlatformAndGenerate')} <Icon name="arrow" size={15} /></button><p className="guide-prompt-hint">{t('promptDescription')}</p></div><div className="guide-detail"><div className="guide-method"><span className="guide-method-mark">01</span><div><b>{t('guideStepDownload')}</b><p>{t('guideStepDownloadText')}</p></div></div><div className="guide-method"><span className="guide-method-mark">02</span><div><b>{t('guideStepRestart')}</b><p>{t('guideStepRestartText')}</p></div></div><div className="os-list platform-guide-list">{platformOptions.map((platform) => <button className={platform.id === platformId ? 'os-row active' : 'os-row'} key={platform.id} type="button" onClick={() => { changePlatform(platform.id); openGenerator(); }}><span className="os-icon">{platform.mark}</span><div><b>{platform.name}</b><small>{t(`platform_${platform.id}`)}</small></div><Icon name="arrow" size={17} /></button>)}</div></div></section>
     </main>
 
-    <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
+    <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="/hypit">{t('navHypit')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
     {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={openPaywall} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
     {showPaywall && <PaywallPanel plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} t={t} />}
@@ -1392,6 +1505,8 @@ function HomePage() {
 function App() {
   const isApiDocsPage = window.location.pathname === '/api-docs' || window.location.pathname === '/api-docs/';
   const isComfyUIDocsPage = window.location.pathname === '/comfyui' || window.location.pathname === '/comfyui/';
+  const isHypitDocsPage = window.location.pathname === '/hypit' || window.location.pathname === '/hypit/';
+  if (isHypitDocsPage) return <HypitDocsPage />;
   if (isComfyUIDocsPage) return <ComfyUIDocsPage />;
   return isApiDocsPage ? <ApiDocsPage /> : <HomePage />;
 }

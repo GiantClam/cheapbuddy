@@ -19,7 +19,7 @@ const mimeTypes = {
   '.xml': 'application/xml; charset=utf-8',
 };
 
-const appPaths = new Set(['/', '/api-docs', '/api-docs/', '/comfyui', '/comfyui/', '/payment/result']);
+const appPaths = new Set(['/', '/api-docs', '/api-docs/', '/comfyui', '/comfyui/', '/hypit', '/hypit/', '/payment/result']);
 
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);

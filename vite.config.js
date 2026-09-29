@@ -13,6 +13,7 @@ export default defineConfig({
         home: resolve(projectRoot, 'index.html'),
         apiDocs: resolve(projectRoot, 'api-docs/index.html'),
         comfyUI: resolve(projectRoot, 'comfyui/index.html'),
+        hypit: resolve(projectRoot, 'hypit/index.html'),
       },
     },
   },
