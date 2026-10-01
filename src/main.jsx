@@ -1,10 +1,13 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './styles.css';
 import './paywall.css';
-import { cancelPaymentOrder, clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
 import { defaultPricingPlan, pricingPlans } from './pricing';
+import { formatPaymentAmount, getPlanPaymentAmount, hasPaymentCurrency, isStripePaymentType, selectPaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
@@ -200,12 +203,13 @@ function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') 
   URL.revokeObjectURL(url);
 }
 
-function PaywallPanel({ plans, selectedPlanId, paymentLoading, onRecharge, onClose, t }) {
+function PaywallPanel({ plans, selectedPlanId, paymentLoading, onRecharge, onClose, language, t }) {
+  const currency = language === 'en' ? 'USD' : 'CNY';
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal paywall-modal" role="dialog" aria-modal="true" aria-labelledby="paywall-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY PAYWALL</span><h2 id="paywall-title">{t('paywallTitle')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
       <p className="paywall-intro">{paymentLoading ? t('creatingOrder') : t('paywallLead')}</p>
-      <div className="pricing-plan-grid">{plans.map((plan) => <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price">¥<strong>{formatAmount(plan.amount)}</strong></div><div className="pricing-plan-balance"><b>¥{formatAmount(plan.amount)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => onRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount(plan.amount) })} <Icon name="arrow" size={15} /></button></article>)}</div>
+      <div className="pricing-plan-grid">{plans.map((plan) => { const paymentAmount = getPlanPaymentAmount(plan.amount, language); return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div><div className="pricing-plan-balance"><b>{formatPaymentAmount(paymentAmount, currency)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => onRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(currency === 'USD' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} /></button></article>; })}</div>
       <p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('paywallFootnote')}</p>
     </div>
   </div>;
@@ -385,10 +389,12 @@ function ConfigGeneratorModal({
   </div>;
 }
 
-const USD_CNY_REFERENCE_RATE = 6.71;
+const USD_CNY_REFERENCE_RATE = USD_TO_CNY_RATE;
 
-function PricingComparison({ plan, t }) {
-  const usdValue = plan.amount / USD_CNY_REFERENCE_RATE;
+function PricingComparison({ plan, language, t }) {
+  const usdValue = getPlanPaymentAmount(plan.amount, 'en');
+  const displayAmount = language === 'en' ? usdValue : plan.amount;
+  const displayCurrency = language === 'en' ? '$' : '¥';
   const workBuddyCredits = Math.round(plan.amount / 100 * 2000);
   const gpt6SolInputTokens = Math.round(usdValue / 2 * 1000000);
   const gpt6SolOutputTokens = Math.round(usdValue / 10 * 1000000);
@@ -397,32 +403,32 @@ function PricingComparison({ plan, t }) {
 
   return <section className="pricing-comparison" aria-labelledby="pricing-comparison-title">
     <div className="pricing-comparison-heading">
-      <div><span className="section-index">REFERENCE</span><h3 id="pricing-comparison-title">{t('pricingComparisonTitle', { amount: formatAmount(plan.amount) })}</h3></div>
-      <p>{t('pricingComparisonLead', { amount: formatAmount(plan.amount), usd: usdValue.toFixed(2), rate: USD_CNY_REFERENCE_RATE.toFixed(2) })}</p>
+      <div><span className="section-index">REFERENCE</span><h3 id="pricing-comparison-title">{t('pricingComparisonTitle', { amount: formatAmount(displayAmount), currency: displayCurrency })}</h3></div>
+      <p>{t('pricingComparisonLead', { amount: formatAmount(displayAmount), cny: formatAmount(plan.amount), usd: usdValue.toFixed(2), rate: USD_CNY_REFERENCE_RATE.toFixed(2) })}</p>
     </div>
     <div className="pricing-comparison-grid">
       <article className="pricing-comparison-card featured">
         <div className="pricing-comparison-label">WorkBuddy</div>
         <strong>≈ {workBuddyCredits.toLocaleString()} Credits</strong>
-        <p>{t('pricingComparisonWorkbuddy', { amount: formatAmount(plan.amount), credits: workBuddyCredits.toLocaleString() })}</p>
+        <p>{t('pricingComparisonWorkbuddy', { amount: formatAmount(displayAmount), cny: formatAmount(plan.amount), usd: usdValue.toFixed(2), credits: workBuddyCredits.toLocaleString() })}</p>
         <a href="https://cloud.tencent.com/document/product/1831/134333" target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗</a>
       </article>
       <article className="pricing-comparison-card">
         <div className="pricing-comparison-label">Codex · GPT-6 Sol API</div>
         <strong>≈ {gpt6SolInputTokens.toLocaleString()} / {gpt6SolOutputTokens.toLocaleString()}</strong>
-        <p>{t('pricingComparisonCodex', { amount: formatAmount(plan.amount), usd: usdValue.toFixed(2), inputTokens: gpt6SolInputTokens.toLocaleString(), outputTokens: gpt6SolOutputTokens.toLocaleString() })}</p>
+        <p>{t('pricingComparisonCodex', { amount: formatAmount(displayAmount), cny: formatAmount(plan.amount), usd: usdValue.toFixed(2), inputTokens: gpt6SolInputTokens.toLocaleString(), outputTokens: gpt6SolOutputTokens.toLocaleString() })}</p>
         <a href="https://developers.openai.com/api/docs/pricing" target="_blank" rel="noopener noreferrer">{t('apiPricingSource')} ↗</a>
       </article>
       <article className="pricing-comparison-card">
         <div className="pricing-comparison-label">Claude Code</div>
         <strong>{claudeMonthlyPercent}% {t('ofProMonth')}</strong>
-        <p>{t('pricingComparisonClaude', { amount: formatAmount(plan.amount), percent: claudeMonthlyPercent })}</p>
+        <p>{t('pricingComparisonClaude', { amount: formatAmount(displayAmount), cny: formatAmount(plan.amount), usd: usdValue.toFixed(2), percent: claudeMonthlyPercent })}</p>
         <a href="https://claude.com/pricing" target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗</a>
       </article>
       <article className="pricing-comparison-card">
         <div className="pricing-comparison-label">OpenCode Go</div>
         <strong>{openCodeMonthlyPercent}% {t('ofGoMonth')}</strong>
-        <p>{t('pricingComparisonOpenCode', { amount: formatAmount(plan.amount), low: (15 * openCodeMonthlyPercent / 100).toFixed(2), high: (60 * openCodeMonthlyPercent / 100).toFixed(2) })}</p>
+        <p>{t('pricingComparisonOpenCode', { amount: formatAmount(displayAmount), cny: formatAmount(plan.amount), usd: usdValue.toFixed(2), low: (15 * openCodeMonthlyPercent / 100).toFixed(2), high: (60 * openCodeMonthlyPercent / 100).toFixed(2) })}</p>
         <a href="https://dev.opencode.ai/docs/go/" target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗</a>
       </article>
     </div>
@@ -724,6 +730,80 @@ hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
       </div>
     </main>
     <footer className="footer api-docs-footer section-wrap"><Logo t={t} homeHref="/" /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><p>{t('hypitFooterNote')}</p></footer>
+  </div>;
+}
+
+const blogSources = import.meta.glob('../content/blog/*.md', { query: '?raw', import: 'default', eager: true });
+
+function parseBlogPost(source) {
+  const [, frontMatter = '', content = source] = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/) || [];
+  const data = Object.fromEntries(frontMatter.split(/\r?\n/).filter(Boolean).map((line) => {
+    const separator = line.indexOf(':');
+    return separator < 0 ? [line, ''] : [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
+  }));
+  const [zh = '', en = ''] = content.split('<!-- en -->');
+  const clean = (value) => value.replace('<!-- zh -->', '').trim();
+  return {
+    slug: data.slug,
+    category: data.category || 'NOTES',
+    date: data.date,
+    readTime: Number(data.readTime || 1),
+    accent: data.accent || 'green',
+    title: { zh: data.title, en: data.title_en || data.title },
+    excerpt: { zh: data.excerpt, en: data.excerpt_en || data.excerpt },
+    markdown: { zh: clean(zh), en: clean(en) },
+  };
+}
+
+function getBlogHeadings(markdown) {
+  return [...markdown.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1].trim());
+}
+
+function blogHeadingId(heading) {
+  return heading.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+}
+
+const blogPosts = Object.values(blogSources).map(parseBlogPost).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+function BlogPage() {
+  const [language, setLanguage] = useState(getInitialLanguage);
+  const t = (value) => value?.[language] || value?.zh || value?.en || '';
+  const slug = window.location.pathname.split('/').filter(Boolean)[1] || '';
+  const post = blogPosts.find((item) => item.slug === slug);
+  const isDetail = Boolean(post);
+  const markdown = post?.markdown[language] || post?.markdown.en || '';
+  const headings = getBlogHeadings(markdown);
+  const markdownSections = markdown.split(/^##\s+/gm).filter(Boolean).map((section) => {
+    const [heading, ...body] = section.split('\n');
+    return { heading: heading.trim(), body: body.join('\n').trim() };
+  });
+
+  useEffect(() => {
+    setStoredLanguage(language);
+    updateSeoMetadata({
+      title: isDetail ? `${t(post.title)} | CheapBuddy Blog` : language === 'en' ? 'CheapBuddy Blog | Notes on models, APIs, and workflows' : 'CheapBuddy Blog｜模型、API 与工作流笔记',
+      description: isDetail ? t(post.excerpt) : language === 'en' ? 'Product notes and practical guides for building with CheapBuddy models, media APIs, ComfyUI, and Hypit.' : 'CheapBuddy 的产品笔记与实战指南，覆盖模型、媒体 API、ComfyUI 和 Hypit 工作流。',
+      path: isDetail ? `/blog/${post.slug}` : '/blog',
+      type: 'article',
+    });
+  }, [language, isDetail, post]);
+
+  const formatDate = (date) => new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(date));
+
+  return <div className="blog-shell">
+    <header className="site-header api-docs-header blog-header">
+      <div className="site-header-inner section-wrap">
+        <Logo t={(key) => key === 'homeAria' ? 'CheapBuddy home' : key} homeHref="/" />
+        <div className="blog-top-actions"><a className="api-home-link" href="/">{language === 'zh' ? '返回首页' : 'Back home'} <Icon name="arrow" size={15} /></a><a className="api-home-link blog-current-link" href="/blog">Blog</a><LanguageToggle language={language} onChange={setLanguage} /></div>
+      </div>
+    </header>
+    <main>
+      {!isDetail ? <>
+        <section className="blog-hero section-wrap"><div><span className="section-index">CHEAPBUDDY / JOURNAL</span><h1>{language === 'zh' ? <>把模型接入工作，<br /><em>把复杂留在幕后。</em></> : <>Make models useful.<br /><em>Keep complexity backstage.</em></>}</h1><p>{language === 'zh' ? '产品笔记、工程实践和可以直接复制的工作流。' : 'Product notes, engineering decisions, and workflows you can use immediately.'}</p></div><div className="blog-hero-signal"><span className="live-line" /><span>CURRENTLY WRITING</span><strong>{String(blogPosts.length).padStart(2, '0')}</strong><small>{language === 'zh' ? '篇公开文章' : 'published notes'}</small></div></section>
+        <section className="blog-index section-wrap">{blogPosts.length ? <><div className="blog-featured-label"><span>{language === 'zh' ? '精选文章' : 'Featured note'}</span><span>01 / {String(blogPosts.length).padStart(2, '0')}</span></div><a className="blog-featured-card" href={`/blog/${blogPosts[0].slug}`}><div className={`blog-card-art art-${blogPosts[0].accent}`}><span>CB</span><i>01</i><b>ONE<br />BALANCE</b></div><div className="blog-featured-copy"><div className="blog-meta"><span>{blogPosts[0].category}</span><time>{formatDate(blogPosts[0].date)} · {blogPosts[0].readTime} min</time></div><h2>{t(blogPosts[0].title)}</h2><p>{t(blogPosts[0].excerpt)}</p><span className="blog-read-link">{language === 'zh' ? '阅读文章' : 'Read note'} <Icon name="arrow" size={15} /></span></div></a></> : <p className="blog-empty">{language === 'zh' ? '文章正在准备中。' : 'New notes are on the way.'}</p>}<div className="blog-list-heading"><h2>{language === 'zh' ? '全部文章' : 'All notes'}</h2><span>{language === 'zh' ? '从产品到生态' : 'Product to ecosystem'}</span></div><div className="blog-list">{blogPosts.slice(1).map((item, index) => <a className="blog-list-card" href={`/blog/${item.slug}`} key={item.slug}><div className={`blog-card-art art-${item.accent}`}><span>{String(index + 2).padStart(2, '0')}</span><i>↗</i></div><div><div className="blog-meta"><span>{item.category}</span><time>{formatDate(item.date)} · {item.readTime} min</time></div><h3>{t(item.title)}</h3><p>{t(item.excerpt)}</p><span className="blog-read-link">{language === 'zh' ? '查看内页' : 'Open note'} <Icon name="arrow" size={14} /></span></div></a>)}</div></section>
+      </> : post ? <article className="blog-article section-wrap"><a className="blog-back-link" href="/blog"><Icon name="arrow" size={15} /> {language === 'zh' ? '返回 Blog' : 'Back to Blog'}</a><div className="blog-article-head"><div className="blog-meta"><span>{post.category}</span><time>{formatDate(post.date)} · {post.readTime} min read</time></div><h1>{t(post.title)}</h1><p>{t(post.excerpt)}</p></div><div className="blog-article-layout"><aside className="blog-article-aside"><span>{language === 'zh' ? '文章目录' : 'On this page'}</span>{headings.map((heading, index) => <a href={`#${blogHeadingId(heading)}`} key={heading}>{String(index + 1).padStart(2, '0')} {heading}</a>)}</aside><div className="blog-article-content">{markdownSections.map((section, index) => <section id={blogHeadingId(section.heading)} className="blog-content-section" key={section.heading}><div className="blog-content-number">{String(index + 1).padStart(2, '0')}</div><div><h2>{section.heading}</h2><ReactMarkdown remarkPlugins={[remarkGfm]}>{section.body}</ReactMarkdown></div></section>)}<div className="blog-article-footer"><span>{language === 'zh' ? '继续阅读' : 'Keep reading'}</span>{blogPosts.filter((item) => item.slug !== post.slug).slice(0, 2).map((item) => <a href={`/blog/${item.slug}`} key={item.slug}>{t(item.title)} <Icon name="arrow" size={14} /></a>)}</div></div></div></article> : <article className="blog-article section-wrap"><a className="blog-back-link" href="/blog"><Icon name="arrow" size={15} /> {language === 'zh' ? '返回 Blog' : 'Back to Blog'}</a><h1>{language === 'zh' ? '文章不存在' : 'Article not found'}</h1></article>}
+    </main>
+    <footer className="footer api-docs-footer section-wrap"><Logo t={(key) => key === 'homeAria' ? 'CheapBuddy home' : key} homeHref="/" /><div className="footer-note">{language === 'zh' ? '更多模型，就在你的工作流里。' : 'More models, right inside your workflow.'}<br /><span>cheapbuddy.cc · Powered by CheapBuddy</span></div><div className="footer-links"><a href="/">{language === 'zh' ? '首页' : 'Home'}</a><a href="/api-docs">{language === 'zh' ? '媒体 API' : 'Media API'}</a><a href="/comfyui">ComfyUI</a><a href="/hypit">Hypit</a></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
   </div>;
 }
 
@@ -1192,13 +1272,20 @@ function HomePage() {
     try {
       const checkout = await getCheckoutInfo();
       const methods = checkout.methods || {};
-      const paymentType = ['easypay', 'alipay', 'alipay_direct'].find((type) => methods[type]?.available !== false && methods[type]);
-      if (!paymentType) throw new Error(t('paymentNotConfigured'));
+      const paymentType = selectPaymentType(methods, language);
+      if (!paymentType) throw new Error(language === 'en' ? t('stripePaymentNotConfigured') : t('paymentNotConfigured'));
+      if (language === 'en' && isStripePaymentType(paymentType) && !hasPaymentCurrency(methods, paymentType, 'USD')) {
+        throw new Error(t('stripePaymentNotConfigured'));
+      }
       const paymentResultUrl = `${window.location.origin}/payment/result`;
-      const order = await createPaymentOrder({ amount: plan.amount, payment_type: paymentType, order_type: 'balance', payment_source: 'cheapbuddy', return_url: paymentResultUrl, is_mobile: window.innerWidth < 700 });
-      if (order.pay_url) window.location.assign(order.pay_url);
+      const order = await createPaymentOrder({ amount: getPlanPaymentAmount(plan.amount, language), payment_type: paymentType, order_type: 'balance', payment_source: 'cheapbuddy', return_url: paymentResultUrl, is_mobile: window.innerWidth < 700 });
+      if (isStripePaymentType(paymentType) && order.client_secret) {
+        const stripeUrl = buildStripePaymentUrl({ orderId: order.order_id || order.id, clientSecret: order.client_secret, resumeToken: order.resume_token });
+        if (!stripeUrl) throw new Error(t('stripePaymentFailed'));
+        window.location.assign(stripeUrl);
+      } else if (order.pay_url) window.location.assign(order.pay_url);
       else if (order.qr_code) notify(t('orderCreatedQr'));
-      else notify(t('orderCreated'));
+      else notify(isStripePaymentType(paymentType) ? t('stripePaymentFailed') : t('orderCreated'));
     } catch (error) {
       if (error?.reason === 'TOO_MANY_PENDING') {
         const maxPending = error.metadata?.max || '';
@@ -1424,6 +1511,7 @@ function HomePage() {
           <a href="#how" onClick={closeNav}>{t('navHow')}</a>
           <a href="#pricing" onClick={closeNav}>{t('navPricing')}</a>
           <a href="#guide" onClick={closeNav}>{t('navGuide')}</a>
+          <a href="/blog" onClick={closeNav}>Blog</a>
           <div className="nav-menu">
             <button className="nav-menu-trigger" type="button" aria-haspopup="true">{t('navMediaDocs')} <Icon name="chevron" size={14} /></button>
             <div className="nav-menu-panel" role="menu">
@@ -1465,7 +1553,7 @@ function HomePage() {
 
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
-        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices">{model.modality === 'text' ? <><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div><div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div></article>)}</div>
+        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div><div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div></article>)}</div>
         <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote')}</span><span className="shelf-line" /></div>
       </section>
 
@@ -1480,15 +1568,15 @@ function HomePage() {
         <div className="generator-panel"><div className="generator-copy"><span className="section-index">03</span><h2>{t('generatorTitle')}<br /><em>{t('generatorTitleAccent')}</em></h2><p>{t('generatorLead')}</p><div className="generator-perks"><span><Icon name="shield" size={17} /> {t('boundKey')}</span><span><Icon name="bolt" size={17} /> {t('readyNow')}</span></div><button className="button button-primary" onClick={openGenerator}>{t('openConfigCenter')} <Icon name="arrow" /></button></div><div className="mini-console"><div className="console-bar"><span><i /><i /><i /></span><small>cheapbuddy / models.json</small><span className="console-live">● {t('live')}</span></div><pre><code><span className="code-key">models</span>: [{consoleModels.map((model, index) => <span key={model.id}><br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"{model.id}"</span>,<br />    <span className="code-key">name</span>: <span className="code-string">"{model.short}"</span>,<br />    <span className="code-key">url</span>: <span className="code-string">{JSON.stringify(baseUrl + '/chat/completions')}</span><br />  {'}'}{index < consoleModels.length - 1 ? ',' : ''}</span>)}<br />]</code></pre><div className="console-footer"><span><span className="mini-dot" /> {t('modelsReady', { count: models.length })}</span><span>JSON</span></div></div></div>
       </section>
 
-      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead')}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price">¥<strong>{formatAmount(plan.amount)}</strong></div><div className="pricing-plan-balance"><b>¥{formatAmount(plan.amount)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount(plan.amount) })} <Icon name="arrow" size={15} /></button></article>)}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><PricingComparison plan={displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]} t={t} /><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>¥<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{t('perModelRates')}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('rechargeAmount', { amount: formatAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b title={model.priceUnit}>{model.input} / {model.output}{model.priceSourceUrl && <> · <a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer" aria-label={t('officialPricingSource')}>↗</a></>}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
+      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead')}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => { const paymentAmount = getPlanPaymentAmount(plan.amount, language); const currency = language === 'en' ? 'USD' : 'CNY'; return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div><div className="pricing-plan-balance"><b>{formatPaymentAmount(paymentAmount, currency)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} /></button></article>; })}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><PricingComparison plan={displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]} language={language} t={t} /><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>{language === 'en' ? '$' : '¥'}<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{t('perModelRates')}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(getPlanPaymentAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount, language)) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b title={model.priceUnit}>{model.input} / {model.output}{model.priceSourceUrl && <> · <a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer" aria-label={t('officialPricingSource')}>↗</a></>}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
 
           <section id="guide" className="guide-section section-wrap"><div className="guide-copy"><span className="section-index">05</span><h2>{t('guideTitle')}<br />{t('guideTitleAccent')}</h2><p>{t('guideLead')}</p><button className="button button-primary guide-config-button" type="button" onClick={openGenerator}>{t('choosePlatformAndGenerate')} <Icon name="arrow" size={15} /></button><p className="guide-prompt-hint">{t('promptDescription')}</p></div><div className="guide-detail"><div className="guide-method"><span className="guide-method-mark">01</span><div><b>{t('guideStepDownload')}</b><p>{t('guideStepDownloadText')}</p></div></div><div className="guide-method"><span className="guide-method-mark">02</span><div><b>{t('guideStepRestart')}</b><p>{t('guideStepRestartText')}</p></div></div><div className="os-list platform-guide-list">{platformOptions.map((platform) => <button className={platform.id === platformId ? 'os-row active' : 'os-row'} key={platform.id} type="button" onClick={() => { changePlatform(platform.id); openGenerator(); }}><span className="os-icon">{platform.mark}</span><div><b>{platform.name}</b><small>{t(`platform_${platform.id}`)}</small></div><Icon name="arrow" size={17} /></button>)}</div></div></section>
     </main>
 
-    <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="/hypit">{t('navHypit')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
+    <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/blog">Blog</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="/hypit">{t('navHypit')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
     {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={openPaywall} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
-    {showPaywall && <PaywallPanel plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} t={t} />}
+    {showPaywall && <PaywallPanel plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} language={language} t={t} />}
     {showPaymentOrders && <PaymentOrdersPanel orders={paymentOrders} error={paymentOrdersError} language={language} loading={paymentOrdersLoading} cancellingId={paymentOrderCancellingId} onClose={() => setShowPaymentOrders(false)} onRefresh={loadPaymentOrders} onCancel={cancelUserPaymentOrder} t={t} />}
 
     {showAffiliate && <AffiliatePanel detail={affiliateDetail} error={affiliateError} language={language} loading={affiliateLoading} transferring={affiliateTransferLoading} onClose={() => setShowAffiliate(false)} onCopyCode={(code) => copyAffiliateValue(code, 'affiliateCodeCopied')} onCopyLink={(link) => copyAffiliateValue(link, 'affiliateLinkCopied')} onRefresh={loadAffiliate} onTransfer={transferAffiliateBalance} t={t} />}
@@ -1506,8 +1594,10 @@ function App() {
   const isApiDocsPage = window.location.pathname === '/api-docs' || window.location.pathname === '/api-docs/';
   const isComfyUIDocsPage = window.location.pathname === '/comfyui' || window.location.pathname === '/comfyui/';
   const isHypitDocsPage = window.location.pathname === '/hypit' || window.location.pathname === '/hypit/';
+  const isBlogPage = window.location.pathname === '/blog' || window.location.pathname === '/blog/' || window.location.pathname.startsWith('/blog/');
   if (isHypitDocsPage) return <HypitDocsPage />;
   if (isComfyUIDocsPage) return <ComfyUIDocsPage />;
+  if (isBlogPage) return <BlogPage />;
   return isApiDocsPage ? <ApiDocsPage /> : <HomePage />;
 }
 

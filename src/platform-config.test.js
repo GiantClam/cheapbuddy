@@ -181,6 +181,23 @@ test('keeps GPT-6 Astra in every generated platform configuration', () => {
   assert.match(codex, /^model = "gpt-6-astra"/m);
 });
 
+test('keeps GPT-6.1 Sol in every generated platform configuration', () => {
+  const sol61Model = modelCatalog.find(({ id }) => id === 'gpt-6.1-sol');
+  const sol61Options = { ...options, models: [sol61Model] };
+
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', sol61Options).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', sol61Options).content);
+  const claude = JSON.parse(createPlatformArtifact('claude', sol61Options).content);
+  const codex = createPlatformArtifact('codex', sol61Options).content;
+
+  assert.equal(workbuddy.models[0].id, 'gpt-6.1-sol');
+  assert.equal(workbuddy.models[0].maxInputTokens, 922000);
+  assert.equal(opencode.providers.cheapbuddy.models['gpt-6.1-sol'].modelID, 'gpt-6.1-sol');
+  assert.equal(opencode.providers.cheapbuddy.models['gpt-6.1-sol'].limit.context, 922000);
+  assert.equal(claude.env.ANTHROPIC_MODEL, 'gpt-6.1-sol');
+  assert.match(codex, /^model = "gpt-6\.1-sol"/m);
+});
+
 test('keeps media models selectable with their native endpoints and capabilities', () => {
   const textModel = { ...selectedModels[0] };
   const mediaModels = [
@@ -209,7 +226,7 @@ test('keeps media models selectable with their native endpoints and capabilities
 });
 
 test('verified model catalog entries are included in WorkBuddy text configuration by canonical ID', () => {
-  const ids = ['glm-5.3-flash', 'gpt-6-sol', 'gpt-6-luna', 'qwen3.8-max'];
+  const ids = ['glm-5.3-flash', 'gpt-6-sol', 'gpt-6.1-sol', 'gpt-6-luna', 'qwen3.8-max'];
   const models = modelCatalog.filter(({ id }) => ids.includes(id));
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', { ...options, models }).content);
 

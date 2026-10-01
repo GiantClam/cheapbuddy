@@ -1,5 +1,6 @@
-// Customer-facing recharge tiers. The backend receives the amount field in yuan;
-// Sub2API remains the source of truth for the user's balance and billing.
+// Customer-facing recharge tiers. The backend interprets the amount in the
+// selected payment provider's configured currency; Sub2API remains the source
+// of truth for the user's balance and billing.
 export const pricingPlans = [
   {
     id: 'trial',
