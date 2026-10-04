@@ -11,7 +11,11 @@ relay/relay.exe
 docker-compose.local.yml
 marketing_assets/
 newapi-upstream/
-relay/
+relay/node_modules/
+relay/bin/
+relay/relay.exe
+relay/**/__pycache__/
+relay/**/*.pyc
 sub2api-bridge/
 newapi-ecophase-verify/
 newapi-latest-verify/

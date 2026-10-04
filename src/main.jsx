@@ -6,8 +6,8 @@ import './styles.css';
 import './paywall.css';
 import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
-import { defaultPricingPlan, pricingPlans } from './pricing';
-import { formatPaymentAmount, getPlanPaymentAmount, hasPaymentCurrency, isStripePaymentType, selectPaymentType, USD_TO_CNY_RATE } from './payment';
+import { defaultPricingPlan, getCheckoutRechargePlans, pricingPlans } from './pricing';
+import { formatPaymentAmount, getPlanPaymentAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
@@ -203,13 +203,32 @@ function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') 
   URL.revokeObjectURL(url);
 }
 
-function PaywallPanel({ plans, selectedPlanId, paymentLoading, onRecharge, onClose, language, t }) {
-  const currency = language === 'en' ? 'USD' : 'CNY';
+function RechargePlanCards({ plans, selectedPlanId, paymentLoading, onRecharge, language, t, checkoutLoading, checkoutError }) {
+  if (checkoutLoading) return <p className="pricing-plan-note" role="status">{language === 'en' ? 'Loading recharge offers…' : '正在加载充值商品…'}</p>;
+  if (checkoutError) return <p className="pricing-plan-note" role="status">{language === 'en' ? 'Unable to load recharge offers. Please refresh and try again.' : '充值商品读取失败，请刷新后重试。'}</p>;
+  if (!plans.length) return <p className="pricing-plan-note">{language === 'en' ? 'No recharge offers are currently available.' : '当前暂无可用的充值商品。'}</p>;
+  return <div className="pricing-plan-grid">{plans.map((plan) => {
+    const currency = plan.paymentCurrency || (language === 'en' ? 'USD' : 'CNY');
+    const paymentAmount = plan.payAmount ?? getPlanPaymentAmount(plan.amount, language);
+    const creditedBalance = plan.creditedBalance === undefined ? formatPaymentAmount(paymentAmount, currency) : formatAmount(plan.creditedBalance);
+    return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}>
+      <div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div>
+      <div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div>
+      <div className="pricing-plan-balance"><b>{creditedBalance}</b><span>{t('sharedBalance')}</span></div>
+      <p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p>
+      <button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => onRecharge(plan)} disabled={paymentLoading}>
+        {paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(currency === 'USD' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} />
+      </button>
+    </article>;
+  })}</div>;
+}
+
+function PaywallPanel({ plans, selectedPlanId, paymentLoading, onRecharge, onClose, language, t, checkoutLoading, checkoutError }) {
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal paywall-modal" role="dialog" aria-modal="true" aria-labelledby="paywall-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY PAYWALL</span><h2 id="paywall-title">{t('paywallTitle')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
       <p className="paywall-intro">{paymentLoading ? t('creatingOrder') : t('paywallLead')}</p>
-      <div className="pricing-plan-grid">{plans.map((plan) => { const paymentAmount = getPlanPaymentAmount(plan.amount, language); return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div><div className="pricing-plan-balance"><b>{formatPaymentAmount(paymentAmount, currency)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => onRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(currency === 'USD' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} /></button></article>; })}</div>
+      <RechargePlanCards {...{ plans, selectedPlanId, paymentLoading, onRecharge, language, t, checkoutLoading, checkoutError }} />
       <p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('paywallFootnote')}</p>
     </div>
   </div>;
@@ -392,6 +411,7 @@ function ConfigGeneratorModal({
 const USD_CNY_REFERENCE_RATE = USD_TO_CNY_RATE;
 
 function PricingComparison({ plan, language, t }) {
+  if (!plan || plan.paymentCurrency) return null;
   const usdValue = getPlanPaymentAmount(plan.amount, 'en');
   const displayAmount = language === 'en' ? usdValue : plan.amount;
   const displayCurrency = language === 'en' ? '$' : '¥';
@@ -864,6 +884,9 @@ function HomePage() {
   const [balance, setBalance] = useState(null);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [checkoutInfo, setCheckoutInfo] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState(false);
   const paymentRequestRef = useRef(false);
   const [selectedPlanId, setSelectedPlanId] = useState(defaultPricingPlan.id);
   const [testing, setTesting] = useState(false);
@@ -904,7 +927,25 @@ function HomePage() {
   const heroModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)].slice(0, 4);
   const usageExampleModels = [...displayModels.filter((model) => model.showInUsageExample), ...displayModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
   const consoleModels = displayModels.slice(0, 2);
-  const displayPricingPlans = useMemo(() => pricingPlans.map((plan) => ({ ...plan, name: t(plan.nameKey), description: t(plan.descriptionKey), tag: t(plan.tagKey) })), [language]);
+  const displayPricingPlans = useMemo(() => session.token
+    ? getCheckoutRechargePlans(checkoutInfo, language)
+    : pricingPlans.map((plan) => ({ ...plan, name: t(plan.nameKey), description: t(plan.descriptionKey), tag: t(plan.tagKey) })), [language, session.token, checkoutInfo]);
+  const selectedPricingPlan = displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0];
+
+  useEffect(() => {
+    let active = true;
+    setCheckoutInfo(null);
+    setCheckoutError(false);
+    setCheckoutLoading(Boolean(session.token));
+    if (session.token) getCheckoutInfo().then((info) => {
+      if (active) setCheckoutInfo(info);
+    }).catch(() => {
+      if (active) setCheckoutError(true);
+    }).finally(() => {
+      if (active) setCheckoutLoading(false);
+    });
+    return () => { active = false; };
+  }, [session.token]);
 
   useEffect(() => {
     getPublicSettings().then((settings) => {
@@ -1066,6 +1107,15 @@ function HomePage() {
     setShowAccount(true);
     await loadUsage();
   };
+
+  useEffect(() => {
+    const openAccountLink = () => {
+      if (window.location.hash === '#account') openAccount();
+    };
+    openAccountLink();
+    window.addEventListener('hashchange', openAccountLink);
+    return () => window.removeEventListener('hashchange', openAccountLink);
+  }, [session.token]);
 
   const openAffiliate = async () => {
     if (!session.token) {
@@ -1261,6 +1311,7 @@ function HomePage() {
 
   const startRecharge = async (plan = defaultPricingPlan) => {
     if (paymentRequestRef.current) return;
+    if (!plan) return notify(language === 'en' ? 'No recharge offer is available.' : '当前暂无可用的充值商品。');
     if (!session.token) {
       setSelectedPlanId(plan.id);
       setShowAuth(true);
@@ -1271,14 +1322,12 @@ function HomePage() {
     setPaymentLoading(true);
     try {
       const checkout = await getCheckoutInfo();
-      const methods = checkout.methods || {};
-      const paymentType = selectPaymentType(methods, language);
-      if (!paymentType) throw new Error(language === 'en' ? t('stripePaymentNotConfigured') : t('paymentNotConfigured'));
-      if (language === 'en' && isStripePaymentType(paymentType) && !hasPaymentCurrency(methods, paymentType, 'USD')) {
-        throw new Error(t('stripePaymentNotConfigured'));
-      }
+      setCheckoutInfo(checkout);
+      const currentOffer = getCheckoutRechargePlans(checkout, language).find((offer) => offer.id === plan.id);
+      if (!currentOffer) throw new Error(language === 'en' ? 'This recharge offer is unavailable. Please refresh.' : '该充值商品暂不可用，请刷新后重试。');
+      const paymentType = currentOffer.paymentType;
       const paymentResultUrl = `${window.location.origin}/payment/result`;
-      const order = await createPaymentOrder({ amount: getPlanPaymentAmount(plan.amount, language), payment_type: paymentType, order_type: 'balance', payment_source: 'cheapbuddy', return_url: paymentResultUrl, is_mobile: window.innerWidth < 700 });
+      const order = await createPaymentOrder({ amount: currentOffer.amount, payment_type: currentOffer.paymentType, order_type: 'balance', payment_source: 'cheapbuddy', return_url: paymentResultUrl, is_mobile: window.innerWidth < 700 });
       if (isStripePaymentType(paymentType) && order.client_secret) {
         const stripeUrl = buildStripePaymentUrl({ orderId: order.order_id || order.id, clientSecret: order.client_secret, resumeToken: order.resume_token });
         if (!stripeUrl) throw new Error(t('stripePaymentFailed'));
@@ -1304,6 +1353,7 @@ function HomePage() {
 
   const openPaywall = () => {
     setShowAccount(false);
+    setShowGenerator(false);
     setShowPaywall(true);
   };
 
@@ -1568,7 +1618,7 @@ function HomePage() {
         <div className="generator-panel"><div className="generator-copy"><span className="section-index">03</span><h2>{t('generatorTitle')}<br /><em>{t('generatorTitleAccent')}</em></h2><p>{t('generatorLead')}</p><div className="generator-perks"><span><Icon name="shield" size={17} /> {t('boundKey')}</span><span><Icon name="bolt" size={17} /> {t('readyNow')}</span></div><button className="button button-primary" onClick={openGenerator}>{t('openConfigCenter')} <Icon name="arrow" /></button></div><div className="mini-console"><div className="console-bar"><span><i /><i /><i /></span><small>cheapbuddy / models.json</small><span className="console-live">● {t('live')}</span></div><pre><code><span className="code-key">models</span>: [{consoleModels.map((model, index) => <span key={model.id}><br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"{model.id}"</span>,<br />    <span className="code-key">name</span>: <span className="code-string">"{model.short}"</span>,<br />    <span className="code-key">url</span>: <span className="code-string">{JSON.stringify(baseUrl + '/chat/completions')}</span><br />  {'}'}{index < consoleModels.length - 1 ? ',' : ''}</span>)}<br />]</code></pre><div className="console-footer"><span><span className="mini-dot" /> {t('modelsReady', { count: models.length })}</span><span>JSON</span></div></div></div>
       </section>
 
-      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead')}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => { const paymentAmount = getPlanPaymentAmount(plan.amount, language); const currency = language === 'en' ? 'USD' : 'CNY'; return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div><div className="pricing-plan-balance"><b>{formatPaymentAmount(paymentAmount, currency)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} /></button></article>; })}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><PricingComparison plan={displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]} language={language} t={t} /><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>{language === 'en' ? '$' : '¥'}<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{t('perModelRates')}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(getPlanPaymentAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount, language)) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b title={model.priceUnit}>{model.input} / {model.output}{model.priceSourceUrl && <> · <a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer" aria-label={t('officialPricingSource')}>↗</a></>}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
+      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead')}</p></div><RechargePlanCards checkoutLoading={checkoutLoading} checkoutError={checkoutError} plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} language={language} t={t} /><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><PricingComparison plan={selectedPricingPlan} language={language} t={t} /><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>{language === 'en' ? '$' : '¥'}<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{t('perModelRates')}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(selectedPricingPlan)} disabled={paymentLoading || checkoutLoading || checkoutError || !selectedPricingPlan}>{paymentLoading ? t('creatingOrder') : selectedPricingPlan ? t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(selectedPricingPlan.payAmount ?? getPlanPaymentAmount(selectedPricingPlan.amount, language)) }) : language === 'en' ? 'Recharge unavailable' : '暂不可充值'} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b title={model.priceUnit}>{model.input} / {model.output}{model.priceSourceUrl && <> · <a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer" aria-label={t('officialPricingSource')}>↗</a></>}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
 
           <section id="guide" className="guide-section section-wrap"><div className="guide-copy"><span className="section-index">05</span><h2>{t('guideTitle')}<br />{t('guideTitleAccent')}</h2><p>{t('guideLead')}</p><button className="button button-primary guide-config-button" type="button" onClick={openGenerator}>{t('choosePlatformAndGenerate')} <Icon name="arrow" size={15} /></button><p className="guide-prompt-hint">{t('promptDescription')}</p></div><div className="guide-detail"><div className="guide-method"><span className="guide-method-mark">01</span><div><b>{t('guideStepDownload')}</b><p>{t('guideStepDownloadText')}</p></div></div><div className="guide-method"><span className="guide-method-mark">02</span><div><b>{t('guideStepRestart')}</b><p>{t('guideStepRestartText')}</p></div></div><div className="os-list platform-guide-list">{platformOptions.map((platform) => <button className={platform.id === platformId ? 'os-row active' : 'os-row'} key={platform.id} type="button" onClick={() => { changePlatform(platform.id); openGenerator(); }}><span className="os-icon">{platform.mark}</span><div><b>{platform.name}</b><small>{t(`platform_${platform.id}`)}</small></div><Icon name="arrow" size={17} /></button>)}</div></div></section>
     </main>
@@ -1576,14 +1626,14 @@ function HomePage() {
     <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/blog">Blog</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="/hypit">{t('navHypit')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
     {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={openPaywall} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
-    {showPaywall && <PaywallPanel plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} language={language} t={t} />}
+    {showPaywall && <PaywallPanel checkoutLoading={checkoutLoading} checkoutError={checkoutError} plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} language={language} t={t} />}
     {showPaymentOrders && <PaymentOrdersPanel orders={paymentOrders} error={paymentOrdersError} language={language} loading={paymentOrdersLoading} cancellingId={paymentOrderCancellingId} onClose={() => setShowPaymentOrders(false)} onRefresh={loadPaymentOrders} onCancel={cancelUserPaymentOrder} t={t} />}
 
     {showAffiliate && <AffiliatePanel detail={affiliateDetail} error={affiliateError} language={language} loading={affiliateLoading} transferring={affiliateTransferLoading} onClose={() => setShowAffiliate(false)} onCopyCode={(code) => copyAffiliateValue(code, 'affiliateCodeCopied')} onCopyLink={(link) => copyAffiliateValue(link, 'affiliateLinkCopied')} onRefresh={loadAffiliate} onTransfer={transferAffiliateBalance} t={t} />}
 
     {showAnnouncements && <AnnouncementsPanel announcements={announcements} loading={announcementLoading} error={announcementError} language={language} onClose={() => setShowAnnouncements(false)} onRefresh={loadAnnouncements} t={t} />}
 
-    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} session={session} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={startRecharge} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
+    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} session={session} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={openPaywall} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
     {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>{!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}</div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>{authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}<form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}
     {showAdminPicker && <AdminConsolePicker onClose={() => setShowAdminPicker(false)} t={t} />}
     {toast && <div className="toast"><span className="toast-icon">✓</span>{toast}</div>}

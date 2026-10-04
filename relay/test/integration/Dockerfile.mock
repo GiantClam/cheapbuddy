@@ -1,0 +1,6 @@
+FROM python:3.13-alpine
+WORKDIR /app
+COPY mock_upstreams.py ./
+USER nobody
+EXPOSE 8081
+ENTRYPOINT ["python", "mock_upstreams.py"]
