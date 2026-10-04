@@ -245,7 +245,11 @@ Hypit 联调期间发现并修正了 provider 的 MiniMax-H3 参数映射：Hypi
 
 2026-10-05 按用户要求改用 npm 官方仓库的最新发布包。核验时 `@cheapbuddy/provider` 的 latest 为 `0.1.2`，`@hypit/hypit` 为 `0.2.17`；实际安装及 lockfile 指向 npm tarball，未链接或修改本地 `@cheapbuddy/provider-hypit` 源码。新 Runtime 的 endpoint `use` 为 `@cheapbuddy/provider`，只绑定 MiniMax-H3；该发布版仅支持 768P，通过 multipart 提交 `seconds`、`ratio` 和参考素材，并以用户 Bearer Key 轮询及下载 content。发布版未实现 Hypit 价格读取器，费率改为单独查询 CheapBuddy 网站或 `/v1/pricing?model=MiniMax-H3`。
 
-新发布包的认证、doctor、Author/Run check 和 plan 均通过；实际 Hypit Build 在本地模拟 HTTP 服务中完成一次提交、两次轮询、MP4 下载及 `get` 导出，导出字节与测试视频一致。这是发布包生命周期的本地集成验证，不能替代生产生成验收。线上登录、余额、模型目录、MiniMax-H3 详情、定价及媒体用量读取均为 200；旧幂等请求仍返回 409 `accepted_unknown` / `pending_reconciliation`。复查余额为 22.29108473，冻结 21.8，可用 0.49108473，因此本轮未创建新的生产收费任务。脱敏证据及已安装测试项目位于 `output/hypit-npm-latest-20261005/`，真实 Key 仍由系统凭据库保管，不写入配置或代码。
+新发布包的认证、doctor、Author/Run check 和 plan 均通过；实际 Hypit Build 在本地模拟 HTTP 服务中完成一次提交、两次轮询、MP4 下载及 `get` 导出，导出字节与测试视频一致。这是发布包生命周期的本地集成验证，不能替代生产生成验收。线上登录、余额、模型目录、MiniMax-H3 详情、定价及媒体用量读取均为 200；旧幂等请求仍返回 409 `accepted_unknown` / `pending_reconciliation`。当时复查余额为 22.29108473，冻结 21.8，本轮未创建新的生产收费任务。此前将余额减去冻结金额、推算可用额度为 0.49108473 的结论不正确：Sub2API 预扣会从 `balance` 扣除预留并增加 `frozen_balance`，因此 `balance` 本身就是尚未冻结的余额。脱敏证据及已安装测试项目位于 `output/hypit-npm-latest-20261005/`，真实 Key 仍由系统凭据库保管，不写入配置或代码。
+
+随后使用用户新提供的配置完成真实 Hypit 复测。该配置中的同一用户 Key 未绑定模型分组；核对所有权及已有授权后，仅将该 Key 绑定到账号已经可用的分组 2，Key 内容、其他字段及余额均未改变。修复后模型目录、MiniMax-H3 详情、定价和媒体用量均为 200。新 Key 已写入独立的 Windows Credential Locker 槽位，由 `hypit.runtime.supplied.json` 引用并被该 Hypit 项目选中，旧测试凭据保留。
+
+这次生产 Build `bld_20261004T173330876Z_9D53E939A5` 使用未修改的 npm Provider，提交 4 秒、16:9、768P MiniMax-H3 视频，但 `/v1/videos` 返回 HTTP 500，Relay request ID 为 `0a64e0649e69f30402c7c5841492f216`；Build 为 `failed`，没有结果可导出，Worker 已停止且未重试。本次预扣 2 美元后可用余额为 20.29108473 美元、冻结 23.8 美元；它不是余额不足导致的 402。NewAPI 同期上游日志仍有 `credential store is unavailable`，但精确关联尚未确认，不能据此直接释放未知任务预扣。生产 Hypit 视频生成、轮询和导出仍未验收通过。复测证据为 `supplied-key-group-repair-evidence.json`、`supplied-config-evidence.json` 及 `supplied-build-evidence.json`，位于上述忽略的测试项目目录，不包含真实 Key。
 
 生产已配置 `COWORKANY_DEFAULT_GROUP_ID=2` 并写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；金额由服务端报价返回，不是固定汇率自动换算承诺。
 
