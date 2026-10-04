@@ -2,7 +2,7 @@
 
 日期：2026-10-04。本文对应用户提供的《cheapbuddy.cc 整改方案：复用现有接口接入 Coworkany》版本 2。
 
-本次沿用既有公共接口：账号、会话、Key、会员及商品由 Sub2API 提供；Relay 承载模型目录、文本和媒体请求。普通测试账号的第一阶段生产联调已经完成，证实了默认 Key 分组和充值目录缺口；相应修复已落到本地代码，尚未部署。以下分别记录生产观察和待发布契约，不能将本地修复视作线上已生效。
+本次沿用既有公共接口：账号、会话、Key、会员及商品由 Sub2API 提供；Relay 承载模型目录、文本和媒体请求。Coworkany 适配、默认 Key 分组和充值目录修复已经发布到生产。本文把已验证的线上行为与尚未满足的验收项分开记录；测试凭据、JWT、API Key 和 Railway secrets 不进入仓库。
 
 ## 1. 固定配置与验证状态
 
@@ -111,7 +111,7 @@ Relay 的模型接口使用 OpenAI 兼容响应，不使用此账号包裹格式
 
 本地修复仅对名称以 `Coworkany/` 开头且省略 `group_id` 的创建请求启用默认绑定：读取 `COWORKANY_DEFAULT_GROUP_ID`（配置路径 `coworkany.default_group_id`），缺省 0，不自动猜测分组。配置必须指向活跃组，并通过当前用户原有权限校验：标准公开组、获授权专属组或当前有效订阅组。显式指定分组与其他既有客户端保持原行为。
 
-| 待发布的创建分支 | HTTP / 原因 |
+| 已发布的创建分支 | HTTP / 原因 |
 | --- | --- |
 | 未配置默认分组（0） | 503 `DEFAULT_GROUP_NOT_CONFIGURED` |
 | 分组不存在、不可读取或不活跃 | 503 `DEFAULT_GROUP_UNAVAILABLE` |
@@ -141,7 +141,7 @@ Host 原生网络调用不依赖浏览器 CORS。若未来改为 WebView 直接�
 methods: { <payment_type>: {
   payment_type, display_name?, currency, fee_rate, daily_limit, single_min, single_max
 } }
-global_min, global_max, plans[], recharge_tiers[]（本地新增，待发布）
+global_min, global_max, plans[], recharge_tiers[]（生产已启用）
 balance_disabled, balance_recharge_multiplier, subscription_usd_to_cny_rate
 recharge_fee_rate, help_text, help_image_url, stripe_publishable_key
 alipay_force_qrcode, alipay_mobile_precreate_deep_link
@@ -191,7 +191,7 @@ alipay_force_qrcode, alipay_mobile_precreate_deep_link
 
 Relay 查询视频任务和 content 时，先用用户 Key 解析 CheapBuddy 身份，再查 Relay 持久化任务归属；不存在或不属于当前用户返回 404 `Task is not available`。隔离按 CheapBuddy 用户 ID 判定，不是必须使用创建时那一把 Key；同一用户另一个有效 Key 仍须满足身份校验。随后 Relay 使用该用户加密保存的 NewAPI shadow token 转发，客户端不取得 NewAPI 凭据。
 
-生产失败曾将用户模型目录的 403 包成 Relay 502。本地修复保留 Sub2API 对用户目录鉴权/权限/限流的 401、403、429；NewAPI 服务端 shadow token 鉴权失败仍返回脱敏上游错误 502，避免被误认作用户 Key 错误。此行为尚未部署。
+生产失败曾将用户模型目录的 403 包成 Relay 502。已发布修复保留 Sub2API 对用户目录鉴权/权限/限流的 401、403、429；NewAPI 服务端 shadow token 鉴权失败仍返回脱敏上游错误 502，避免被误认作用户 Key 错误。
 
 原生任务 ID 与 provider ID 分开保存。Relay 保留 NewAPI 原有响应和任务状态，不提供 Coworkany 专用任务协议。artifact 地址应由 NewAPI `TaskPublicAddress` 指向 Relay 公共 origin；部署值和真实结果地址仍须联调。Coworkany Host 发带 Key 的下载请求，结果 URL 本身不加 Key，不把授权头转发到不可信下载 origin。
 
@@ -228,16 +228,18 @@ node .\relay\test\integration\coworkany.mjs --credentials C:\private\coworkany-t
 
 | 项目 | 当前结论 |
 | --- | --- |
-| 本地源码核验与修复 | 默认组绑定、服务端充值目录、官网消费新目录及 Relay 状态码修复已落到本地；尚未部署 |
-| 本地测试 | auth/me 兼容字段、验证码参数绑定、OAuth 退出、撤销会话、用户幂等并发/重放、认证 Redis 故障限流测试通过；官网假账号 UI 联调覆盖登录、充值展示、下单金额、英文报价、空目录、读取失败和弹窗切换 |
+| 本地测试 | auth/me 兼容字段、验证码参数绑定、OAuth 退出、撤销会话、用户幂等并发/重放、认证 Redis 故障限流测试通过；官网 npm 测试 48/48、build 通过；新增生产 runner 测试 21/21 |
 | 本地 service 单测 | `-tags=unit` 的 Key 数值校验、幂等键/指纹与冲突、会员计划校验、支付币种校验测试通过 |
-| 生产认证联调 | 普通测试账号登录/账号/Key/会员/商品 200；name-only 未绑定 Key 目录失败，已有授权 OpenAI Key 目录成功 |
-| 生产收费与购买 | 未执行文本/图片/视频计费、跨用户任务隔离、content 下载、付款及权益到账 |
-| 发布 | 未部署；默认分组和真实充值档位仍需配置后发布复测 |
+| 生产认证联调 | 账号、刷新轮转、旧 refresh 拒绝、Key 幂等/冲突/清理、模型目录和详情均通过；普通用户目录包含 12 个文本、1 个图片、1 个视频模型 |
+| 生产文本收费 | 12 个文本模型各执行一次；11 个在客户端 200/stop/非空，Astra 后台 200 但耗时 204601ms，客户端 60 秒超时；账本与余额差额一致 |
+| 生产图片与上传 | ComfyUI 文本节点、图片节点、Relay 临时 PNG 上传/下载通过；图片供应商 ticks 为 $0.04，而当前 native quota 仅扣 $0.000076，采购成本与用户扣费尚未对齐 |
+| 生产任务隔离 | owner status 200；其他普通用户 status/content 404；匿名 status/content 401。历史任务 content 下载返回上游 `artifact_upstream_auth_failed` 502，未通过 |
+| 充值目录与 UI | CNY 3/15/30/90/150 与 USD 2.31/4.62/13.85/23.08 线上展示；未付款订单创建、权威金额核对、取消通过；真实付款到账未测 |
+| 发布 | 官网 commit `4635693` 已部署；Sub2API commit `21bb0027a485f5c9db19c07a661e425e994efba7` 已部署；Relay、Sub2API、官网 Railway deployment 均为 `SUCCESS` |
 
 本地已通过的账号测试覆盖 handler、认证路由及 `-tags=unit` 的 service 校验；不使用 `unit` tag 时，部分 service 测试不会运行。官网本地浏览器截图证据为 `output/coworkany-existing-api-20261004/coworkany-local-ui.png`，使用本地 mock，不含真实账号或真实支付。新增默认组、充值报价及 Relay 状态码行为还须纳入发布验证，单测不代替生产调用与付款验收。
 
-发布前配置 `COWORKANY_DEFAULT_GROUP_ID` 为实际允许且支持目标模型的统一组，并将真实充值档位写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；这些是配置对齐依据，不是已写入生产的承诺，也不是固定汇率自动换算规则。
+生产已配置 `COWORKANY_DEFAULT_GROUP_ID=2` 并写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；金额由服务端报价返回，不是固定汇率自动换算承诺。
 
 | 档位 ID | CNY amount | USD amount |
 | --- | --- | --- |

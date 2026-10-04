@@ -17,11 +17,14 @@ relay/relay.exe
 relay/**/__pycache__/
 relay/**/*.pyc
 sub2api-bridge/
+sub2api-coworkany/
 newapi-ecophase-verify/
 newapi-latest-verify/
 newapi-plugin/*.zip
 comfyui/*.zip
 output/
+!output/coworkany-existing-api-20261004/
+!output/coworkany-existing-api-20261004/task-isolation-acceptance.json
 hypit-provider.zip
 __pycache__/
 *.py[cod]
