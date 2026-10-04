@@ -3,6 +3,7 @@
 import { normalizeAffiliateCode } from './affiliate.js';
 
 const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
+const STRIPE_PAYMENT_BASE_URL = String(import.meta.env?.VITE_SUB2API_STRIPE_PAYMENT_URL || '').trim().replace(/\/+$/, '');
 const MEDIA_USAGE_API_BASE_URL = String(import.meta.env?.VITE_MEDIA_USAGE_API_BASE_URL || import.meta.env?.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc')
   .replace(/\/+$/, '')
   .replace(/\/v1$/, '');
@@ -202,6 +203,17 @@ export function getCheckoutInfo() {
 
 export function createPaymentOrder(payload) {
   return request('/payment/orders', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function buildStripePaymentUrl({ orderId, clientSecret, resumeToken = '' }) {
+  if (!orderId || !clientSecret) return '';
+  const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+  const baseUrl = STRIPE_PAYMENT_BASE_URL || new URL(API_BASE_URL, fallbackOrigin).origin;
+  const url = new URL('/payment/stripe', baseUrl);
+  url.searchParams.set('order_id', String(orderId));
+  url.searchParams.set('client_secret', String(clientSecret));
+  if (resumeToken) url.searchParams.set('resume_token', String(resumeToken));
+  return url.toString();
 }
 
 export function listPaymentOrders(params = {}) {

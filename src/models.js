@@ -1,3 +1,5 @@
+import { USD_TO_CNY_RATE } from './payment.js';
+
 export const modelCatalog = [
   {
     id: 'glm-5.3', short: 'GLM 5.3', vendor: { zh: '智谱', en: 'Zhipu' }, description: { zh: '编程、推理与 Agent 工作流', en: 'Coding, reasoning, and Agent workflows' }, input: '待核验', output: '待核验', priceStatus: 'unverified', priceSourceUrl: 'https://open.bigmodel.cn/pricing', priceCheckedAt: '2026-09-26', priceUnit: { zh: '官网价格暂不可核验', en: 'Official rate not verified' }, accent: 'blue', mark: 'G53', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
@@ -34,6 +36,12 @@ export const modelCatalog = [
     maxInputTokens: 1050000, maxOutputTokens: 128000, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: true },
+  },
+  {
+    id: 'gpt-6.1-sol', short: 'GPT-6.1 Sol', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '高质量编程、推理与 Agent 工作流', en: 'High-quality coding, reasoning, and Agent workflows' }, input: '$2.00', output: '$10.00', priceStatus: 'verified', priceSourceUrl: 'https://developers.openai.com/api/docs/pricing', priceCheckedAt: '2026-09-30', priceUnit: { zh: '美元 / 百万 Token；缓存读取 $0.10，缓存写入 $2.50；超过 272K 输入的长上下文加价', en: 'USD / MTok; cached input $0.10, cache write $2.50; higher rates above 272K input tokens' }, accent: 'orange', mark: 'S61', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    maxInputTokens: 922000, maxOutputTokens: 128000, temperature: 1,
+    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
+    reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: false },
   },
   {
     id: 'gpt-6-luna', short: 'GPT-6 Luna', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '高性价比日常任务与高频调用', en: 'Efficient everyday tasks and high-volume workloads' }, input: '$0.10', output: '$0.50', priceStatus: 'verified', priceSourceUrl: 'https://developers.openai.com/api/docs/pricing', priceCheckedAt: '2026-09-26', priceUnit: { zh: '美元 / 百万 Token；缓存 $0.01，缓存写入 $0.125；超过 272K 输入的长上下文加价', en: 'USD / MTok; cached $0.01, cache write $0.125; higher rates above 272K input tokens' }, accent: 'yellow', mark: 'L6', modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
@@ -77,13 +85,65 @@ export const modelCatalog = [
   },
 ];
 
+const monetaryAmountPattern = /([$¥])\s*(\d+(?:\.\d+)?)/g;
+
+function formatConvertedAmount(amount) {
+  const rounded = Math.round((amount + Number.EPSILON) * 10000) / 10000;
+  const [integer, fraction] = rounded.toFixed(4).split('.');
+  return `${integer}.${fraction.replace(/0+$/, '').padEnd(2, '0')}`;
+}
+
+function getPriceCurrency(model) {
+  if (model.priceStatus !== 'verified') return null;
+  const symbols = new Set(`${model.input || ''} ${model.output || ''}`.match(/[$¥]/g) || []);
+  if (symbols.size !== 1) return null;
+  return symbols.has('$') ? 'USD' : 'CNY';
+}
+
+function convertMoneyText(value, fromCurrency, toCurrency) {
+  if (fromCurrency === toCurrency || !value) return value;
+  const fromSymbol = fromCurrency === 'USD' ? '$' : '¥';
+  const toSymbol = toCurrency === 'USD' ? '$' : '¥';
+  const exchange = fromCurrency === 'USD' ? USD_TO_CNY_RATE : 1 / USD_TO_CNY_RATE;
+  return value.replace(monetaryAmountPattern, (match, symbol, amount) => {
+    if (symbol !== fromSymbol) return match;
+    return `${toSymbol}${formatConvertedAmount(Number(amount) * exchange)}`;
+  });
+}
+
+function localizePriceText(value, locale) {
+  if (!value) return value;
+  return locale === 'en'
+    ? value.replace(/未缓存/g, 'uncached').replace(/缓存/g, 'cached').replace(/\/\s*秒/g, '/ sec')
+    : value.replace(/\/\s*sec\b/g, '/ 秒');
+}
+
+function localizePriceUnit(value, locale, fromCurrency, toCurrency) {
+  if (!value || !fromCurrency || fromCurrency === toCurrency) return value;
+  let localized = convertMoneyText(value, fromCurrency, toCurrency);
+  if (fromCurrency === 'USD') {
+    localized = localized.replace(/\bUSD\b/g, 'CNY').replace(/美元/g, '人民币');
+  } else {
+    localized = localized.replace(/\bCNY\b/g, 'USD');
+  }
+  const note = locale === 'en'
+    ? `Reference conversion: 1 USD = ${USD_TO_CNY_RATE} CNY`
+    : `参考汇率：1 USD = ${USD_TO_CNY_RATE} CNY`;
+  return `${localized}${locale === 'en' ? '; ' : '；'}${note}`;
+}
+
 export function localizeModel(model, language = 'zh') {
   const locale = language === 'en' ? 'en' : 'zh';
   const vendor = typeof model.vendor === 'object' ? model.vendor[locale] || model.vendor.zh : model.vendor;
   const description = typeof model.description === 'object' ? model.description[locale] || model.description.zh : model.description;
   const billingUnit = typeof model.billingUnit === 'object' ? model.billingUnit[locale] || model.billingUnit.zh : model.billingUnit;
-  const priceUnit = typeof model.priceUnit === 'object' ? model.priceUnit[locale] || model.priceUnit.zh : model.priceUnit;
-  return { ...model, vendor, description, billingUnit, priceUnit };
+  const sourcePriceUnit = typeof model.priceUnit === 'object' ? model.priceUnit[locale] || model.priceUnit.zh : model.priceUnit;
+  const fromCurrency = getPriceCurrency(model);
+  const toCurrency = locale === 'en' ? 'USD' : 'CNY';
+  const input = localizePriceText(convertMoneyText(model.input, fromCurrency, toCurrency), locale);
+  const output = localizePriceText(convertMoneyText(model.output, fromCurrency, toCurrency), locale);
+  const priceUnit = localizePriceUnit(sourcePriceUnit, locale, fromCurrency, toCurrency);
+  return { ...model, vendor, description, billingUnit, input, output, priceUnit };
 }
 
 export function localizeModels(models, language = 'zh') {

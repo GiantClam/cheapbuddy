@@ -217,6 +217,7 @@ $env:VITE_WORKBUDDY_BASE_URL = "https://api.cheapbuddy.cc/v1"
 $env:VITE_ADMIN_PORTAL_HOST = "admin.cheapbuddy.cc"
 $env:VITE_ADMIN_SUB2API_URL = "https://sub2api-admin.cheapbuddy.cc"
 $env:VITE_ADMIN_NEWAPI_URL = "https://newapi-admin.cheapbuddy.cc"
+$env:VITE_SUB2API_STRIPE_PAYMENT_URL = "https://console.cheapbuddy.cc"
 ```
 
 当用户从 `admin.cheapbuddy.cc` 登录时，前端会先使用当前 CheapBuddy/Sub2API Token 请求 Sub2API 原生的管理员接口 `/api/v1/admin/users` 做权限探针；只有原生接口确认该账号具备管理员权限后，才显示管理系统选择框。普通用户会话会被清除并拒绝进入。通过校验后分别打开 Sub2API 或 NewAPI 的后台入口，两个后台的登录会话仍由各自系统维护；CheapBuddy 不把 Sub2API Token 冒充成 NewAPI 会话。`VITE_ADMIN_SUB2API_URL` 和 `VITE_ADMIN_NEWAPI_URL` 未配置或不是 `http(s)` 地址时，对应入口会保持禁用。
@@ -234,7 +235,7 @@ $env:VITE_TURNSTILE_REQUIRED = "true"
 
 服务端校验由 Sub2API 执行，`turnstile.required: true` 已写入本地部署配置；请在 Sub2API 管理后台的 Turnstile 设置中填写 Site Key 和 Secret Key，并在 Cloudflare Turnstile 中把官网域名加入允许的 Hostname。Secret Key 只保存在后端，不能写入前端环境变量或代码。
 
-充值按钮优先选择 `easypay`（用于 z-pay.cn 通道），再回退到 `alipay` / `alipay_direct`。支付供应商必须先在 Sub2API 后台配置并启用；未配置时页面会明确提示，不会创建假订单。支付回调、验签和幂等入账全部由 Sub2API 负责。
+充值支持多通道：中文界面优先选择 `easypay`（用于 z-pay.cn 通道），再回退到 `alipay` / `alipay_direct`；英文界面只选择已启用的 `stripe`，并按 Stripe provider 的 `currency`（推荐 `USD`）创建订单。支付供应商必须先在 Sub2API 后台配置并启用；未配置时页面会明确提示，不会创建假订单。Stripe 创建订单后由前端打开 Sub2API 原生 `/payment/stripe` 页面，支付回调、验签和幂等入账全部由 Sub2API 负责。完整配置见 [`docs/stripe-payment-setup.md`](./docs/stripe-payment-setup.md)。
 
 前端不会保存上游模型密钥；下载配置时只使用当前 Sub2API 用户 API Key。
 
