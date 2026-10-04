@@ -239,6 +239,10 @@ node .\relay\test\integration\coworkany.mjs --credentials C:\private\coworkany-t
 
 本地已通过的账号测试覆盖 handler、认证路由及 `-tags=unit` 的 service 校验；不使用 `unit` tag 时，部分 service 测试不会运行。官网本地浏览器截图证据为 `output/coworkany-existing-api-20261004/coworkany-local-ui.png`，使用本地 mock，不含真实账号或真实支付。新增默认组、充值报价及 Relay 状态码行为还须纳入发布验证，单测不代替生产调用与付款验收。
 
+2026-10-04 的付费回归为测试账号增加了 ¥30 的管理员测试余额（不是支付宝到账）。随后已通过既有 Relay API 完成一次真实 `MiniMax-H3` 视频任务：4 秒、16:9、768P，任务完成并下载 MP4，媒体实际成本约 ¥20.600062。余额与媒体用量接口均可查询，账号当前仍有余额；该测试不代表所有 Hypit 能力已通过。
+
+Hypit 联调期间发现并修正了 provider 的 MiniMax-H3 参数映射：Hypit `aspectRatio` 必须发送为 CheapBuddy 公开字段 `ratio`，图片和 Seedance 映射仍保留各自的 `aspect_ratio`。修复后 provider 单测为 8/8 通过，但生产 Hypit Build 尚未端到端通过：Relay `POST /v1/videos` 在上游任务凭据读取阶段返回 HTTP 500 `credential store is unavailable`；同一请求的直接 API 重试进入 `409 accepted_unknown` / `pending_reconciliation`，没有公开任务 ID。因此不得重复创建收费任务，也不能将 Hypit Build 或结果导出宣称为已验收；待生产任务凭据存储/上游状态恢复后，应复用原幂等键查询并补做一次 Build、轮询和导出验证。
+
 生产已配置 `COWORKANY_DEFAULT_GROUP_ID=2` 并写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；金额由服务端报价返回，不是固定汇率自动换算承诺。
 
 | 档位 ID | CNY amount | USD amount |
