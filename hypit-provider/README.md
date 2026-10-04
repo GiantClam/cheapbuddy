@@ -1,5 +1,17 @@
 # CheapBuddy Provider for Hypit
 
+This directory is the local experimental `@cheapbuddy/provider-hypit` package,
+not the published npm provider. For normal Hypit use, install the current npm
+release instead:
+
+    npm install @hypit/hypit@latest @cheapbuddy/provider@latest
+
+Set the Runtime endpoint's `use` to `@cheapbuddy/provider` and bind only
+`@hypit/minimax-h3@1#minimax-h3`. The published provider currently supports
+MiniMax-H3 with `768P` resolution, multipart submission, task polling and MP4
+download. Its capability surface differs from the experimental package below.
+See https://cheapbuddy.cc/hypit for the matching setup instructions.
+
 Project-owned Hypit Endpoint Provider for api.cheapbuddy.cc.
 
 The first release targets the fastest usable Hypit path:

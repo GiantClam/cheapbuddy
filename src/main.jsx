@@ -649,14 +649,16 @@ function HypitDocsPage() {
   useEffect(() => {
     setStoredLanguage(language);
     updateSeoMetadata({
-      title: language === 'en' ? 'CheapBuddy Hypit provider | Install and use cheapbuddy.cc media models' : 'CheapBuddy Hypit Provider｜安装并使用 cheapbuddy.cc 图片视频模型',
-      description: language === 'en' ? 'Install the CheapBuddy provider in Hypit, configure credentials, bind media capabilities, and run image or video builds.' : '在 Hypit 中安装 CheapBuddy Provider，配置凭证、绑定图片与视频能力，并完成从检查到 Build 的操作。',
+      title: language === 'en' ? 'CheapBuddy Hypit provider | Install and use MiniMax-H3' : 'CheapBuddy Hypit Provider｜安装并使用 MiniMax-H3',
+      description: language === 'en' ? 'Install the published @cheapbuddy/provider package in Hypit, configure credentials, and build MiniMax-H3 videos at 768P.' : '在 Hypit 中安装 npm 已发布的 @cheapbuddy/provider，配置凭证，并生成 768P MiniMax-H3 视频。',
       path: '/hypit',
       type: 'article',
     });
   }, [language]);
 
-  const installCommand = `# in your Hypit project\nnpm install ./hypit-provider\n\n# or, when the package is available from your registry\nnpm install @cheapbuddy/provider-hypit`;
+  const installCommand = `# In your Hypit project (Node.js >= 22.15.0)
+# If package.json does not exist yet: npm init -y
+npm install @hypit/hypit@latest @cheapbuddy/provider@latest`;
   const runtimeConfig = `{
   "format": "hypit.runtime-local@1",
   "dataRoot": ".hypit/execution",
@@ -665,19 +667,17 @@ function HypitDocsPage() {
   },
   "endpoints": {
     "cheapbuddy.media": {
-      "use": "@cheapbuddy/provider-hypit",
+      "use": "@cheapbuddy/provider",
       "pool": "cheapbuddy-media",
       "config": {
         "baseUrl": "https://api.cheapbuddy.cc",
         "apiKey": { "store": "platform", "key": "cheapbuddy.api" },
-        "concurrency": 2,
+        "concurrency": 1,
         "pollIntervalMs": 5000
       }
     }
   },
   "bindings": {
-    "@hypit/gpt-image@1#gpt-image-2": "cheapbuddy.media",
-    "@hypit/seedance@1#seedance-2-mini": "cheapbuddy.media",
     "@hypit/minimax-h3@1#minimax-h3": "cheapbuddy.media"
   }
 }`;
@@ -686,23 +686,22 @@ function HypitDocsPage() {
   <import as="text" from="@hypit/text@1"/>
   <import as="h3" from="@hypit/minimax-h3@1"/>
   <text:Value id="prompt">A calm product close-up in a bright studio, slow camera move, no captions.</text:Value>
-  <h3:TextVideo id="shot" prompt={prompt} duration="8" resolution="2k" aspect-ratio="16:9"/>
+  <h3:TextVideo id="shot" prompt={prompt} duration="8" resolution="768P" aspect-ratio="16:9"/>
 </svml>`;
   const runExample = `<?svml using="@hypit/run-markup@1"?>
 <svrun version="1">
   <author source="../authors/generate.svml"/>
   <target output="shot.video"/>
 </svrun>`;
-  const buildCommands = `hypit runtime use hypit.runtime.json
-hypit auth login cheapbuddy.media
-hypit auth status cheapbuddy.media
-hypit doctor --endpoint cheapbuddy.media
-hypit check authors/generate.svml
-hypit check runs/generate.svrun
-hypit plan runs/generate.svrun
-hypit pricing runs/generate.svrun
-hypit build runs/generate.svrun --title "CheapBuddy media build" --follow
-hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
+  const buildCommands = `npx hypit runtime use hypit.runtime.json
+npx hypit auth login cheapbuddy.media
+npx hypit auth status cheapbuddy.media
+npx hypit doctor --endpoint cheapbuddy.media
+npx hypit check authors/generate.svml
+npx hypit check runs/generate.svrun
+npx hypit plan runs/generate.svrun
+npx hypit build runs/generate.svrun --title "CheapBuddy video build" --follow
+npx hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
 
   const copyCode = async (codeId, value) => {
     try {
@@ -731,7 +730,7 @@ hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
     <main>
       <section className="api-docs-hero section-wrap hypit-docs-hero">
         <div className="api-docs-hero-copy"><span className="section-index">HYPIT / 01</span><h1>{t('hypitTitle')}<br /><em>{t('hypitTitleAccent')}</em></h1><p>{t('hypitLead')}</p><div className="api-docs-hero-tags"><span>INSTALL PROVIDER</span><span>CHEAPBUDDY.CC</span><span>CHECK → BUILD</span></div></div>
-        <div className="hypit-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('hypitBoardTitle')}</span><span>provider-hypit</span></div><div className="hypit-flow-row"><span>01</span><b>{t('hypitFlowInstall')}</b><code>npm install</code></div><div className="hypit-flow-row"><span>02</span><b>{t('hypitFlowRuntime')}</b><code>cheapbuddy.media</code></div><div className="hypit-flow-row"><span>03</span><b>{t('hypitFlowBuild')}</b><code>check → plan → build</code></div><div className="hypit-board-foot">{t('hypitBoardFoot')}</div></div>
+        <div className="hypit-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('hypitBoardTitle')}</span><span>provider</span></div><div className="hypit-flow-row"><span>01</span><b>{t('hypitFlowInstall')}</b><code>npm install</code></div><div className="hypit-flow-row"><span>02</span><b>{t('hypitFlowRuntime')}</b><code>cheapbuddy.media</code></div><div className="hypit-flow-row"><span>03</span><b>{t('hypitFlowBuild')}</b><code>check → plan → build</code></div><div className="hypit-board-foot">{t('hypitBoardFoot')}</div></div>
       </section>
 
       <div className="comfy-docs-layout section-wrap">
@@ -741,7 +740,7 @@ hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
 
           <section id="hypit-runtime" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">02</span><div><h2>{t('hypitRuntimeTitle')}</h2><p>{t('hypitRuntimeLead')}</p></div></div><ApiCodeBlock label="hypit.runtime.json" code={runtimeConfig} codeId="hypit-runtime" copied={copied} onCopy={copyCode} t={t} /><div className="api-callout"><strong>{t('hypitRuntimeNoteTitle')}</strong><p>{t('hypitRuntimeNote')}</p></div></section>
 
-          <section id="hypit-author" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">03</span><div><h2>{t('hypitAuthorTitle')}</h2><p>{t('hypitAuthorLead')}</p></div></div><div className="hypit-code-grid"><ApiCodeBlock label="authors/generate.svml" code={authorExample} codeId="hypit-author" copied={copied} onCopy={copyCode} t={t} /><ApiCodeBlock label="runs/generate.svrun" code={runExample} codeId="hypit-run" copied={copied} onCopy={copyCode} t={t} /></div><div className="api-field-grid hypit-capability-grid"><div className="api-field-card"><code>@hypit/gpt-image@1#gpt-image-2</code><strong>gpt-image-2</strong><p>{t('hypitImageCapability')}</p></div><div className="api-field-card"><code>@hypit/minimax-h3@1#minimax-h3</code><strong>MiniMax-H3</strong><p>{t('hypitVideoCapability')}</p></div><div className="api-field-card"><code>@hypit/seedance@1#seedance-2-mini</code><strong>Seedance</strong><p>{t('hypitSeedanceCapability')}</p></div></div></section>
+          <section id="hypit-author" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">03</span><div><h2>{t('hypitAuthorTitle')}</h2><p>{t('hypitAuthorLead')}</p></div></div><div className="hypit-code-grid"><ApiCodeBlock label="authors/generate.svml" code={authorExample} codeId="hypit-author" copied={copied} onCopy={copyCode} t={t} /><ApiCodeBlock label="runs/generate.svrun" code={runExample} codeId="hypit-run" copied={copied} onCopy={copyCode} t={t} /></div><div className="api-field-grid hypit-capability-grid"><div className="api-field-card"><code>@hypit/minimax-h3@1#minimax-h3</code><strong>MiniMax-H3</strong><p>{t('hypitVideoCapability')}</p></div></div></section>
 
           <section id="hypit-build" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">04</span><div><h2>{t('hypitBuildTitle')}</h2><p>{t('hypitBuildLead')}</p></div></div><ApiCodeBlock label="Hypit CLI" code={buildCommands} codeId="hypit-build" copied={copied} onCopy={copyCode} t={t} /><div className="api-callout"><strong>{t('hypitBuildNoteTitle')}</strong><p>{t('hypitBuildNote')}</p></div></section>
 

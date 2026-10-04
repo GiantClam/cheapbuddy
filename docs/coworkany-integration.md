@@ -243,6 +243,10 @@ node .\relay\test\integration\coworkany.mjs --credentials C:\private\coworkany-t
 
 Hypit 联调期间发现并修正了 provider 的 MiniMax-H3 参数映射：Hypit `aspectRatio` 必须发送为 CheapBuddy 公开字段 `ratio`，图片和 Seedance 映射仍保留各自的 `aspect_ratio`。修复后 provider 单测为 8/8 通过，但生产 Hypit Build 尚未端到端通过：Relay `POST /v1/videos` 在上游任务凭据读取阶段返回 HTTP 500 `credential store is unavailable`；同一请求的直接 API 重试进入 `409 accepted_unknown` / `pending_reconciliation`，没有公开任务 ID。因此不得重复创建收费任务，也不能将 Hypit Build 或结果导出宣称为已验收；待生产任务凭据存储/上游状态恢复后，应复用原幂等键查询并补做一次 Build、轮询和导出验证。
 
+2026-10-05 按用户要求改用 npm 官方仓库的最新发布包。核验时 `@cheapbuddy/provider` 的 latest 为 `0.1.2`，`@hypit/hypit` 为 `0.2.17`；实际安装及 lockfile 指向 npm tarball，未链接或修改本地 `@cheapbuddy/provider-hypit` 源码。新 Runtime 的 endpoint `use` 为 `@cheapbuddy/provider`，只绑定 MiniMax-H3；该发布版仅支持 768P，通过 multipart 提交 `seconds`、`ratio` 和参考素材，并以用户 Bearer Key 轮询及下载 content。发布版未实现 Hypit 价格读取器，费率改为单独查询 CheapBuddy 网站或 `/v1/pricing?model=MiniMax-H3`。
+
+新发布包的认证、doctor、Author/Run check 和 plan 均通过；实际 Hypit Build 在本地模拟 HTTP 服务中完成一次提交、两次轮询、MP4 下载及 `get` 导出，导出字节与测试视频一致。这是发布包生命周期的本地集成验证，不能替代生产生成验收。线上登录、余额、模型目录、MiniMax-H3 详情、定价及媒体用量读取均为 200；旧幂等请求仍返回 409 `accepted_unknown` / `pending_reconciliation`。复查余额为 22.29108473，冻结 21.8，可用 0.49108473，因此本轮未创建新的生产收费任务。脱敏证据及已安装测试项目位于 `output/hypit-npm-latest-20261005/`，真实 Key 仍由系统凭据库保管，不写入配置或代码。
+
 生产已配置 `COWORKANY_DEFAULT_GROUP_ID=2` 并写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；金额由服务端报价返回，不是固定汇率自动换算承诺。
 
 | 档位 ID | CNY amount | USD amount |
