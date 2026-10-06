@@ -162,13 +162,23 @@ has an explicit GLM-5.3 card using nominal CNY 1.4/4.4/0.26, times supplier fact
 Kimi cards are retained. Procurement price fields retain ten decimal places,
 so reconcile supplier cash independently of tiny price-card rounding differences.
 
-The user requires all backup routes to remain available for reliability.
-Accounts 2, 3 and 7 retain their GLM-5.3 mappings and scheduling. Customer prices
-were preserved. Assess pooled margin as `1 - sum(cash cost USD) / sum(charges
-USD)`, using actual token mix, rather than averaging request-level percentages.
-The observed primary-only traffic had 35.46% procurement margin, or 32.24% after
-a 5% cost reserve. Expensive fallbacks may have lower individual margins and
-must be included in the aggregate as they are used.
+The user requires all backup routes to remain available for reliability, and
+subsequently specified that fallback procurement must not determine retail
+prices. Accounts 2, 3 and 7 retain their GLM-5.3 mappings and scheduling. Set
+retail prices from primary account 7 cash cost only, using the agreed 20% target
+against a 5% cost reserve and group factor 0.72. Channel bases per million tokens
+are USD 1.009616 input, 3.533654 output and 0.252404 cached input. Effective prices
+are USD 0.72692352, 2.54423088 and 0.18173088 respectively. This produces about
+23.81% primary procurement margin, or 20% against the buffered primary cost.
+
+The original 42-request snapshot had 35.46% procurement margin, or 32.24% after
+a 5% cost reserve. Repricing that same token mix with the new rates would reduce
+charges from USD 3.7288079833 to USD 3.1584130258, about 15.30%. This is a replay
+calculation, not a retroactive change to customer charges. Other model prices
+were preserved. Procurement cards are still recorded for paid fallback routes;
+retain their actual costs as a separate reliability expense. Lower retail prices
+can make fallback requests unprofitable, so primary-price margin must not be
+presented as the realized margin including failover expenses.
 
 Account 3 had no customer requests in this snapshot. Its public pricing and
 token-use endpoints do not establish the account's actual cash procurement
@@ -179,4 +189,6 @@ cost cards conservatively reserve input cost pending verification.
 
 Historical usage, customer balances and API keys were not rewritten. Today's
 cash reconciliation and exact configuration acceptance are in the ignored
-`output/usd-ledger-20261005/glm-report-20261006.md` operational report.
+`output/usd-ledger-20261005/glm-report-20261006.md` operational report. The latest
+retail policy and persisted-price evidence are in `glm-primary-pricing-report.md`
+and `glm-primary-retail-verification.json` in the same directory.
