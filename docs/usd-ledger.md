@@ -145,3 +145,38 @@ verified again; the official npm registry audit reported zero vulnerabilities.
 Operational evidence is kept outside Git in `output/usd-ledger-20261005/`.
 The report records deploy IDs, reconciliation policy, security remediation and
 remaining profit limits. Do not copy credentials into this directory or logs.
+
+## GLM procurement and retained fallback routes
+
+On 2026-10-06, 42 GLM-5.3 requests through account 7 matched PPToken's request
+and token totals. Supplier cash cost was CNY 15.6416553, or USD 2.4064085077;
+wallet charges totaled USD 3.7288079833. The old account-cost total USD 5.68036182
+used an international reference price because this account lacked a procurement
+card. This was a cost-reporting discrepancy; USD recharge conversion alone
+cannot repair a missing supplier card.
+
+The primary account 7 procurement card now uses CNY 8/28/2 per million tokens,
+times its supplier factor 0.45, divided by 6.5. The paid backup account 2 also
+has an explicit GLM-5.3 card using nominal CNY 1.4/4.4/0.26, times supplier factor
+3.5, divided by 6.5. Both local account factors remain 1. Existing GLM-5.2 and
+Kimi cards are retained. Procurement price fields retain ten decimal places,
+so reconcile supplier cash independently of tiny price-card rounding differences.
+
+The user requires all backup routes to remain available for reliability.
+Accounts 2, 3 and 7 retain their GLM-5.3 mappings and scheduling. Customer prices
+were preserved. Assess pooled margin as `1 - sum(cash cost USD) / sum(charges
+USD)`, using actual token mix, rather than averaging request-level percentages.
+The observed primary-only traffic had 35.46% procurement margin, or 32.24% after
+a 5% cost reserve. Expensive fallbacks may have lower individual margins and
+must be included in the aggregate as they are used.
+
+Account 3 had no customer requests in this snapshot. Its public pricing and
+token-use endpoints do not establish the account's actual cash procurement
+denomination and rate. Keep its fallback route and flag its cash cost as
+unverified; do not guarantee margin for every future route mix. Cache writes
+were also absent from the snapshot; retail writes remain free while supplier
+cost cards conservatively reserve input cost pending verification.
+
+Historical usage, customer balances and API keys were not rewritten. Today's
+cash reconciliation and exact configuration acceptance are in the ignored
+`output/usd-ledger-20261005/glm-report-20261006.md` operational report.
