@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultPricingPlan, pricingPlans, getCheckoutRechargePlans } from './pricing.js';
 
-test('exposes recharge amounts as RMB balance without synthetic point conversions', () => {
+test('exposes public CNY payment examples without inventing an authenticated wallet quote', () => {
   assert.deepEqual(pricingPlans.map(({ id, amount }) => [id, amount]), [
     ['trial', 3],
     ['standard', 15],
@@ -12,6 +12,7 @@ test('exposes recharge amounts as RMB balance without synthetic point conversion
   ]);
   assert.equal(defaultPricingPlan.id, 'standard');
   assert.ok(pricingPlans.every((plan) => !Object.hasOwn(plan, 'workbuddyPoints')));
+  assert.ok(pricingPlans.every((plan) => !Object.hasOwn(plan, 'creditedBalance')));
 });
 
 const checkout = {
@@ -77,4 +78,16 @@ test('a malformed preferred method does not hide a valid fallback option', () =>
   const [plan] = getCheckoutRechargePlans(info, 'zh');
   assert.equal(plan.paymentType, 'alipay');
   assert.equal(plan.amount, 16);
+});
+
+test('equal server USD credits remain equal across CNY and USD payment options', () => {
+  const info = {
+    ...checkout,
+    recharge_tiers: [{ ...checkout.recharge_tiers[0], payment_options: [
+      { payment_type: 'stripe', currency: 'USD', amount: 10, pay_amount: 10, credited_balance: 10 },
+      { payment_type: 'alipay', currency: 'CNY', amount: 65, pay_amount: 65, credited_balance: 10 },
+    ] }],
+  };
+  assert.equal(getCheckoutRechargePlans(info, 'en')[0].creditedBalance, 10);
+  assert.equal(getCheckoutRechargePlans(info, 'zh')[0].creditedBalance, 10);
 });

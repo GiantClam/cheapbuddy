@@ -1033,6 +1033,36 @@ Object.assign(messages.en, {
   hypitFooterNote: 'The published npm Hypit provider uses the CheapBuddy MiniMax-H3 video API.',
 });
 
+Object.assign(messages.zh, {
+  currentBalance: '当前美元余额 (USD)',
+  sharedBalance: 'USD 余额 · 所有模型共用',
+  referenceBalance: '参考美元等值 · 实际到账以订单报价为准',
+  workbuddyPoints: 'CheapBuddy 美元余额 (USD)',
+  pricingPlanNote: '到账余额以 USD 计量 · 客户端共用',
+  pricingLead: '支持人民币和美元付款，按订单报价到账统一美元余额 (USD)。模型按成功请求的实际用量计费；官网 API 参考价与本站最终扣款价分开展示。',
+  pricingComparisonLead: '这是充值付款金额的参考比较。按参考汇率 1 USD = {rate} CNY，¥{amount}约合 ${usd}；实际美元到账余额以订单报价为准，不代表等量使用额度。',
+  affiliateFrozenBalance: '{amount} 返利处于冻结期，满足结算条件后会自动转为可提取。',
+  affiliateTransferSuccess: '{amount} 已转入账户余额',
+  registerIntro: '输入邮箱和密码创建账户，可用体验金以账户实际到账为准。',
+  registerTrial: '注册并开始体验',
+  authFootnote: '账户由 CheapBuddy 统一管理，注册和登录均需完成 Cloudflare 安全验证；可用体验金以账户实际到账为准。',
+});
+
+Object.assign(messages.en, {
+  currentBalance: 'USD wallet balance',
+  sharedBalance: 'USD balance · shared across models',
+  referenceBalance: 'Reference USD equivalent · final credit comes from the order quote',
+  workbuddyPoints: 'CheapBuddy USD balance',
+  pricingPlanNote: 'Wallet credit in USD · shared across clients',
+  pricingLead: 'Pay in CNY or USD and receive one shared USD balance at the quoted order rate. Successful requests are billed by actual usage; official API reference prices are separate from final customer charges.',
+  pricingComparisonWorkbuddy: 'This payment represents ¥{cny}, or about ${usd}. Tencent WorkBuddy Enterprise add-on pricing is ¥100 for 2,000 Credits, which is about {credits} Credits by cash price. This compares payment value, not an exchange of CheapBuddy balance into Tencent Credits.',
+  affiliateFrozenBalance: '{amount} is pending release and will become available after settlement.',
+  affiliateTransferSuccess: '{amount} transferred to your balance',
+  registerIntro: 'Enter an email and password to create an account. Check your account for any available trial credit.',
+  registerTrial: 'Sign up and get started',
+  authFootnote: 'Accounts are managed by CheapBuddy. Cloudflare security verification is required for sign-up and login; any trial credit is shown in your account.',
+});
+
 function interpolate(value, variables = {}) {
   return value.replace(/\{(\w+)\}/g, (match, key) => Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : match);
 }

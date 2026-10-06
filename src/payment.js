@@ -5,7 +5,7 @@ const PAYMENT_TYPES = Object.freeze({
   ALIPAY_DIRECT: 'alipay_direct',
 });
 
-// English Stripe prices are derived from the site's CNY plan amounts.
+// Reference conversion for public payment examples; authenticated quotes come from checkout-info.
 export const USD_TO_CNY_RATE = 6.5;
 
 export function getPlanPaymentAmount(amount, language) {
@@ -32,17 +32,32 @@ export function getPaymentCurrency(method, methodConfig) {
   return method === PAYMENT_TYPES.STRIPE ? 'USD' : 'CNY';
 }
 
-export function formatPaymentAmount(amount, currency) {
+export function formatPaymentAmount(amount, currency, fractionDigits = 2) {
   const normalizedCurrency = String(currency || 'CNY').trim().toUpperCase();
   try {
     return new Intl.NumberFormat(normalizedCurrency === 'USD' ? 'en-US' : 'zh-CN', {
       style: 'currency',
       currency: normalizedCurrency,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
     }).format(Number(amount) || 0);
   } catch {
     return `${normalizedCurrency} ${Number(amount) || 0}`;
   }
+}
+
+export function formatLedgerAmount(amount, fractionDigits = 2) {
+  return `${formatPaymentAmount(amount, 'USD', fractionDigits)} USD`;
+}
+
+export function formatPaymentOrderAmount(order) {
+  return formatPaymentAmount(order.pay_amount ?? order.amount ?? 0, getPaymentCurrency(order.payment_type, order));
+}
+
+export function getRechargeLedgerAmount(plan) {
+  // Server credited_balance is already denominated in ledger USD, regardless of payment currency.
+  if (Number.isFinite(plan.creditedBalance)) return plan.creditedBalance;
+  return Number(plan.amount || 0) / USD_TO_CNY_RATE;
 }
 
 export function isStripePaymentType(method) {
