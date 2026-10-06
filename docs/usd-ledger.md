@@ -98,3 +98,45 @@ pending orders can be paid beyond that configured limit; serialization and a
 reservation policy require a separate change. Production has no daily cap, so
 this does not alter current settlement or margin. Do not describe it as a strict
 cash acceptance cap.
+
+## Production acceptance — 2026-10-06
+
+The deployed backend revision is `b485e6a` and frontend revision is `7b15b4c`.
+Production uses settlement FX 6.5, recharge multiplier 1, no recharge bonus,
+and signup credit USD 0.15384615. Live CNY 15 and USD 2.31 test orders each
+saved USD 2.30769231 with frozen FX 6.5. Both unpaid test orders were cancelled.
+No customer payment was made for checkout verification.
+
+Cutover `cheapbuddy-usd-20261006-v1` preserved all 22 wallet snapshots,
+including 21 customer wallets, and annotated 73 legacy balance orders. The 18
+completed legacy orders collected CNY 696, equivalent to USD 107.07692308 in
+aggregate, but issued 696 nominal credits. The grandfathered excess of roughly
+USD 588.92308 is additional entitlement, not a realized procurement loss.
+
+`cheapbuddy_ledger_cost_reconciliation` separately records 806 historical Kimi
+requests, original cost snapshots and a reconstructed USD procurement estimate
+of 30.7656004. It does not rewrite usage charges, balances or old cost snapshots.
+Historical prices and funding are incomplete, so the estimate cannot establish
+the cash margin of every historical request. Historical account-cost charts
+still need this audit normalization before cross-period comparison.
+
+One bounded Kimi request selected account 5 and the actual Kimi upstream. Its
+wallet debit was USD 0.0010526251 and procurement cost USD 0.000802: 23.80953%
+model gross margin, or 20.00001% against a 5% cost reserve. Its temporary key was
+deleted. No recurring test was created; the existing paid test remains disabled,
+while the Kimi account remains active and schedulable. Stale Kimi-to-GLM mappings
+were removed from fallback accounts 2 and 3 without disabling either account.
+
+Stripe checkout now offers only its activated card method; domestic Alipay
+continues through its existing CNY provider. Re-enable other Stripe methods only
+after confirming that this merchant account has activated them.
+
+Regression coverage includes frozen-credit fulfillment after an FX change,
+callback replay and proportional refunds below the native payment tolerance.
+The new USD calculation module has 92.86% statement coverage; this percentage is
+not overall backend coverage. Payment tests across service and handler packages,
+Go vet, the embedded-server build, 53 frontend tests and the Vite build passed.
+
+Operational evidence is kept outside Git in `output/usd-ledger-20261005/`.
+The report records deploy IDs, reconciliation policy, security remediation and
+remaining profit limits. Do not copy credentials into this directory or logs.
