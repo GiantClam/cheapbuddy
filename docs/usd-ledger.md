@@ -101,7 +101,10 @@ cash acceptance cap.
 
 ## Production acceptance — 2026-10-06
 
-The deployed backend revision is `b485e6a` and frontend revision is `7b15b4c`.
+The USD rollout used backend revision `b485e6a` and frontend revision `7b15b4c`.
+The subsequent frontend patch `5799641` upgrades only the existing transitive
+source-map-js dependency to patched 1.2.2 and documents the acceptance evidence.
+The patched frontend deployment is `2e70392f-abc7-4a55-861c-82cc98477fea`.
 Production uses settlement FX 6.5, recharge multiplier 1, no recharge bonus,
 and signup credit USD 0.15384615. Live CNY 15 and USD 2.31 test orders each
 saved USD 2.30769231 with frozen FX 6.5. Both unpaid test orders were cancelled.
@@ -136,6 +139,8 @@ callback replay and proportional refunds below the native payment tolerance.
 The new USD calculation module has 92.86% statement coverage; this percentage is
 not overall backend coverage. Payment tests across service and handler packages,
 Go vet, the embedded-server build, 53 frontend tests and the Vite build passed.
+The patched dependency installation, 53 frontend tests and Vite build were
+verified again; the official npm registry audit reported zero vulnerabilities.
 
 Operational evidence is kept outside Git in `output/usd-ledger-20261005/`.
 The report records deploy IDs, reconciliation policy, security remediation and
