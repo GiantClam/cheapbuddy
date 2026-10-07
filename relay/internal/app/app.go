@@ -257,6 +257,9 @@ func (s *Server) handleUserAPI(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(context.WithValue(r.Context(), requestHashKey{}, prepared.hash))
 	}
 	model := prepared.model
+	if model == "MiniMax-H3" {
+		r = r.WithContext(context.WithValue(r.Context(), h3SecondsKey{}, prepared.h3Seconds))
+	}
 	route := classifyRoute(pathName, model, s.Config)
 	if route == routeNone {
 		writeError(w, http.StatusNotFound, "not_found", "Route or model is not available")
@@ -421,6 +424,11 @@ func (s *Server) handlePricing(w http.ResponseWriter, r *http.Request, apiKey, r
 		writeError(w, http.StatusNotFound, "model_not_found", "Pricing is not available for this model")
 		return
 	}
+	metadata, err := mediaPricingMetadata(s.Config, model, r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 
 	identity, err := s.resolveIdentity(r.Context(), apiKey, requestID)
 	if err != nil {
@@ -453,12 +461,7 @@ func (s *Server) handlePricing(w http.ResponseWriter, r *http.Request, apiKey, r
 		"model":       model,
 		"data":        pricing,
 		"group_ratio": groupRatios,
-		"cheapbuddy": map[string]any{
-			"billing_mode":     mediaBillingMode(s.Config, model),
-			"media_multiplier": s.Config.MediaMultiplierByModel[model],
-			"quota_per_usd":    s.Config.QuotaPerUSD,
-			"settlement":       "The final debit follows actual successful usage; pending media duration is not estimated.",
-		},
+		"cheapbuddy":  metadata,
 	})
 }
 
@@ -586,14 +589,6 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request, identity up
 		writeError(w, http.StatusBadRequest, "invalid_request_error", "Media model is not verified")
 		return
 	}
-	reservation, ok := s.Config.ReservationQuotaByModel[model]
-	if !ok {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "Media reservation is not configured")
-		return
-	}
-	if mediaBillingMode(s.Config, model) == "free" {
-		reservation = 0
-	}
 	idempotencyKey := mediaIdempotencyKey(r.Header)
 	requestHash := requestHashFromContext(r.Context())
 	if idempotencyKey != "" {
@@ -610,6 +605,11 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request, identity up
 			s.writeMediaReplay(w, r, existing)
 			return
 		}
+	}
+	reservation, err := mediaReservation(s.Config, model, h3SecondsFromContext(r.Context()))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
 	}
 	if err := s.reserve(r.Context(), identity, requestID, reservation); err != nil {
 		writeError(w, http.StatusPaymentRequired, "billing_error", "Insufficient balance or reservation unavailable")
@@ -1822,6 +1822,7 @@ type preparedRouteBody struct {
 	model         string
 	hash          string
 	fullyBuffered bool
+	h3Seconds     int
 }
 
 func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteBody, error) {
@@ -1840,16 +1841,32 @@ func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteB
 		if mediaIdempotencyKey(r.Header) != "" {
 			return s.spoolMultipartBody(r, contentType)
 		}
-		return inspectMultipartBody(r, contentType)
+		prepared, err := inspectMultipartBody(r, contentType)
+		if err != nil || prepared.model != "MiniMax-H3" {
+			return prepared, err
+		}
+		// H3 duration may follow reference files. Spool its complete body before
+		// computing a hold, keeping original bytes and multipart identity intact.
+		r.Body = prepared.body
+		return s.spoolMultipartBody(r, contentType)
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, s.Config.MaxBodyBytes+1))
 	if err != nil || int64(len(body)) > s.Config.MaxBodyBytes {
 		return preparedRouteBody{}, fmt.Errorf("request body too large")
 	}
+	model := extractModel(body, contentType)
+	seconds := 0
+	if model == "MiniMax-H3" {
+		seconds, err = h3JSONSeconds(body)
+		if err != nil {
+			return preparedRouteBody{}, err
+		}
+	}
 	return preparedRouteBody{
 		body:          io.NopCloser(bytes.NewReader(body)),
 		length:        int64(len(body)),
-		model:         extractModel(body, contentType),
+		model:         model,
+		h3Seconds:     seconds,
 		hash:          hashRequestBody(body),
 		fullyBuffered: true,
 	}, nil
@@ -1920,6 +1937,18 @@ func (s *Server) spoolMultipartBody(r *http.Request, contentType string) (prepar
 		removeTemporary()
 		return preparedRouteBody{}, fmt.Errorf("multipart model field is required")
 	}
+	seconds := 0
+	if model == "MiniMax-H3" {
+		if _, err := temporary.Seek(0, io.SeekStart); err != nil {
+			removeTemporary()
+			return preparedRouteBody{}, fmt.Errorf("request body spool unavailable")
+		}
+		seconds, err = h3MultipartSeconds(temporary, contentType)
+		if err != nil {
+			removeTemporary()
+			return preparedRouteBody{}, err
+		}
+	}
 	requestHash, hashErr := canonicalMultipartHash(temporary, contentType, s.Config.MaxBodyBytes)
 	if hashErr != nil {
 		removeTemporary()
@@ -1933,6 +1962,7 @@ func (s *Server) spoolMultipartBody(r *http.Request, contentType string) (prepar
 		body:          &temporaryBody{File: temporary, path: temporaryPath},
 		length:        written,
 		model:         model,
+		h3Seconds:     seconds,
 		hash:          requestHash,
 		fullyBuffered: true,
 	}, nil

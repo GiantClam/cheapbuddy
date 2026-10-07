@@ -625,8 +625,8 @@ func TestMultipartRouteBodyReplaysAfterStreamingInspection(t *testing.T) {
 	if !bytes.Equal(original, replayed) {
 		t.Fatalf("multipart body changed during inspection")
 	}
-	if prepared.model != "MiniMax-H3" || prepared.hash != "" || prepared.fullyBuffered {
-		t.Fatalf("unexpected streamed inspection result: model=%q hash=%q fully_buffered=%v", prepared.model, prepared.hash, prepared.fullyBuffered)
+	if prepared.model != "MiniMax-H3" || prepared.hash == "" || !prepared.fullyBuffered || prepared.h3Seconds != 6 {
+		t.Fatalf("unexpected buffered H3 inspection result: model=%q hash=%q fully_buffered=%v seconds=%d", prepared.model, prepared.hash, prepared.fullyBuffered, prepared.h3Seconds)
 	}
 }
 

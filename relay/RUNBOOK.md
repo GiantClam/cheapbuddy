@@ -1,5 +1,33 @@
 # CheapBuddy Relay Runbook
 
+## H3 submission reservation
+
+MiniMax-H3 reserves only its planned duration cost, not the legacy fixed
+USD 2.00 media hold. The upstream native rate is USD 0.06/second; Relay
+applies the configured H3 media multiplier and quota-per-USD conversion with
+the same integer ceiling as final settlement. At the current retail rate of
+CNY 0.10/second (CNY 6.5/USD, published USD 0.0154/second), 4 seconds holds
+USD 0.0616, 6 seconds holds USD 0.0924, and 15 seconds holds USD 0.2310.
+
+Use the requested `seconds` or `duration` (4–15 integer seconds); omission
+uses the H3 plugin's 6-second default. Conflicting or unsupported duration
+fields must fail before a hold or provider submission. JSON and multipart
+must select the same effective duration as the upstream plugin; multipart
+file ordering must not hide the requested duration. Do not change upstream
+duration defaults or native pricing without checking this reservation rule.
+
+Other models retain their existing reservation policy. Existing idempotent
+requests retain their recorded hold; this change does not release or resize
+historical `pending_reconciliation` reservations. Final settlement remains
+successful native usage only, and definitive rejected/failed tasks use the
+existing idempotent release path.
+`GET /v1/pricing?model=MiniMax-H3&duration=4` reports the estimated hold under
+`cheapbuddy.reservation`; it does not reserve funds or generate a video.
+If a native bill unexpectedly exceeds the recorded hold, keep reconciliation
+pending for investigation. Do not silently cap the bill or release a potentially
+billable task. This duration rule assumes the current native seconds-only
+pricing expression; enabling additional billable facts requires reviewing it.
+
 ## Shadow mapping repair
 
 Keep `cheapbuddy_integration.user_mappings` as the source of the encrypted
