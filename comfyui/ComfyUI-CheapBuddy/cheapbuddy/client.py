@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from .errors import CheapBuddyError, safe_error
 
-USER_AGENT = "ComfyUI-CheapBuddy/0.1.0"
+USER_AGENT = "ComfyUI-CheapBuddy/0.1.1"
 MAX_JSON_BYTES = 64 * 1024 * 1024
 
 

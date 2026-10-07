@@ -2,12 +2,18 @@
 
 CheapBuddy 的 ComfyUI 自定义节点。通过 [cheapbuddy.cc](https://cheapbuddy.cc/) 获取 API Key 后，可以在 ComfyUI 中使用统一的文本、图片和视频模型入口。
 
+当前版本：**0.1.1**。本版修复新版 ComfyUI 的模型下拉框刷新，跳过 `YOUR_CHEAPBUDDY_API_KEY` 占位符，并在刷新失败后限制 10 秒内的重复请求。详见 [CHANGELOG.md](CHANGELOG.md)。
+
+### 从 0.1.0 升级
+
+下载新版 ZIP，将文件覆盖到原有 `ComfyUI/custom_nodes/ComfyUI-CheapBuddy` 目录，避免保留多个插件副本。已加载的节点只需刷新浏览器页面，即可使用修复后的模型菜单；首次安装或更新 Python 文件后请重启 ComfyUI 服务端。已有工作流、API Key、节点名称和连线保持兼容。
+
 ## 官方链接
 
 - 官网：[https://cheapbuddy.cc/](https://cheapbuddy.cc/)
 - ComfyUI 使用说明：[https://cheapbuddy.cc/comfyui/](https://cheapbuddy.cc/comfyui/)
 - API 文档：[https://cheapbuddy.cc/api-docs/](https://cheapbuddy.cc/api-docs/)
-- ZIP 下载：[https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip)
+- ZIP 下载：[https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.1.zip](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.1.zip)
 - 源码仓库：[https://github.com/GiantClam/cheapbuddy](https://github.com/GiantClam/cheapbuddy)
 
 ## 节点
@@ -28,7 +34,7 @@ ComfyUI/custom_nodes/ComfyUI-CheapBuddy
 
 ### ZIP 安装
 
-1. 从 [官网 ZIP 下载地址](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip) 下载压缩包。
+1. 从 [官网 ZIP 下载地址](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.1.zip) 下载压缩包。
 2. 解压得到 `ComfyUI-CheapBuddy` 目录。
 3. 将目录放入 `ComfyUI/custom_nodes/ComfyUI-CheapBuddy`。
 4. 重启 ComfyUI，在节点搜索中搜索 `CheapBuddy`。

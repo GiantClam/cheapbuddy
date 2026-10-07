@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-cheapbuddy"
-version = "0.1.0"
+version = "0.1.1"
 description = "Text, image, and video generation nodes backed by CheapBuddy"
 requires-python = ">=3.10"
 dependencies = []
