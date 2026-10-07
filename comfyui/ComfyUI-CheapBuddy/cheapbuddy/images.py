@@ -110,7 +110,7 @@ def download_result(url):
     for _ in range(4):
         previous = current
         _check_public_url(current)
-        req = urllib.request.Request(current, headers={"User-Agent": "ComfyUI-CheapBuddy/0.1.0"})
+        req = urllib.request.Request(current, headers={"User-Agent": "ComfyUI-CheapBuddy/0.1.1"})
         opener = urllib.request.build_opener(_NoRedirect())
         try:
             with opener.open(req, timeout=45) as response:

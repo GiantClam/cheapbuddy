@@ -10,7 +10,7 @@
 - [注册 / 登录](https://cheapbuddy.cc/#account)
 - [图片 / 视频 API 文档](https://cheapbuddy.cc/api-docs/)
 - [ComfyUI 节点介绍](https://cheapbuddy.cc/comfyui/)
-- [下载 ComfyUI 节点 ZIP](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip)
+- [下载 ComfyUI 节点 ZIP](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.1.zip)
 - [CheapBuddy GitHub](https://github.com/GiantClam/cheapbuddy)
 
 ## CheapBuddy 能做什么
@@ -36,7 +36,7 @@ CheapBuddy ComfyUI 插件包含三个通用节点：
 ### 安装方式 A：下载 ZIP
 
 1. 安装 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 并确认可以正常启动。
-2. 下载 [ComfyUI-CheapBuddy ZIP](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.0.zip)。
+2. 下载 [ComfyUI-CheapBuddy ZIP](https://cheapbuddy.cc/downloads/ComfyUI-CheapBuddy-0.1.1.zip)。
 3. 解压后，将 `ComfyUI-CheapBuddy` 目录放入：
 
    ```text
