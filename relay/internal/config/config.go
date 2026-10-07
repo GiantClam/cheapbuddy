@@ -49,6 +49,7 @@ type Config struct {
 	AuthRateLimit            int64
 	ReconciliationInterval   time.Duration
 	ReconciliationBatchSize  int
+	H3TaskTimeout            time.Duration
 	NewAPIUserPath           string
 	NewAPILoginPath          string
 	NewAPILogPath            string
@@ -78,6 +79,13 @@ func Load(getenv func(string) string) (Config, error) {
 	mediaCapabilities, err := mediaCapabilitiesMap(getenv("RELAY_MEDIA_CAPABILITIES_BY_MODEL"), verifiedModels)
 	if err != nil {
 		return Config{}, err
+	}
+	h3TaskTimeout := 30 * time.Minute
+	if value := strings.TrimSpace(getenv("RELAY_H3_TASK_TIMEOUT")); value != "" {
+		h3TaskTimeout, err = time.ParseDuration(value)
+		if err != nil || h3TaskTimeout <= 0 {
+			return Config{}, fmt.Errorf("RELAY_H3_TASK_TIMEOUT must be a positive duration")
+		}
 	}
 	reservations := map[string]int64{}
 	multipliers := map[string]float64{}
@@ -146,6 +154,7 @@ func Load(getenv func(string) string) (Config, error) {
 		AuthRateLimit:            int64Value(getenv("RELAY_AUTH_RATE_LIMIT"), 120),
 		ReconciliationInterval:   duration(getenv("RECONCILIATION_INTERVAL"), time.Minute),
 		ReconciliationBatchSize:  intValue(getenv("RECONCILIATION_BATCH_SIZE"), 100),
+		H3TaskTimeout:            h3TaskTimeout,
 		NewAPIUserPath:           fallback(getenv("NEWAPI_USER_PATH"), "/api/user/"),
 		NewAPILoginPath:          fallback(getenv("NEWAPI_LOGIN_PATH"), "/api/user/login"),
 		NewAPILogPath:            "/api/log/",

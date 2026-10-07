@@ -174,6 +174,11 @@ func (c *Client) FindBill(ctx context.Context, baseURL, adminToken, logPath, new
 	if err := json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(&payload); err != nil {
 		return Bill{}, false, err
 	}
+	if object, ok := payload.(map[string]any); ok {
+		if err := businessError(object); err != nil {
+			return Bill{}, false, err
+		}
+	}
 	return findBill(payload, newAPIRequestID)
 }
 
@@ -268,8 +273,11 @@ func businessError(payload map[string]any) error {
 	return fmt.Errorf("upstream rejected request: %s", message)
 }
 
+type HTTPStatusError struct{ StatusCode int }
+
+func (e *HTTPStatusError) Error() string { return fmt.Sprintf("upstream status %d", e.StatusCode) }
 func statusError(response *http.Response) error {
-	return fmt.Errorf("upstream status %d", response.StatusCode)
+	return &HTTPStatusError{StatusCode: response.StatusCode}
 }
 
 func dataOf(value map[string]any) any {

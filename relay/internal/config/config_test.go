@@ -63,6 +63,33 @@ func TestLoadReadsPublicURL(t *testing.T) {
 	}
 }
 
+func TestLoadH3TaskTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		want    time.Duration
+		invalid bool
+	}{
+		{"", 30 * time.Minute, false},
+		{" 45m ", 45 * time.Minute, false},
+		{"0s", 0, true},
+		{"-1m", 0, true},
+		{"invalid", 0, true},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			cfg, err := Load(testEnv(map[string]string{"RELAY_H3_TASK_TIMEOUT": tc.value}))
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "RELAY_H3_TASK_TIMEOUT") {
+					t.Fatalf("expected timeout validation error, got %v", err)
+				}
+				return
+			}
+			if err != nil || cfg.H3TaskTimeout != tc.want {
+				t.Fatalf("timeout = %s, error = %v; want %s", cfg.H3TaskTimeout, err, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadValidatesMediaCapabilities(t *testing.T) {
 	_, err := Load(testEnv(map[string]string{
 		"RELAY_MEDIA_CAPABILITIES_BY_MODEL": `{"unknown-model":["text_to_video"]}`,

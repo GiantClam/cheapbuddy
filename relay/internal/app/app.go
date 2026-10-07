@@ -611,15 +611,23 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request, identity up
 		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	if err := s.reserve(r.Context(), identity, requestID, reservation); err != nil {
-		writeError(w, http.StatusPaymentRequired, "billing_error", "Insufficient balance or reservation unavailable")
-		return
-	}
-	created, err := s.Store.CreateMediaRequest(r.Context(), store.MediaRequest{RequestID: requestID, IdempotencyKey: idempotencyKey, RequestHash: requestHash, Model: model, CheapBuddyUserID: identity.UserID, APIKeyID: identity.APIKeyID, ReservationID: requestID, ReservationAmount: reservation})
-	if err != nil || !created {
-		_ = s.release(r.Context(), identity, requestID, reservation)
-		writeError(w, http.StatusConflict, "idempotency_conflict", "Media request correlation already exists")
-		return
+	mediaRequest := store.MediaRequest{RequestID: requestID, IdempotencyKey: idempotencyKey, RequestHash: requestHash, Model: model, CheapBuddyUserID: identity.UserID, APIKeyID: identity.APIKeyID, ReservationID: requestID, ReservationAmount: reservation}
+	if model == "MiniMax-H3" {
+		if err := s.prepareH3Reservation(r.Context(), s.Store, mediaRequest); err != nil {
+			writeError(w, http.StatusPaymentRequired, "billing_error", "Insufficient balance or reservation unavailable")
+			return
+		}
+	} else {
+		if err := s.reserve(r.Context(), identity, requestID, reservation); err != nil {
+			writeError(w, http.StatusPaymentRequired, "billing_error", "Insufficient balance or reservation unavailable")
+			return
+		}
+		created, err := s.Store.CreateMediaRequest(r.Context(), mediaRequest)
+		if err != nil || !created {
+			_ = s.release(r.Context(), identity, requestID, reservation)
+			writeError(w, http.StatusConflict, "idempotency_conflict", "Media request correlation already exists")
+			return
+		}
 	}
 
 	callbacks := &mediaCallbacks{server: s, identity: identity, requestID: requestID, reservation: reservation, model: model}
@@ -627,6 +635,10 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request, identity up
 }
 
 func (s *Server) writeMediaReplay(w http.ResponseWriter, r *http.Request, request store.MediaRequest) {
+	if request.BillingStatus == "released" && request.Model == "MiniMax-H3" {
+		writeJSON(w, http.StatusGone, map[string]any{"error": map[string]string{"type": "media_task_failed", "message": "The original task failed or timed out; its reservation has been released"}, "request_id": request.RequestID, "task_id": request.NativeTaskID, "status": "released"})
+		return
+	}
 	if request.NativeTaskID == "" {
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error":      map[string]string{"type": "accepted_unknown", "message": "The original media task was accepted but its public task ID is not available yet"},
@@ -1498,11 +1510,19 @@ func (c *mediaCallbacks) onResponse(ctx context.Context, response *http.Response
 		if response.StatusCode >= 500 {
 			stateCtx, cancel := c.durableContext(ctx)
 			defer cancel()
+			if nativeID := newAPIRequestID(response); c.model == "MiniMax-H3" && nativeID != "" {
+				_ = c.server.Store.AttachNewAPIRequestID(stateCtx, c.requestID, nativeID)
+			}
 			_ = c.server.Store.MarkBilling(stateCtx, c.requestID, "pending_reconciliation", 0, "", "", "NewAPI returned an ambiguous server error")
 			return nil
 		}
 		releaseCtx, releaseCancel := c.durableContext(ctx)
-		releaseErr := c.server.release(releaseCtx, c.identity, c.requestID, c.reservation)
+		var releaseErr error
+		if c.model == "MiniMax-H3" {
+			releaseErr = c.server.releaseH3Request(releaseCtx, c.server.Store, c.requestID, "NewAPI rejected H3 request; reservation released")
+		} else {
+			releaseErr = c.server.release(releaseCtx, c.identity, c.requestID, c.reservation)
+		}
 		releaseCancel()
 		if releaseErr != nil {
 			stateCtx, cancel := c.durableContext(ctx)
@@ -1695,6 +1715,12 @@ func (s *Server) reconcile(ctx context.Context) {
 		return
 	}
 	for _, request := range requests {
+		if request.Model == "MiniMax-H3" {
+			if err := s.reconcileH3Request(ctx, s.Store, request); err != nil && !errors.Is(err, store.ErrBillingBusy) {
+				s.log("h3_reconciliation_pending", request.RequestID, "error", err.Error())
+			}
+			continue
+		}
 		if request.NewAPIRequestID == "" {
 			continue
 		}

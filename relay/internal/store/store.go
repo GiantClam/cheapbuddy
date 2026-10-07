@@ -35,6 +35,7 @@ type MediaRequest struct {
 	NativeBillID      string
 	LedgerTransaction string
 	LastError         string
+	CreatedAt         time.Time
 }
 
 type MediaUsageStat struct {
@@ -179,6 +180,10 @@ func (s *Store) FindMediaByIdempotency(ctx context.Context, apiKeyID int64, key 
 	return s.findMedia(ctx, `WHERE api_key_id=$1 AND idempotency_key=$2`, apiKeyID, key)
 }
 
+func (s *Store) FindMediaRequest(ctx context.Context, requestID string) (MediaRequest, bool, error) {
+	return s.findMedia(ctx, `WHERE request_id=$1`, requestID)
+}
+
 func (s *Store) CreateMediaRequest(ctx context.Context, request MediaRequest) (bool, error) {
 	command, err := s.Pool.Exec(ctx, `INSERT INTO cheapbuddy_integration.media_requests (request_id, idempotency_key, request_hash, model, cheapbuddy_user_id, api_key_id, reservation_id, reservation_amount, billing_status)
 	 VALUES($1,NULLIF($2,''),NULLIF($3,''),$4,$5,$6,$7,$8,'reserved') ON CONFLICT DO NOTHING`, request.RequestID, request.IdempotencyKey, request.RequestHash, request.Model, request.CheapBuddyUserID, request.APIKeyID, request.ReservationID, request.ReservationAmount)
@@ -186,7 +191,7 @@ func (s *Store) CreateMediaRequest(ctx context.Context, request MediaRequest) (b
 }
 
 func (s *Store) AttachNativeTask(ctx context.Context, requestID, taskID string) error {
-	_, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET native_task_id=$2, billing_status='submitted', updated_at=now() WHERE request_id=$1`, requestID, taskID)
+	_, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET native_task_id=$2, billing_status='submitted', updated_at=now() WHERE request_id=$1 AND billing_status NOT IN ('settled','released','capture_pending','release_pending')`, requestID, taskID)
 	return err
 }
 
@@ -196,17 +201,31 @@ func (s *Store) AttachProviderTask(ctx context.Context, requestID, taskID string
 }
 
 func (s *Store) AttachNewAPIRequestID(ctx context.Context, requestID, newAPIRequestID string) error {
-	_, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET newapi_request_id=$2, billing_status='submitted', updated_at=now() WHERE request_id=$1`, requestID, newAPIRequestID)
+	_, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET newapi_request_id=$2, billing_status='submitted', updated_at=now() WHERE request_id=$1 AND billing_status NOT IN ('settled','released','capture_pending','release_pending')`, requestID, newAPIRequestID)
 	return err
 }
 
+// DecideMediaBilling atomically chooses one irreversible monetary operation.
+// Only the caller that applies the decision may initiate its ledger operation;
+// persisted pending decisions must be retried in the same direction.
+func (s *Store) DecideMediaBilling(ctx context.Context, requestID, status string, finalQuota int64, billID, reason string) (bool, error) {
+	if status != "capture_pending" && status != "release_pending" {
+		return false, fmt.Errorf("unsupported media billing decision %q", status)
+	}
+	command, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET billing_status=$2, final_quota=COALESCE(NULLIF($3,0), final_quota), native_bill_id=COALESCE(NULLIF($4,''), native_bill_id), last_error=NULLIF($5,''), updated_at=now() WHERE request_id=$1 AND billing_status IN ('reserved','submitted','pending_reconciliation')`, requestID, status, finalQuota, billID, reason)
+	if err != nil {
+		return false, err
+	}
+	return command.RowsAffected() == 1, nil
+}
+
 func (s *Store) MarkBilling(ctx context.Context, requestID, status string, finalQuota int64, billID, ledgerID, lastError string) error {
-	_, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET billing_status=$2, final_quota=COALESCE(NULLIF($3,0), final_quota), native_bill_id=COALESCE(NULLIF($4,''), native_bill_id), ledger_transaction_id=COALESCE(NULLIF($5,''), ledger_transaction_id), last_error=NULLIF($6,''), updated_at=now() WHERE request_id=$1`, requestID, status, finalQuota, billID, ledgerID, lastError)
+	_, err := s.Pool.Exec(ctx, `UPDATE cheapbuddy_integration.media_requests SET billing_status=$2, final_quota=COALESCE(NULLIF($3,0), final_quota), native_bill_id=COALESCE(NULLIF($4,''), native_bill_id), ledger_transaction_id=COALESCE(NULLIF($5,''), ledger_transaction_id), last_error=NULLIF($6,''), updated_at=now() WHERE request_id=$1 AND billing_status NOT IN ('settled','released') AND (billing_status NOT IN ('capture_pending','release_pending') OR (billing_status='capture_pending' AND $2 IN ('capture_pending','settled')) OR (billing_status='release_pending' AND $2 IN ('release_pending','released')))`, requestID, status, finalQuota, billID, ledgerID, lastError)
 	return err
 }
 
 func (s *Store) PendingRequests(ctx context.Context, limit int) ([]MediaRequest, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT request_id, COALESCE(idempotency_key,''), COALESCE(request_hash,''), model, cheapbuddy_user_id, api_key_id, COALESCE(native_task_id,''), COALESCE(provider_task_id,''), COALESCE(newapi_request_id,''), reservation_id, reservation_amount, billing_status, COALESCE(final_quota,0), COALESCE(native_bill_id,''), COALESCE(ledger_transaction_id,''), COALESCE(last_error,'') FROM cheapbuddy_integration.media_requests WHERE billing_status IN ('reserved','submitted','pending_reconciliation') ORDER BY updated_at ASC LIMIT $1`, limit)
+	rows, err := s.Pool.Query(ctx, `SELECT request_id, COALESCE(idempotency_key,''), COALESCE(request_hash,''), model, cheapbuddy_user_id, api_key_id, COALESCE(native_task_id,''), COALESCE(provider_task_id,''), COALESCE(newapi_request_id,''), reservation_id, reservation_amount, billing_status, COALESCE(final_quota,0), COALESCE(native_bill_id,''), COALESCE(ledger_transaction_id,''), COALESCE(last_error,''), created_at FROM cheapbuddy_integration.media_requests WHERE billing_status IN ('reserved','submitted','pending_reconciliation','capture_pending','release_pending') ORDER BY updated_at ASC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +233,7 @@ func (s *Store) PendingRequests(ctx context.Context, limit int) ([]MediaRequest,
 	result := []MediaRequest{}
 	for rows.Next() {
 		var request MediaRequest
-		if err := rows.Scan(&request.RequestID, &request.IdempotencyKey, &request.RequestHash, &request.Model, &request.CheapBuddyUserID, &request.APIKeyID, &request.NativeTaskID, &request.ProviderTaskID, &request.NewAPIRequestID, &request.ReservationID, &request.ReservationAmount, &request.BillingStatus, &request.FinalQuota, &request.NativeBillID, &request.LedgerTransaction, &request.LastError); err != nil {
+		if err := rows.Scan(&request.RequestID, &request.IdempotencyKey, &request.RequestHash, &request.Model, &request.CheapBuddyUserID, &request.APIKeyID, &request.NativeTaskID, &request.ProviderTaskID, &request.NewAPIRequestID, &request.ReservationID, &request.ReservationAmount, &request.BillingStatus, &request.FinalQuota, &request.NativeBillID, &request.LedgerTransaction, &request.LastError, &request.CreatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, request)
@@ -254,9 +273,9 @@ func (s *Store) MediaUsageByUser(ctx context.Context, userID int64, start, end t
 }
 
 func (s *Store) findMedia(ctx context.Context, clause string, args ...any) (MediaRequest, bool, error) {
-	query := `SELECT request_id, COALESCE(idempotency_key,''), COALESCE(request_hash,''), model, cheapbuddy_user_id, api_key_id, COALESCE(native_task_id,''), COALESCE(provider_task_id,''), COALESCE(newapi_request_id,''), reservation_id, reservation_amount, billing_status, COALESCE(final_quota,0), COALESCE(native_bill_id,''), COALESCE(ledger_transaction_id,''), COALESCE(last_error,'') FROM cheapbuddy_integration.media_requests ` + clause
+	query := `SELECT request_id, COALESCE(idempotency_key,''), COALESCE(request_hash,''), model, cheapbuddy_user_id, api_key_id, COALESCE(native_task_id,''), COALESCE(provider_task_id,''), COALESCE(newapi_request_id,''), reservation_id, reservation_amount, billing_status, COALESCE(final_quota,0), COALESCE(native_bill_id,''), COALESCE(ledger_transaction_id,''), COALESCE(last_error,''), created_at FROM cheapbuddy_integration.media_requests ` + clause
 	var request MediaRequest
-	err := s.Pool.QueryRow(ctx, query, args...).Scan(&request.RequestID, &request.IdempotencyKey, &request.RequestHash, &request.Model, &request.CheapBuddyUserID, &request.APIKeyID, &request.NativeTaskID, &request.ProviderTaskID, &request.NewAPIRequestID, &request.ReservationID, &request.ReservationAmount, &request.BillingStatus, &request.FinalQuota, &request.NativeBillID, &request.LedgerTransaction, &request.LastError)
+	err := s.Pool.QueryRow(ctx, query, args...).Scan(&request.RequestID, &request.IdempotencyKey, &request.RequestHash, &request.Model, &request.CheapBuddyUserID, &request.APIKeyID, &request.NativeTaskID, &request.ProviderTaskID, &request.NewAPIRequestID, &request.ReservationID, &request.ReservationAmount, &request.BillingStatus, &request.FinalQuota, &request.NativeBillID, &request.LedgerTransaction, &request.LastError, &request.CreatedAt)
 	if err == pgx.ErrNoRows {
 		return MediaRequest{}, false, nil
 	}
