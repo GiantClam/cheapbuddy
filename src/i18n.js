@@ -1076,6 +1076,8 @@ export function getInitialLanguage() {
 export function setStoredLanguage(language) {
   window.localStorage.setItem(LANGUAGE_KEY, language);
   document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
+  const locale = document.querySelector('meta[property="og:locale"]');
+  if (locale) locale.setAttribute('content', language === 'en' ? 'en_US' : 'zh_CN');
 }
 
 export function translate(language, key, variables) {
