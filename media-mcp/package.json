@@ -1,0 +1,41 @@
+{
+  "name": "@cheapbuddy/media-mcp",
+  "version": "0.1.1",
+  "description": "Local stdio MCP server for CheapBuddy image and MiniMax-H3 media APIs",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "cheapbuddy-media-mcp": "src/cli.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "src",
+    "examples",
+    "manifest.json",
+    "INSTALL-PROMPTS.md",
+    "README.md",
+    "CHANGELOG.md",
+    "RELEASE-CHECKLIST.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:coverage": "node --test --experimental-test-coverage test/*.test.mjs",
+    "lint": "node --check src/backend.mjs && node --check src/catalog.mjs && node --check src/cli.mjs && node --check src/errors.mjs && node --check src/http.mjs && node --check src/job-id.mjs && node --check src/media-input.mjs && node --check src/normalize.mjs && node --check src/server.mjs && node --check src/tools.mjs && node --check scripts/check-licenses.mjs && node --check scripts/check-secrets.mjs && node --check test/config.test.mjs && node --check test/media-mcp.test.mjs && node --check test/mcpb.test.mjs && node --check test/stdio.test.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "audit": "npm audit --registry=https://registry.npmjs.org --omit=dev --audit-level=high",
+    "pack:check": "npm pack --dry-run --ignore-scripts",
+    "pack:mcpb": "npx --yes --registry=https://registry.npmjs.org --package @anthropic-ai/mcpb@2.1.2 mcpb pack"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  }
+}

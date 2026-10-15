@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultPricingPlan, pricingPlans } from './pricing.js';
+import { defaultPricingPlan, pricingPlans, getCheckoutRechargePlans } from './pricing.js';
+import * as pricingHelpers from './pricing.js';
 
-test('exposes recharge amounts as RMB balance without synthetic point conversions', () => {
+test('exposes public CNY payment examples without inventing an authenticated wallet quote', () => {
   assert.deepEqual(pricingPlans.map(({ id, amount }) => [id, amount]), [
     ['trial', 3],
     ['standard', 15],
@@ -12,4 +13,102 @@ test('exposes recharge amounts as RMB balance without synthetic point conversion
   ]);
   assert.equal(defaultPricingPlan.id, 'standard');
   assert.ok(pricingPlans.every((plan) => !Object.hasOwn(plan, 'workbuddyPoints')));
+  assert.ok(pricingPlans.every((plan) => !Object.hasOwn(plan, 'creditedBalance')));
+});
+
+const checkout = {
+  methods: { stripe: { currency: 'USD' }, alipay: { currency: 'CNY' } },
+  recharge_tiers: [{
+    id: 'standard', name: 'Server offer', description: 'Current description', order_type: 'balance', featured: true,
+    payment_options: [
+      { payment_type: 'stripe', currency: 'USD', amount: 2.5, pay_amount: 2.6, credited_balance: 5 },
+      { payment_type: 'alipay', currency: 'CNY', amount: 16, pay_amount: 16.64, credited_balance: 32 },
+    ],
+  }],
+};
+
+test('authenticated recharge uses exact server prices, fees, balance and descriptions', () => {
+  const [usd] = getCheckoutRechargePlans(checkout, 'en');
+  assert.equal(usd.name, 'Server offer');
+  assert.equal(usd.amount, 2.5);
+  assert.equal(usd.payAmount, 2.6);
+  assert.equal(usd.creditedBalance, 5);
+  assert.equal(usd.paymentCurrency, 'USD');
+  assert.equal(usd.paymentType, 'stripe');
+  const [cny] = getCheckoutRechargePlans(checkout, 'zh');
+  assert.equal(cny.amount, 16);
+  assert.equal(cny.paymentType, 'alipay');
+});
+
+test('missing or empty server catalog never invents purchasable tiers', () => {
+  assert.deepEqual(getCheckoutRechargePlans(undefined, 'zh'), []);
+  assert.deepEqual(getCheckoutRechargePlans({ methods: checkout.methods }, 'zh'), []);
+  assert.deepEqual(getCheckoutRechargePlans({ ...checkout, recharge_tiers: [] }, 'zh'), []);
+  assert.deepEqual(getCheckoutRechargePlans({ ...checkout, balance_disabled: true }, 'zh'), []);
+});
+
+test('catalog excludes unavailable methods, subscriptions, wrong currencies and invalid amounts', () => {
+  const [tier] = checkout.recharge_tiers;
+  const variants = [
+    { ...checkout, methods: { stripe: { currency: 'USD', available: false } } },
+    { ...checkout, methods: { stripe: { currency: 'CNY' } } },
+    { ...checkout, recharge_tiers: [{ ...tier, order_type: 'subscription' }] },
+    { ...checkout, recharge_tiers: [{ ...tier, payment_options: [{ ...tier.payment_options[0], amount: NaN }] }] },
+    { ...checkout, recharge_tiers: [{ ...tier, payment_options: [{ ...tier.payment_options[0], pay_amount: -1 }] }] },
+    { ...checkout, recharge_tiers: [{ ...tier, payment_options: [{ ...tier.payment_options[0], credited_balance: Infinity }] }] },
+  ];
+  for (const info of variants) assert.deepEqual(getCheckoutRechargePlans(info, 'en'), []);
+});
+
+test('a tier falls back to another allowed method when preferred method exceeds its limits', () => {
+  const info = { ...checkout, methods: { easypay: { currency: 'CNY' }, alipay: { currency: 'CNY' } } };
+  const [plan] = getCheckoutRechargePlans(info, 'zh');
+  assert.equal(plan.paymentType, 'alipay');
+  assert.equal(plan.amount, 16);
+});
+
+test('a malformed preferred method does not hide a valid fallback option', () => {
+  const info = {
+    ...checkout,
+    methods: { easypay: { currency: 'CNY' }, alipay: { currency: 'CNY' } },
+    recharge_tiers: [{ ...checkout.recharge_tiers[0], payment_options: [
+      { payment_type: 'easypay', currency: 'CNY', amount: NaN, pay_amount: 1, credited_balance: 1 },
+      { payment_type: 'alipay', currency: 'CNY', amount: 16, pay_amount: 16.64, credited_balance: 32 },
+    ] }],
+  };
+  const [plan] = getCheckoutRechargePlans(info, 'zh');
+  assert.equal(plan.paymentType, 'alipay');
+  assert.equal(plan.amount, 16);
+});
+
+test('equal server USD credits remain equal across CNY and USD payment options', () => {
+  const info = {
+    ...checkout,
+    recharge_tiers: [{ ...checkout.recharge_tiers[0], payment_options: [
+      { payment_type: 'stripe', currency: 'USD', amount: 10, pay_amount: 10, credited_balance: 10 },
+      { payment_type: 'alipay', currency: 'CNY', amount: 65, pay_amount: 65, credited_balance: 10 },
+    ] }],
+  };
+  assert.equal(getCheckoutRechargePlans(info, 'en')[0].creditedBalance, 10);
+  assert.equal(getCheckoutRechargePlans(info, 'zh')[0].creditedBalance, 10);
+});
+
+test('token prices use the model multiplier rather than a universal discount', () => {
+  const claude = { modality: 'text', priceStatus: 'verified', input: '$2.00', output: '$10.00', priceMultiplier: 1.1,
+    priceUnit: 'USD / MTok; cache read $0.10' };
+  assert.deepEqual(pricingHelpers.getModelRetailPricing(claude), { input: '$2.20', output: '$11.00', priceUnit: 'USD / MTok; cache read $0.11' });
+  assert.equal(pricingHelpers.getModelRetailPricing({ ...claude, priceMultiplier: 0.72 }).input, '$1.44');
+  assert.equal(pricingHelpers.getModelRetailPricing({ ...claude, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存' }).input, '¥0.022–¥0.044 缓存 · ¥1.10–¥2.20 未缓存');
+  assert.equal(claude.input, '$2.00');
+});
+
+test('retail prices do not invent rates for media, unverified prices or invalid multipliers', () => {
+  for (const model of [
+    { modality: 'image', priceStatus: 'verified', priceMultiplier: 1.1 },
+    { modality: 'text', priceStatus: 'unverified', priceMultiplier: 1.1 },
+    { modality: 'text', priceStatus: 'verified' },
+    { modality: 'text', priceStatus: 'verified', priceMultiplier: NaN },
+    { modality: 'text', priceStatus: 'verified', priceMultiplier: -1 },
+  ]) assert.equal(pricingHelpers.getModelRetailPricing(model), null);
+  assert.equal(pricingHelpers.getModelRetailPricing({ modality: 'text', priceStatus: 'verified', pricingScope: 'sub2api-group', priceMultiplier: 1.1 }), null);
 });

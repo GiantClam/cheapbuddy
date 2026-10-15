@@ -1,0 +1,269 @@
+# CheapBuddy USD ledger
+
+## Settlement contract
+
+The wallet, usage charges, account procurement costs, recharge credits, referral
+balances and refund deductions use genuine USD. A provider credit labelled "$"
+is not evidence of its cash denomination. PPToken credit costs CNY 1 per nominal
+unit, so its account cost cards must be converted from CNY before comparison.
+
+`BALANCE_USD_TO_CNY_RATE=6.5` is the business settlement rate (CNY per USD), not a
+live market quote. A CNY payment is divided by that rate; a USD payment is already
+USD. `balance_recharge_multiplier` remains a separate promotional multiplier.
+Order `amount`, `bonus_amount` and `refund_amount` retain eight decimal places;
+`pay_amount` retains the payment currency's existing two-decimal representation.
+Payment gateways continue to receive native currency amounts and their required
+minor units. See [Stripe currency rules](https://docs.stripe.com/currencies).
+
+Each recharge tier can explicitly promise one `credited_balance` in USD across
+both payment currencies. For example, CNY 15 and USD 2.31 both credit USD
+2.30769231. The USD payment's two-decimal price is a fixed package price, not an
+instruction to issue 2.31 credits. Duplicate native prices cannot promise
+different credits, including a mixture of automatic FX and fixed credits.
+
+New balance orders persist `ledger_currency`, `ledger_version`, the FX rate,
+original native amount, payment base, USD payment base and final credit in their
+provider snapshot. Fulfillment redeems the saved order amount. Later FX changes
+do not change existing orders. Refund deductions are USD and are converted
+proportionally to the original native `pay_amount` before the gateway call.
+Repeated payment callbacks retain the existing order/redeem idempotency controls.
+
+## Historical cutover
+
+Historical wallets lack a complete funding-lot ledger. Existing numerical wallet,
+frozen and referral balances are grandfathered as USD, with a cutover audit;
+they are never indiscriminately divided by 6.5. Historical numeric credits are
+not evidence of cash revenue. Record original cash, original currency and any
+extra grandfathered credit separately. Original orders retain their promised
+amount, including orders awaiting settlement during rollout.
+
+Historical Alipay orders are CNY. Store `original_payment_currency` independently
+of provider-instance metadata; do not fabricate a provider snapshot just to label
+an old order. Preserve all existing snapshot fields. Historical wallet snapshots
+and order annotations must be idempotent and recorded under a stable cutover ID.
+
+This policy preserves purchased entitlements but creates a subsidy liability for
+legacy CNY credits. It cannot retroactively guarantee a cash profit on them.
+New signup credit is a USD promotion with an explicit budget; the previous CNY 1
+gift corresponds to USD 0.15384615 at the settlement rate.
+
+## Kimi procurement and pricing
+
+PPToken's confirmed cost after its 0.65 account factor is CNY 13 input, 65 output
+and 1.3 cached input per million tokens. At FX 6.5 this is USD 2, 10 and 0.2.
+Use input cost as the conservative cache-write reserve. The account multiplier
+is 1 because the custom cost card already incorporates the supplier factor and
+FX. Automatic upstream multiplier sync must remain off for this account.
+
+For target model gross margin `m` and procurement buffer `b`, require an effective
+customer price of at least `cost_USD * (1+b) / (1-m)`. With `m=0.20`, `b=0.05` and
+public group factor 0.72, Kimi channel bases per million tokens are USD 3.645834
+input/cache-write, 18.229167 output and 0.364584 cached input. Round prices up,
+not down. Effective prices are about USD 2.625 / 13.125 / 0.2625. The resulting
+model gross margin is at least 23.8095%, or 20% against the buffered cost.
+
+This is a model procurement margin. Net profit additionally depends on payment
+fees, fixed per-payment fees, refunds, referral commissions, promotions and
+operating expenses. Original payment processing fees may remain after refund;
+see [Stripe refunds](https://docs.stripe.com/refunds). Reconcile actual cash
+receipts and supplier invoices independently of wallet credits. Verify other
+supplier cost cards from cash denomination before including them in an overall
+profit claim.
+
+Kimi must remain active and schedulable. Its prior recurring paid health test is
+disabled; validate pricing with an explicitly audited, bounded manual request.
+Never solve a billing discrepancy by pausing this account.
+
+## Rollout and verification
+
+1. Capture sanitized wallet, order, settings and price-card evidence.
+2. Stage the USD precision migration and ledger FX/tier settings. Apply Kimi USD
+   cost and customer price cards while preserving other channel configuration.
+3. Deploy the backend, then the wallet/payment UI. Keep the existing service
+   healthy during the rolling deployment. Annotate any intervening legacy orders.
+4. Confirm PostgreSQL monetary scales are eight decimals and live checkout quotes
+   agree for CNY/USD package payments. Verify saved unpaid orders, then cancel
+   them without performing customer payments.
+5. Check one bounded Kimi request: the account selected, tokens, wallet debit,
+   calculated procurement cost and margin. Remove only its temporary operator
+   key. Record deployment IDs and results in the operational report.
+
+Backend tests cover FX parity, canonical tier credits, frozen order precision,
+proportional refunds, legacy currency fallback and rejection of ambiguous prices.
+Existing payment tests cover duplicate callbacks and refund recovery. Frontend
+tests cover explicit USD labels and native payment-currency rendering.
+
+The existing optional daily payment limit excludes pending orders. Several
+pending orders can be paid beyond that configured limit; serialization and a
+reservation policy require a separate change. Production has no daily cap, so
+this does not alter current settlement or margin. Do not describe it as a strict
+cash acceptance cap.
+
+## Production acceptance — 2026-10-06
+
+The USD rollout used backend revision `b485e6a` and frontend revision `7b15b4c`.
+The subsequent frontend patch `5799641` upgrades only the existing transitive
+source-map-js dependency to patched 1.2.2 and documents the acceptance evidence.
+The patched frontend deployment is `2e70392f-abc7-4a55-861c-82cc98477fea`.
+Production uses settlement FX 6.5, recharge multiplier 1, no recharge bonus,
+and signup credit USD 0.15384615. Live CNY 15 and USD 2.31 test orders each
+saved USD 2.30769231 with frozen FX 6.5. Both unpaid test orders were cancelled.
+No customer payment was made for checkout verification.
+
+Cutover `cheapbuddy-usd-20261006-v1` preserved all 22 wallet snapshots,
+including 21 customer wallets, and annotated 73 legacy balance orders. The 18
+completed legacy orders collected CNY 696, equivalent to USD 107.07692308 in
+aggregate, but issued 696 nominal credits. The grandfathered excess of roughly
+USD 588.92308 is additional entitlement, not a realized procurement loss.
+
+`cheapbuddy_ledger_cost_reconciliation` separately records 806 historical Kimi
+requests, original cost snapshots and a reconstructed USD procurement estimate
+of 30.7656004. It does not rewrite usage charges, balances or old cost snapshots.
+Historical prices and funding are incomplete, so the estimate cannot establish
+the cash margin of every historical request. Historical account-cost charts
+still need this audit normalization before cross-period comparison.
+
+One bounded Kimi request selected account 5 and the actual Kimi upstream. Its
+wallet debit was USD 0.0010526251 and procurement cost USD 0.000802: 23.80953%
+model gross margin, or 20.00001% against a 5% cost reserve. Its temporary key was
+deleted. No recurring test was created; the existing paid test remains disabled,
+while the Kimi account remains active and schedulable. Stale Kimi-to-GLM mappings
+were removed from fallback accounts 2 and 3 without disabling either account.
+
+Stripe checkout now offers only its activated card method; domestic Alipay
+continues through its existing CNY provider. Re-enable other Stripe methods only
+after confirming that this merchant account has activated them.
+
+Regression coverage includes frozen-credit fulfillment after an FX change,
+callback replay and proportional refunds below the native payment tolerance.
+The new USD calculation module has 92.86% statement coverage; this percentage is
+not overall backend coverage. Payment tests across service and handler packages,
+Go vet, the embedded-server build, 53 frontend tests and the Vite build passed.
+The patched dependency installation, 53 frontend tests and Vite build were
+verified again; the official npm registry audit reported zero vulnerabilities.
+
+Operational evidence is kept outside Git in `output/usd-ledger-20261005/`.
+The report records deploy IDs, reconciliation policy, security remediation and
+remaining profit limits. Do not copy credentials into this directory or logs.
+
+## GLM procurement and retained fallback routes
+
+On 2026-10-06, 42 GLM-5.3 requests through account 7 matched PPToken's request
+and token totals. Supplier cash cost was CNY 15.6416553, or USD 2.4064085077;
+wallet charges totaled USD 3.7288079833. The old account-cost total USD 5.68036182
+used an international reference price because this account lacked a procurement
+card. This was a cost-reporting discrepancy; USD recharge conversion alone
+cannot repair a missing supplier card.
+
+The primary account 7 procurement card now uses CNY 8/28/2 per million tokens,
+times its supplier factor 0.45, divided by 6.5. The paid backup account 2 also
+has an explicit GLM-5.3 card using nominal CNY 1.4/4.4/0.26, times supplier factor
+3.5, divided by 6.5. Both local account factors remain 1. Existing GLM-5.2 and
+Kimi cards are retained. Procurement price fields retain ten decimal places,
+so reconcile supplier cash independently of tiny price-card rounding differences.
+
+The user requires all backup routes to remain available for reliability, and
+subsequently specified that fallback procurement must not determine retail
+prices. Accounts 2, 3 and 7 retain their GLM-5.3 mappings and scheduling. Set
+retail prices from primary account 7 cash cost only, using the agreed 20% target
+against a 5% cost reserve and group factor 0.72. Channel bases per million tokens
+are USD 1.009616 input, 3.533654 output and 0.252404 cached input. Effective prices
+are USD 0.72692352, 2.54423088 and 0.18173088 respectively. This produces about
+23.81% primary procurement margin, or 20% against the buffered primary cost.
+
+The original 42-request snapshot had 35.46% procurement margin, or 32.24% after
+a 5% cost reserve. Repricing that same token mix with the new rates would reduce
+charges from USD 3.7288079833 to USD 3.1584130258, about 15.30%. This is a replay
+calculation, not a retroactive change to customer charges. Other model prices
+were preserved. Procurement cards are still recorded for paid fallback routes;
+retain their actual costs as a separate reliability expense. Lower retail prices
+can make fallback requests unprofitable, so primary-price margin must not be
+presented as the realized margin including failover expenses.
+
+Account 3 had no customer requests in this snapshot. Its public pricing and
+token-use endpoints do not establish the account's actual cash procurement
+denomination and rate. Keep its fallback route and flag its cash cost as
+unverified; do not guarantee margin for every future route mix. Cache writes
+were also absent from the snapshot; retail writes remain free while supplier
+cost cards conservatively reserve input cost pending verification.
+
+Historical usage, customer balances and API keys were not rewritten. Today's
+cash reconciliation and exact configuration acceptance are in the ignored
+`output/usd-ledger-20261005/glm-report-20261006.md` operational report. The latest
+retail policy and persisted-price evidence are in `glm-primary-pricing-report.md`
+and `glm-primary-retail-verification.json` in the same directory.
+
+## Other model USD procurement audit — 2026-10-06
+
+The customer ledger remains USD for every account and the settlement FX remains 6.5 CNY per
+USD. The live supplier unit check returned `unit=USD` for accounts 2, 4, 5, 6, 7 and 8.
+Account 3 (Aiberm) returns HTTP 404 for both billing and usage, so its fallback cash
+denomination remains explicitly unverified. No account was disabled, unscheduled, remapped, or
+removed.
+
+Supplier `/v1/usage` responses identify `actual_cost` as USD, but the suppliers do not expose a
+cash invoice or input/output/cache/long-context rate card. The added cards preserve the observed
+model token mix and use the authorized USD usage cost as cost evidence. They are suitable for the
+observed mix and reconciliation; they do not prove every future service tier or long-context mix
+until supplier invoices are available. Account 6 has model-specific long-context/service-tier
+differences and must be reconciled separately.
+
+The effective customer price is calculated as `procurement cost × 1.05 ÷ 0.80`, after the public
+group factor of 0.72, with prices rounded upward so the persisted value itself still clears 20%.
+Account 2's observed MiniMax M3 and Qwen 3.8 Max costs were above their old public prices; both
+cards were raised to the USD cost floor. Cache writes use the input cost as a conservative
+reserve when the supplier did not expose a write rate. Persisted cards and margin evidence are
+in `output/usd-ledger-20261005/`.
+
+The reconciled public cards for every model other than Kimi K3 and GLM 5.3 now have a verified
+primary cost mapping and a minimum buffered margin of at least 20%. Models with no auditable
+cost card (`doubao-seed-2.0-code`, `doubao-seed-2.0-pro` and `qwen3.8-max-preview`) were removed
+from the public pricing list while their supplier account mappings remain available as fallback
+configuration. This prevents an unpriced request from becoming a free or loss-making request.
+
+`grok-imagine-image-2.0` is billed separately as a fixed per-request media model. The observed
+supplier cost was USD 5.608 for 36 requests (USD 0.15577778 each); its public base price is now
+USD 0.283970 per request, yielding USD 0.2044584 after the group factor and about 20% margin
+against a 5% reserve. `gpt-image-2.5` has no verified supplier cost and has no public billing
+card; its supplier mapping remains available for later audited rollout. Media pricing must never
+be inferred from token cards.
+
+The same primary-route check found `glm-5.3-flash` underpriced. Account 7's supplier snapshot
+contained 34 requests with USD 0.33566418 actual cost after its 0.45 supplier factor. Its public
+base prices are now USD 0.751954 input, 2.631625 output, 0.216198 cached input and 0.751954
+cache write per million tokens. These prices produce at least 20% buffered margin after the 0.72
+group factor for the observed cost mix.
+
+## MiniMax H3 media price — 2026-10-06
+
+MiniMax-H3 remains on the USD ledger. The requested customer rate of CNY 0.10 per
+second converts at the fixed settlement rate of CNY 6.5 per USD to USD
+0.0153846154 per second. Per the four-decimal upward-rounding policy, the saved
+customer price is USD 0.0154 per second.
+
+NewAPI's native H3 rate is USD 0.0600 per second and CheapBuddy's media quota is
+500,000 quota per USD. The production Relay multiplier is therefore
+`0.2566666666`; integer settlement uses ceiling rounding, producing 7,700 quota
+or USD 0.0154 for one successful second, USD 0.0616 for four seconds, and
+USD 0.1232 for eight seconds. The existing Grok and GPT image fallback entries
+remain in `RELAY_MEDIA_MULTIPLIER_BY_MODEL`; no backup route or account was
+removed or disabled.
+
+The read-only authenticated pricing check returned HTTP 200 with the expected
+H3 billing expression `tier("base", u("seconds") * 0.06)` and multiplier. The
+sanitized evidence is `output/usd-ledger-20261005/h3-price-final-20261006.json`.
+
+## Production integration evidence — 2026-10-07
+
+Using the supplied ordinary-user test account, both previously blocked production
+checks now pass. The account/catalog check observed the public settings, ordinary
+user session, existing group-2 model Key, model catalog, subscriptions and checkout
+catalog with no blockers; the catalog contained 12 text, 1 image and 1 video model.
+The production regression check also passed refresh-token rotation and revocation,
+Key creation/idempotent replay/conflict handling, model access control, unknown task
+isolation, media usage, CNY/USD recharge quote validation, logout and cleanup.
+
+The regression runner created one random test Key and deleted it, logged out both
+refresh sessions, and created no payment order or paid text, image or video request.
+The sanitized reports are `output/usd-ledger-20261005/coworkany-evidence-20261007.json`
+and `output/usd-ledger-20261005/production-regression-evidence-20261007.json`.

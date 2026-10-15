@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!railway.json
+!go.mod
+!go.sum
+!config/
+!config/**
+!cmd/
+!cmd/**
+!internal/
+!internal/**

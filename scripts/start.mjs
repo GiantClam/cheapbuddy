@@ -49,7 +49,8 @@ const server = createServer(async (request, response) => {
     }
   }
 
-  if (!servedPath && appPaths.has(requestedPath)) {
+  const isBlogPath = requestedPath === '/blog' || requestedPath.startsWith('/blog/');
+  if (!servedPath && (appPaths.has(requestedPath) || isBlogPath)) {
     servedPath = resolve(root, 'index.html');
   }
 

@@ -1,6 +1,7 @@
 // Keep user-facing account and announcement requests on the CheapBuddy origin.
 // Deployments can override this for a separate console, but the default remains same-origin.
 import { normalizeAffiliateCode } from './affiliate.js';
+import { CLAUDE_API_KEY_GROUP_ID, OPENAI_API_KEY_GROUP_ID } from './key-groups.js';
 
 const API_BASE_URL = String(import.meta.env?.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
 const STRIPE_PAYMENT_BASE_URL = String(import.meta.env?.VITE_SUB2API_STRIPE_PAYMENT_URL || '').trim().replace(/\/+$/, '');
@@ -8,6 +9,7 @@ const MEDIA_USAGE_API_BASE_URL = String(import.meta.env?.VITE_MEDIA_USAGE_API_BA
   .replace(/\/+$/, '')
   .replace(/\/v1$/, '');
 export const API_REQUEST_TIMEOUT_MS = 20_000;
+const pendingSharedApiKeys = new Map();
 
 export class ApiRequestError extends Error {
   constructor(message, details = {}) {
@@ -50,11 +52,10 @@ export function clearSession() {
 }
 
 async function request(path, options = {}) {
+  const { timeoutMs = API_REQUEST_TIMEOUT_MS, signal: callerSignal, authToken = getAuthToken(), ...fetchOptions } = options;
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  const token = getAuthToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const { timeoutMs = API_REQUEST_TIMEOUT_MS, signal: callerSignal, ...fetchOptions } = options;
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
   let timeoutId;
   let timedOut = false;
@@ -193,8 +194,143 @@ export async function listApiKeys() {
   return result?.items || result?.data || [];
 }
 
-export function createApiKey(name, groupId) {
-  return request('/keys', { method: 'POST', body: JSON.stringify({ name, group_id: groupId }) });
+export function createApiKey(name, groupId, authToken = getAuthToken()) {
+  return request('/keys', { method: 'POST', body: JSON.stringify({ name, group_id: groupId }), authToken });
+}
+
+export function findApiKeyForGroup(keys, groupId) {
+  const targetGroupId = Number(groupId);
+  if (!Array.isArray(keys) || !Number.isSafeInteger(targetGroupId) || targetGroupId <= 0) return undefined;
+  const inGroup = (item) => Number(item?.group_id) === targetGroupId;
+  return keys.find((item) => inGroup(item) && item.status === 'active')
+    || keys.find(inGroup);
+}
+
+export async function getOrCreateApiKey(groupId = OPENAI_API_KEY_GROUP_ID) {
+  const targetGroupId = Number(groupId);
+  if (!Number.isSafeInteger(targetGroupId) || targetGroupId <= 0) {
+    throw new ApiRequestError('无效的 API Key 分组');
+  }
+  const keys = await listApiKeys();
+  const existing = findApiKeyForGroup(keys, targetGroupId);
+  const name = targetGroupId === CLAUDE_API_KEY_GROUP_ID ? 'CheapBuddy Claude' : 'CheapBuddy WorkBuddy';
+  const key = existing || await createApiKey(name, targetGroupId);
+  return key?.key || '';
+}
+
+async function listAllApiKeys(authToken) {
+  let keys = [];
+  for (let page = 1; page <= 1000; page += 1) {
+    const result = await request(`/keys?page=${page}&page_size=20`, { authToken });
+    const items = Array.isArray(result) ? result : result?.items || result?.data;
+    if (!Array.isArray(items)) {
+      throw new ApiRequestError('无法读取 API Key 列表', { code: 'INVALID_API_KEY_LIST' });
+    }
+    keys = [...keys, ...items];
+    if (Array.isArray(result)) return keys;
+    const total = Number(result.total);
+    const hasTotal = result.total != null && Number.isSafeInteger(total) && total >= 0;
+    if (hasTotal && keys.length >= total) return keys;
+    if (items.length === 0 && hasTotal) break;
+    const pageSize = Number(result.page_size) || 20;
+    if (!hasTotal && items.length < pageSize) return keys;
+  }
+  throw new ApiRequestError('API Key 列表分页不完整，请刷新后重试', { code: 'INVALID_API_KEY_LIST' });
+}
+
+function requireUsableSharedKey(key) {
+  const expired = key?.expires_at && Date.parse(key.expires_at) <= Date.now();
+  const exhausted = Number(key?.quota) > 0 && Number(key?.quota_used) >= Number(key.quota);
+  const groupId = Number(key?.group?.id);
+  const invalidGroup = key?.group && (key.group.status !== 'active'
+    || !Number.isSafeInteger(groupId) || groupId <= 0 || Number(key.group_id) !== groupId);
+  if (!key?.key || key.status !== 'active' || invalidGroup || expired || exhausted) {
+    throw new ApiRequestError('当前统一 API Key 已禁用、过期或额度不足，请在账户中心检查', { code: 'API_KEY_UNAVAILABLE' });
+  }
+  return key.key;
+}
+
+async function resolveSharedApiKey(authToken) {
+  const configured = String(import.meta.env?.VITE_CHEAPBUDDY_SHARED_GROUP_ID || '').trim();
+  const configuredGroupId = configured ? Number(configured) : null;
+  if (configured && (!Number.isSafeInteger(configuredGroupId) || configuredGroupId <= 0)) {
+    throw new ApiRequestError('统一 API Key 分组配置无效', { code: 'INVALID_SHARED_API_KEY_GROUP' });
+  }
+  const keys = await listAllApiKeys(authToken);
+  const compositeKeys = keys.filter((item) => item?.group?.platform === 'composite'
+    && (!configuredGroupId || Number(item.group_id) === configuredGroupId));
+  const existing = compositeKeys.find((item) => item.status === 'active') || compositeKeys[0];
+  if (existing) return requireUsableSharedKey(existing);
+
+  const groups = await request('/groups/available', { authToken });
+  const available = Array.isArray(groups) ? groups : Array.isArray(groups?.items) ? groups.items : [];
+  const group = available.find((item) => item?.platform === 'composite' && item.status === 'active'
+    && Number.isSafeInteger(Number(item.id)) && Number(item.id) > 0
+    && (!configuredGroupId || Number(item.id) === configuredGroupId));
+  if (!group) {
+    throw new ApiRequestError('当前账户没有可用的统一模型分组，请联系管理员配置 OpenAI 和 Claude 共享分组', {
+      code: 'SHARED_API_KEY_GROUP_UNAVAILABLE',
+    });
+  }
+  const matching = keys.filter((item) => Number(item?.group_id) === Number(group.id));
+  const matchingKey = matching.find((item) => item.status === 'active') || matching[0];
+  if (matchingKey) return requireUsableSharedKey({ ...matchingKey, group: matchingKey.group || group });
+  const created = await createApiKey('CheapBuddy Shared', group.id, authToken);
+  // The create endpoint may omit status; it never omits the newly issued key.
+  return requireUsableSharedKey({ status: 'active', group_id: group.id, ...created, group });
+}
+
+async function verifyApiKeyModels(apiKey, baseUrl, models) {
+  const endpoint = String(baseUrl || `${MEDIA_USAGE_API_BASE_URL}/v1`).replace(/\/+$/, '');
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS) : null;
+  let response;
+  let body;
+  try {
+    response = await fetch(`${endpoint}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller?.signal,
+    });
+    body = await response.json().catch(() => ({})) || {};
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+  if (!response.ok || (typeof body.code === 'number' && body.code !== 0)) {
+    const errorBody = body.error && typeof body.error === 'object' ? body.error : body;
+    throw new ApiRequestError(errorBody.message || `模型权限检查失败（${response.status}）`, {
+      status: response.status, code: errorBody.code, reason: errorBody.reason,
+    });
+  }
+  const catalog = Array.isArray(body.data) ? body.data : body.data?.data;
+  if (!Array.isArray(catalog)) {
+    throw new ApiRequestError('模型目录响应无效，无法确认 API Key 权限', { code: 'INVALID_MODEL_CATALOG' });
+  }
+  const visibleModels = new Set(catalog.map((item) => String(item?.id || '').trim()));
+  // Client configurations export the public ID; provider aliases are translated downstream.
+  const selectedIds = (models || []).map((model) => String(model?.id || '').trim());
+  const missingModels = [...new Set(selectedIds.filter((id) => !visibleModels.has(id)))];
+  if (missingModels.length > 0) {
+    throw new ApiRequestError(`当前 API Key 无法访问所选模型：${missingModels.join('、')}`, {
+      code: 'API_KEY_MODELS_UNAVAILABLE', metadata: { missingModels },
+    });
+  }
+}
+
+export async function getOrCreateSharedApiKey({ baseUrl, models = [], apiKey } = {}) {
+  let key = String(apiKey || '').trim();
+  if (!key) {
+    const authToken = getAuthToken();
+    let pending = pendingSharedApiKeys.get(authToken);
+    if (!pending) {
+      pending = resolveSharedApiKey(authToken).finally(() => {
+        if (pendingSharedApiKeys.get(authToken) === pending) pendingSharedApiKeys.delete(authToken);
+      });
+      pendingSharedApiKeys.set(authToken, pending);
+    }
+    key = await pending;
+  }
+  await verifyApiKeyModels(key, baseUrl, models);
+  return key;
 }
 
 export function getCheckoutInfo() {

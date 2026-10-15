@@ -1,4 +1,31 @@
 import { USD_TO_CNY_RATE } from './payment.js';
+import { getModelRetailPricing } from './pricing.js';
+
+const claudeStableModels = [
+  ['claude-fable-5', 'Claude Fable 5', 'fable', [10, 50, 12.5, 20, 1]],
+  ['claude-fable-5-1', 'Claude Fable 5.1', 'fable', [10, 50, 12.5, 20, 0.25]],
+  ['claude-opus-5', 'Claude Opus 5', 'opus', [5, 25, 6.25, 10, 0.5]],
+  ['claude-opus-5-5', 'Claude Opus 5.5', 'opus', [4, 20, 5, 8, 0.2]],
+  ['claude-sonnet-5', 'Claude Sonnet 5', 'sonnet', [2, 10, 2.5, 4, 0.2]],
+  ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'sonnet', [2, 10, 2.5, 4, 0.1]],
+].map(([id, short, family, rates]) => ({
+  id, short, family, vendor: { zh: 'Anthropic', en: 'Anthropic' },
+  description: { zh: '编程、推理与 Agent；与 OpenAI 共用统一 Key，任选 Anthropic 或 OpenAI-compatible', en: 'Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible' },
+  input: `$${rates[0].toFixed(2)}`, output: `$${rates[1].toFixed(2)}`,
+  officialPricing: { input: rates[0], output: rates[1], cacheWrite5m: rates[2], cacheWrite1h: rates[3], cacheRead: rates[4] },
+  pricingScope: 'sub2api-group', priceStatus: 'verified', priceCheckedAt: '2026-10-13',
+  priceSourceUrl: 'https://platform.claude.com/docs/en/about-claude/pricing',
+  priceUnit: {
+    zh: `美元 / 百万 Token；5m 缓存写入 $${rates[2].toFixed(2)}，1h 缓存写入 $${rates[3].toFixed(2)}，缓存读取 $${rates[4].toFixed(2)}`,
+    en: `USD / MTok; 5m cache write $${rates[2].toFixed(2)}, 1h cache write $${rates[3].toFixed(2)}, cache read $${rates[4].toFixed(2)}`,
+  },
+  accent: 'orange', mark: family === 'fable' ? 'CF' : family === 'opus' ? 'CO' : 'CS',
+  featured: id === 'claude-sonnet-5-5', modality: 'text', channelId: 'claude', endpointPath: '/messages',
+  protocols: ['anthropic', 'openai-compatible'], billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+  maxInputTokens: 1000000, maxOutputTokens: 128000,
+  modelSourceUrl: `https://platform.claude.com/docs/en/models/${family}-${id.slice(`claude-${family}-`.length).replaceAll('-', '.')}/overview`,
+  supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: family !== 'sonnet',
+}));
 
 export const modelCatalog = [
   {
@@ -62,13 +89,13 @@ export const modelCatalog = [
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
-    id: 'deepseek/deepseek-v4.1-flash', short: 'DeepSeek V4.1 Flash', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', providerModelId: 'deepseek-flash', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D41', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'deepseek/deepseek-v4.1-flash', short: 'DeepSeek V4.1 Flash', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D41', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 384000, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
-    id: 'qwen3.8-max', short: 'Qwen 3.8 Max', vendor: { zh: '通义千问', en: 'Qwen' }, description: { zh: '旗舰推理、视觉理解与 Agent 工具调用', en: 'Flagship reasoning, vision, and Agent tool use' }, input: '¥12.00', output: '¥36.00', priceStatus: 'verified', providerModelId: 'qwen3.8-max', priceSourceUrl: 'https://help.aliyun.com/zh/model-studio/qwen3-8-max', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；北京地域缓存命中 ¥1.50，国际地域原价不同', en: 'CNY / MTok; Beijing cached input ¥1.50; international region has different rates' }, accent: 'blue', mark: 'Q38', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'qwen3.8-max', short: 'Qwen 3.8 Max', vendor: { zh: '通义千问', en: 'Qwen' }, description: { zh: '旗舰推理、视觉理解与 Agent 工具调用', en: 'Flagship reasoning, vision, and Agent tool use' }, input: '¥12.00', output: '¥36.00', priceStatus: 'verified', priceSourceUrl: 'https://help.aliyun.com/zh/model-studio/qwen3-8-max', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；北京地域缓存命中 ¥1.50，国际地域原价不同', en: 'CNY / MTok; Beijing cached input ¥1.50; international region has different rates' }, accent: 'blue', mark: 'Q38', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 991808, maxOutputTokens: 131072, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'medium', defaultEffort: 'medium', supportedEfforts: ['low', 'medium', 'high'], summary: 'auto', canDisableThinking: true },
@@ -83,7 +110,13 @@ export const modelCatalog = [
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
-];
+  ...claudeStableModels,
+].map((model) => ({
+  ...model,
+  ...(model.modality === 'text' && model.pricingScope !== 'sub2api-group'
+    ? { priceMultiplier: model.priceMultiplier ?? 0.72 }
+    : {}),
+}));
 
 const monetaryAmountPattern = /([$¥])\s*(\d+(?:\.\d+)?)/g;
 
@@ -143,7 +176,9 @@ export function localizeModel(model, language = 'zh') {
   const input = localizePriceText(convertMoneyText(model.input, fromCurrency, toCurrency), locale);
   const output = localizePriceText(convertMoneyText(model.output, fromCurrency, toCurrency), locale);
   const priceUnit = localizePriceUnit(sourcePriceUnit, locale, fromCurrency, toCurrency);
-  return { ...model, vendor, description, billingUnit, input, output, priceUnit };
+  const localized = { ...model, vendor, description, billingUnit, input, output, priceUnit };
+  const retail = getModelRetailPricing(localized);
+  return { ...localized, ...(retail ? { retailInput: retail.input, retailOutput: retail.output, retailPriceUnit: retail.priceUnit } : {}) };
 }
 
 export function localizeModels(models, language = 'zh') {

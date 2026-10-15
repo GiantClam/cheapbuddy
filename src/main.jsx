@@ -4,19 +4,24 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './styles.css';
 import './paywall.css';
-import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
-import { defaultPricingPlan, pricingPlans } from './pricing';
-import { formatPaymentAmount, getPlanPaymentAmount, hasPaymentCurrency, isStripePaymentType, selectPaymentType, USD_TO_CNY_RATE } from './payment';
+import { defaultPricingPlan, getCheckoutRechargePlans, pricingPlans } from './pricing';
+import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
-import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
+import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
 import { mergeUsageModels } from './usage';
+import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
 
 import { localizeModels, modelCatalog as models } from './models';
 
 const baseUrl = String(import.meta.env.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc/v1').replace(/\/+$/, '');
-const cheapBuddyGroupId = Number(import.meta.env.VITE_CHEAPBUDDY_GROUP_ID || 1);
+// The public API host can duplicate CORS headers. Browser access checks use
+// the same-origin Worker alias, while generated clients keep their base URL.
+const connectionBaseUrl = ['cheapbuddy.cc', 'www.cheapbuddy.cc'].includes(window.location.hostname)
+  ? `${window.location.origin}/v1`
+  : baseUrl;
 const configuredTurnstileSiteKey = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
 const turnstileRequiredByEnv = String(import.meta.env.VITE_TURNSTILE_REQUIRED || '').toLowerCase() === 'true';
 const adminPortalHost = String(import.meta.env.VITE_ADMIN_PORTAL_HOST || 'admin.cheapbuddy.cc').trim().toLowerCase();
@@ -203,13 +208,32 @@ function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') 
   URL.revokeObjectURL(url);
 }
 
-function PaywallPanel({ plans, selectedPlanId, paymentLoading, onRecharge, onClose, language, t }) {
-  const currency = language === 'en' ? 'USD' : 'CNY';
+function RechargePlanCards({ plans, selectedPlanId, paymentLoading, onRecharge, language, t, checkoutLoading, checkoutError }) {
+  if (checkoutLoading) return <p className="pricing-plan-note" role="status">{language === 'en' ? 'Loading recharge offers…' : '正在加载充值商品…'}</p>;
+  if (checkoutError) return <p className="pricing-plan-note" role="status">{language === 'en' ? 'Unable to load recharge offers. Please refresh and try again.' : '充值商品读取失败，请刷新后重试。'}</p>;
+  if (!plans.length) return <p className="pricing-plan-note">{language === 'en' ? 'No recharge offers are currently available.' : '当前暂无可用的充值商品。'}</p>;
+  return <div className="pricing-plan-grid">{plans.map((plan) => {
+    const currency = plan.paymentCurrency || (language === 'en' ? 'USD' : 'CNY');
+    const paymentAmount = plan.payAmount ?? getPlanPaymentAmount(plan.amount, language);
+    const creditedBalance = formatLedgerAmount(getRechargeLedgerAmount(plan), 8);
+    return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}>
+      <div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div>
+      <div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div>
+      <div className="pricing-plan-balance"><b>{creditedBalance}</b><span>{t(plan.creditedBalance === undefined ? 'referenceBalance' : 'sharedBalance')}</span></div>
+      <p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p>
+      <button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => onRecharge(plan)} disabled={paymentLoading}>
+        {paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(currency === 'USD' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} />
+      </button>
+    </article>;
+  })}</div>;
+}
+
+function PaywallPanel({ plans, selectedPlanId, paymentLoading, onRecharge, onClose, language, t, checkoutLoading, checkoutError }) {
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal paywall-modal" role="dialog" aria-modal="true" aria-labelledby="paywall-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY PAYWALL</span><h2 id="paywall-title">{t('paywallTitle')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
       <p className="paywall-intro">{paymentLoading ? t('creatingOrder') : t('paywallLead')}</p>
-      <div className="pricing-plan-grid">{plans.map((plan) => { const paymentAmount = getPlanPaymentAmount(plan.amount, language); return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div><div className="pricing-plan-balance"><b>{formatPaymentAmount(paymentAmount, currency)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => onRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(currency === 'USD' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} /></button></article>; })}</div>
+      <RechargePlanCards {...{ plans, selectedPlanId, paymentLoading, onRecharge, language, t, checkoutLoading, checkoutError }} />
       <p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('paywallFootnote')}</p>
     </div>
   </div>;
@@ -237,11 +261,11 @@ function AccountPanel({ user, balance, usageSummary, usageModels, usageLoading, 
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="account-title">{t('accountTitle')}</h2><p className="account-email">{user?.email || t('cheapbuddyUser')}</p></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
-      <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>¥ {formatAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onOrders}>{t('paymentOrders')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button><button className="button button-ghost" onClick={onAffiliate}>{t('affiliate')}</button></div></div>
-      <div className="account-stats"><div><span>{t('totalRequests')}</span><strong>{formatCompactNumber(stats.total_requests)}</strong></div><div><span>{t('totalTokens')}</span><strong>{formatCompactNumber(stats.total_tokens)}</strong></div><div><span>{t('todayCost')}</span><strong>${formatAmount(stats.today_actual_cost || 0)}</strong></div></div>
+      <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>{formatLedgerAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onOrders}>{t('paymentOrders')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button><button className="button button-ghost" onClick={onAffiliate}>{t('affiliate')}</button></div></div>
+      <div className="account-stats"><div><span>{t('totalRequests')}</span><strong>{formatCompactNumber(stats.total_requests)}</strong></div><div><span>{t('totalTokens')}</span><strong>{formatCompactNumber(stats.total_tokens)}</strong></div><div><span>{t('todayCost')}</span><strong>{formatLedgerAmount(stats.today_actual_cost || 0, 4)}</strong></div></div>
       <div className="account-usage-head"><div><span className="modal-kicker">USAGE</span><h3>{t('recentUsage')}</h3></div><button className="text-button" onClick={onRefresh} disabled={usageLoading}>{usageLoading ? t('syncing') : t('refreshData')}</button></div>
       {usageError && <p className="account-error">{usageError}</p>}
-      {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 7).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = Number(item.total_requests ?? item.requests ?? 0); const mediaUsage = model?.modality === 'image' || model?.modality === 'video'; const usageValue = mediaUsage ? `$${Number(item.actual_cost || 0).toFixed(4)}` : formatCompactNumber(item.total_tokens); const usageLabel = mediaUsage ? t('mediaUsageCost') : 'tokens'; const maxRequests = Math.max(...usageModels.map((entry) => Number(entry.total_requests ?? entry.requests ?? 0)), 1); return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}</small></div><strong>{usageValue} <small>{usageLabel}</small></strong><i><em style={{ width: `${Math.min(100, Math.max(7, ((requestCount / maxRequests) * 100)))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
+      {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 7).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = Number(item.total_requests ?? item.requests ?? 0); const mediaUsage = model?.modality === 'image' || model?.modality === 'video'; const usageValue = mediaUsage ? formatLedgerAmount(item.actual_cost || 0, 4) : formatCompactNumber(item.total_tokens); const usageLabel = mediaUsage ? t('mediaUsageCost') : 'tokens'; const maxRequests = Math.max(...usageModels.map((entry) => Number(entry.total_requests ?? entry.requests ?? 0)), 1); return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}</small></div><strong>{usageValue} <small>{usageLabel}</small></strong><i><em style={{ width: `${Math.min(100, Math.max(7, ((requestCount / maxRequests) * 100)))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
       <div className="account-footer"><p className="account-source">{t('readOnlyData')}</p><button className="text-button account-logout" onClick={onLogout}>{t('logout')}</button></div>
     </div>
   </div>;
@@ -269,10 +293,10 @@ function PaymentOrdersPanel({ orders, error, language, loading, cancellingId, on
       {loading ? <div className="account-loading"><span /><span /><span /></div> : orders.length ? <div className="payment-orders-list">{orders.map((order) => {
         const statusKey = paymentOrderStatusKey(order.status);
         const pending = String(order.status || '').toUpperCase() === 'PENDING';
-        const amount = order.pay_amount ?? order.amount ?? 0;
+        const paymentAmount = formatPaymentOrderAmount(order);
         const orderId = order.id ?? order.order_id ?? order.out_trade_no;
         return <article className="payment-order-row" key={orderId}>
-          <div className="payment-order-main"><strong>¥ {formatAmount(amount)}</strong><span>{order.out_trade_no || `#${order.id ?? '—'}`}</span></div>
+          <div className="payment-order-main"><strong>{paymentAmount}</strong><span>{order.out_trade_no || `#${order.id ?? '—'}`}</span></div>
           <div className="payment-order-meta"><span>{t(statusKey)}</span><time>{formatAffiliateDate(order.created_at || order.createdAt, language)}</time></div>
           {pending && <button className="text-button payment-order-cancel" onClick={() => onCancel(orderId)} disabled={cancellingId === orderId}>{cancellingId === orderId ? t('paymentOrderCancelling') : t('paymentOrderCancel')}</button>}
         </article>;
@@ -296,8 +320,8 @@ function AffiliatePanel({ detail, error, language, loading, transferring, onClos
   const stats = [
     ['affiliateRebateRate', `${formatAmount(detail?.rebateRatePercent || 0)}%`],
     ['affiliateInvitedUsers', formatCompactNumber(detail?.invitedCount || 0)],
-    ['affiliateAvailableBalance', `¥ ${formatAmount(detail?.availableQuota || 0)}`],
-    ['affiliateTotalBalance', `¥ ${formatAmount(detail?.totalQuota || 0)}`],
+    ['affiliateAvailableBalance', formatLedgerAmount(detail?.availableQuota || 0)],
+    ['affiliateTotalBalance', formatLedgerAmount(detail?.totalQuota || 0)],
   ];
 
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -307,10 +331,10 @@ function AffiliatePanel({ detail, error, language, loading, transferring, onClos
       {error && <p className="account-error">{error}</p>}
       {loading ? <div className="account-loading"><span /><span /><span /></div> : detail ? <>
         <div className="affiliate-stat-grid">{stats.map(([key, value]) => <div key={key}><span>{t(key)}</span><strong>{value}</strong></div>)}</div>
-        {detail.frozenQuota > 0 && <p className="affiliate-frozen">{t('affiliateFrozenBalance', { amount: formatAmount(detail.frozenQuota) })}</p>}
+        {detail.frozenQuota > 0 && <p className="affiliate-frozen">{t('affiliateFrozenBalance', { amount: formatLedgerAmount(detail.frozenQuota) })}</p>}
         <section className="affiliate-share-card"><div><span className="modal-kicker">INVITE</span><h3>{t('affiliateInviteLink')}</h3></div><div className="affiliate-code-row"><code>{inviteLink || '—'}</code><button className="button button-ghost" type="button" disabled={!inviteLink} onClick={() => onCopyLink(inviteLink)}><Icon name="copy" size={15} /> {t('copy')}</button></div><div className="affiliate-code-meta"><span>{t('affiliateCode')}</span><code>{detail.affCode || '—'}</code><button className="text-button" type="button" disabled={!detail.affCode} onClick={() => onCopyCode(detail.affCode)}>{t('affiliateCopyCode')}</button></div></section>
         <section className="affiliate-transfer"><div><span className="modal-kicker">BALANCE</span><h3>{t('affiliateTransferTitle')}</h3><p>{t('affiliateTransferDescription')}</p></div><button className="button button-primary" type="button" disabled={transferring || detail.availableQuota <= 0} onClick={onTransfer}>{transferring ? t('processing') : t('affiliateTransfer')}</button></section>
-        <section className="affiliate-invitees"><div className="account-usage-head"><div><span className="modal-kicker">RECORDS</span><h3>{t('affiliateInviteRecords')}</h3></div></div>{detail.invitees.length ? <div className="affiliate-table-wrap"><table><thead><tr><th>{t('affiliateInvitee')}</th><th>{t('affiliateJoinedAt')}</th><th>{t('affiliateRebate')}</th></tr></thead><tbody>{detail.invitees.map((invitee) => <tr key={`${invitee.userId}-${invitee.email}`}><td><b>{invitee.email || '—'}</b><small>{invitee.username || '—'}</small></td><td>{formatAffiliateDate(invitee.createdAt, language)}</td><td>¥ {formatAmount(invitee.totalRebate)}</td></tr>)}</tbody></table></div> : <div className="account-empty">{t('affiliateNoInvitees')}</div>}</section>
+        <section className="affiliate-invitees"><div className="account-usage-head"><div><span className="modal-kicker">RECORDS</span><h3>{t('affiliateInviteRecords')}</h3></div></div>{detail.invitees.length ? <div className="affiliate-table-wrap"><table><thead><tr><th>{t('affiliateInvitee')}</th><th>{t('affiliateJoinedAt')}</th><th>{t('affiliateRebate')}</th></tr></thead><tbody>{detail.invitees.map((invitee) => <tr key={`${invitee.userId}-${invitee.email}`}><td><b>{invitee.email || '—'}</b><small>{invitee.username || '—'}</small></td><td>{formatAffiliateDate(invitee.createdAt, language)}</td><td>{formatLedgerAmount(invitee.totalRebate)}</td></tr>)}</tbody></table></div> : <div className="account-empty">{t('affiliateNoInvitees')}</div>}</section>
       </> : <div className="account-empty">{t('affiliateUnavailable')}</div>}
     </div>
   </div>;
@@ -340,27 +364,29 @@ function AdminConsolePicker({ onClose, t }) {
 
 function ConfigGeneratorModal({
   platformId, onPlatformChange, selectedModels, displayModels, selected, onToggleModel, onToggleAllModels,
-  session, apiKeyLoading, onCopyApiKey, balance, onRecharge, paymentLoading, endpoint,
-  testing, testState, testLatency, onTest, onCopyPrompt, onCopyConfig, onDownload,
+  protocol, onProtocolChange,
+  apiKey, apiKeyLoading, onCopyApiKey, balance, onRecharge, paymentLoading, endpoint,
+  testing, testState, testLatency, onTest, onCopyPrompt, onCopyMcpPrompt, onCopyConfig, onDownload,
   onCopyEndpoint, onClose, t,
 }) {
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  useEffect(() => setApiKeyVisible(false), [session.apiKey]);
+  useEffect(() => setApiKeyVisible(false), [apiKey]);
   const platform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
   const allModelsSelected = displayModels.length > 0 && displayModels.every(({ id }) => selected.includes(id));
-  const hasApiKey = Boolean(session.apiKey);
+  const hasApiKey = Boolean(apiKey);
   const displayedApiKey = hasApiKey
-    ? apiKeyVisible ? session.apiKey : `${session.apiKey.slice(0, 8)}••••${session.apiKey.slice(-4)}`
+    ? apiKeyVisible ? apiKey : `${apiKey.slice(0, 8)}••••${apiKey.slice(-4)}`
     : t('autoCreateKey');
   const previewArtifact = selectedModels.length ? createPlatformArtifact(platformId, {
     models: selectedModels,
-    apiKey: session.apiKey || 'sk-cheapbuddy-••••••••',
+    apiKey: apiKey || 'sk-cheapbuddy-••••••••',
     baseUrl: endpoint,
+    protocol,
   }) : null;
   const preview = previewArtifact?.content || '';
   const selectedModelIds = selectedModels.map((model) => model.id).join(', ');
   const modelInstruction = platformId === 'claude'
-    ? t('claudeModelInstruction', { model: selectedModels[0]?.id || '—', fastModel: selectedModels[1]?.id || selectedModels[0]?.id || '—' })
+    ? t('claudeModelInstruction', { model: selectedModels[0]?.id || '—' })
     : platformId === 'codex'
       ? t('codexModelInstruction', { model: selectedModels[0]?.id || '—' })
       : t('defaultModelInstruction', { model: selectedModels[0]?.id || '—' });
@@ -368,7 +394,8 @@ function ConfigGeneratorModal({
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="generator-modal generator-modal-wide" role="dialog" aria-modal="true" aria-labelledby="generator-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY CONFIG</span><h2 id="generator-title">{t('configCenter')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
-      <div className="modal-balance"><span>{t('currentBalance')}</span><strong>{balance === null ? t('loginToSync') : `¥ ${Number(balance).toFixed(2)}`}</strong><button onClick={onRecharge} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('recharge')}</button></div>
+      <div className="modal-balance"><span>{t('currentBalance')}</span><strong>{balance === null ? t('loginToSync') : formatLedgerAmount(balance)}</strong><button onClick={onRecharge} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('recharge')}</button></div>
+      <div className="generator-access-note"><p>{t('sharedModelAccess')}</p><p>{t('claudeProtocolSupport')}</p><small>{t('modelAccessRestrictions')}</small></div>
 
       <div className="modal-field platform-field">
         <label>{t('choosePlatform')} <span>{platform.name}</span></label>
@@ -377,14 +404,23 @@ function ConfigGeneratorModal({
         </div>
       </div>
 
+      {platformId === 'opencode' && selectedModels.some(({ id }) => id.startsWith('claude-')) && <div className="modal-field">
+        <label>{t('chooseAccessProtocol')}</label>
+        <div className="access-protocol-selector" role="group" aria-label={t('chooseAccessProtocol')}>
+          {['openai-compatible', 'anthropic'].map((option) => <button key={option} type="button" className={protocol === option ? 'button button-primary' : 'button button-ghost'} aria-pressed={protocol === option} onClick={() => onProtocolChange(option)}>{t(`protocol_${option}`)}</button>)}
+        </div>
+        <p className="model-selection-hint">{t('openCodeCompatibilityNote')}</p>
+      </div>}
+
       <div className="modal-field"><div className="model-selection-heading"><label>{t('chooseModels')} <span>{t('selectedModels', { selected: selectedModels.length, total: displayModels.length })}</span></label><button className="model-selection-toggle" type="button" onClick={onToggleAllModels} disabled={displayModels.length === 0}>{allModelsSelected ? t('clearModelSelection') : t('selectAllModels')}</button></div><p className="model-selection-hint">{t(`platformModelSelection_${platform.modelMode}`)}</p><div className="modal-models">{displayModels.map((model) => <button className={selected.includes(model.id) ? 'modal-model selected' : 'modal-model'} key={model.id} onClick={() => onToggleModel(model.id)}><ModelMark model={model} /><span><b>{model.id}</b><small>{model.description}</small><em className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</em></span><span className="modal-check">{selected.includes(model.id) ? <Icon name="check" size={14} /> : ''}</span></button>)}</div></div>
       <div className="modal-field"><label>{t('userApiKey')} <span>{apiKeyLoading ? t('syncingKey') : t('managedByCheapBuddy')}</span></label><div className="key-field"><code>{displayedApiKey}</code><div className="key-field-actions"><button className="key-visibility-button" type="button" onClick={() => setApiKeyVisible((visible) => !visible)} disabled={!hasApiKey || apiKeyLoading} aria-label={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')} aria-pressed={apiKeyVisible} title={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')}><Icon name={apiKeyVisible ? 'eyeOff' : 'eye'} size={17} /></button><button type="button" onClick={onCopyApiKey} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copyApiKey')}</button></div></div></div>
-      <div className="modal-field"><label>{t('endpoint')} <span>{t('openaiCompatible')}</span></label><div className="key-field"><code>{endpoint}</code><button onClick={onCopyEndpoint}><Icon name="copy" size={15} /> {t('copy')}</button></div></div>
+      <div className="modal-field"><label>{t('endpoint')} <span>{t(`protocol_${protocol}`)}</span></label><div className="key-field"><code>{endpoint}</code><button onClick={onCopyEndpoint}><Icon name="copy" size={15} /> {t('copy')}</button></div></div>
 
       {previewArtifact && <div className="modal-field"><label>{t('generatedConfig')} <span>{previewArtifact.filename}</span></label><div className="config-preview"><div><span>{t('targetPath')}</span><code>{previewArtifact.configPath}</code></div><div className="config-model-summary"><span>{t('includedModels')}</span><code title={selectedModelIds}>{selectedModelIds}</code></div><pre>{preview}</pre>{previewArtifact.credentialEnvKey && <div className="config-model-summary"><span>{t('credentialEnvInstruction', { env: previewArtifact.credentialEnvKey })}</span><code>{previewArtifact.credentialEnvKey}={previewArtifact.apiKey}</code></div>}</div></div>}
 
       <div className="test-row"><button className="button button-ghost" onClick={onTest} disabled={testing}>{testing ? t('testing') : t('testConnection')} {testState === 'success' && <span className="success-mark">{t('latency', { latency: testLatency })}</span>}</button><span>{testState === 'success' ? t('connectionSuccess') : testState === 'error' ? t('connectionFailed') : t('testBeforeDownload')}</span></div>
       <div className="config-methods"><div className="config-methods-head"><span>{t('methodTitle')}</span><small>{t('readyForPlatform', { platform: platform.name })}</small></div><div className="config-method-grid"><div className="config-method featured"><div className="config-method-title"><span className="config-method-mark">01</span><div><b>{t('generatedActions')}</b><small>{previewArtifact?.filename || t('selectModelFirst')}</small></div></div><p>{t('platformConfigDescription', { platform: platform.name })}</p><div className="config-method-actions"><button className="button button-primary" onClick={onCopyPrompt} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copySetupPrompt')}</button><button className="button button-ghost" onClick={onCopyConfig} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copyConfig')}</button><button className="button button-blue" onClick={onDownload} disabled={apiKeyLoading}><Icon name="download" size={15} /> {t('downloadConfig')}</button></div></div></div><ol className="config-instructions"><li>{t('pathInstruction', { path: previewArtifact?.configPath || '—' })}</li><li>{t('backupInstruction')}</li><li>{modelInstruction}</li><li>{t('restartInstruction', { platform: platform.name })}</li><li>{previewArtifact?.credentialEnvKey ? t('credentialEnvInstruction', { env: previewArtifact.credentialEnvKey }) : t('configSecurityInstruction')}</li></ol></div>
+      <div className="mcp-install-panel"><div className="config-methods-head"><span>{t('mediaMcpInstallTitle')}</span><small>{t('mediaMcpInstallBadge')}</small></div><p className="mcp-install-description">{t('mediaMcpInstallDescription')}</p><div className="mcp-install-actions"><a className="button button-blue mcp-download-button" href={MEDIA_MCPB_DOWNLOAD_PATH} download><span className="mcp-install-mark">CD</span>{t('mediaMcpDownloadExtension')}</a>{mediaMcpPlatformOptions.map((target) => <button className="button button-ghost" key={target.id} type="button" onClick={() => onCopyMcpPrompt(target.id)}><span className="mcp-install-mark">{target.mark}</span>{t(`mediaMcpPlatform_${target.id}`)}</button>)}</div><small className="mcp-install-note">{t('mediaMcpInstallNote')}</small></div>
     </div>
   </div>;
 }
@@ -392,6 +428,7 @@ function ConfigGeneratorModal({
 const USD_CNY_REFERENCE_RATE = USD_TO_CNY_RATE;
 
 function PricingComparison({ plan, language, t }) {
+  if (!plan || plan.paymentCurrency) return null;
   const usdValue = getPlanPaymentAmount(plan.amount, 'en');
   const displayAmount = language === 'en' ? usdValue : plan.amount;
   const displayCurrency = language === 'en' ? '$' : '¥';
@@ -630,14 +667,16 @@ function HypitDocsPage() {
   useEffect(() => {
     setStoredLanguage(language);
     updateSeoMetadata({
-      title: language === 'en' ? 'CheapBuddy Hypit provider | Install and use cheapbuddy.cc media models' : 'CheapBuddy Hypit Provider｜安装并使用 cheapbuddy.cc 图片视频模型',
-      description: language === 'en' ? 'Install the CheapBuddy provider in Hypit, configure credentials, bind media capabilities, and run image or video builds.' : '在 Hypit 中安装 CheapBuddy Provider，配置凭证、绑定图片与视频能力，并完成从检查到 Build 的操作。',
+      title: language === 'en' ? 'CheapBuddy Hypit provider | Install and use MiniMax-H3' : 'CheapBuddy Hypit Provider｜安装并使用 MiniMax-H3',
+      description: language === 'en' ? 'Install the published @cheapbuddy/provider package in Hypit, configure credentials, and build MiniMax-H3 videos at 768P.' : '在 Hypit 中安装 npm 已发布的 @cheapbuddy/provider，配置凭证，并生成 768P MiniMax-H3 视频。',
       path: '/hypit',
       type: 'article',
     });
   }, [language]);
 
-  const installCommand = `# in your Hypit project\nnpm install ./hypit-provider\n\n# or, when the package is available from your registry\nnpm install @cheapbuddy/provider-hypit`;
+  const installCommand = `# In your Hypit project (Node.js >= 22.15.0)
+# If package.json does not exist yet: npm init -y
+npm install @hypit/hypit@latest @cheapbuddy/provider@latest`;
   const runtimeConfig = `{
   "format": "hypit.runtime-local@1",
   "dataRoot": ".hypit/execution",
@@ -646,19 +685,17 @@ function HypitDocsPage() {
   },
   "endpoints": {
     "cheapbuddy.media": {
-      "use": "@cheapbuddy/provider-hypit",
+      "use": "@cheapbuddy/provider",
       "pool": "cheapbuddy-media",
       "config": {
         "baseUrl": "https://api.cheapbuddy.cc",
         "apiKey": { "store": "platform", "key": "cheapbuddy.api" },
-        "concurrency": 2,
+        "concurrency": 1,
         "pollIntervalMs": 5000
       }
     }
   },
   "bindings": {
-    "@hypit/gpt-image@1#gpt-image-2": "cheapbuddy.media",
-    "@hypit/seedance@1#seedance-2-mini": "cheapbuddy.media",
     "@hypit/minimax-h3@1#minimax-h3": "cheapbuddy.media"
   }
 }`;
@@ -667,23 +704,22 @@ function HypitDocsPage() {
   <import as="text" from="@hypit/text@1"/>
   <import as="h3" from="@hypit/minimax-h3@1"/>
   <text:Value id="prompt">A calm product close-up in a bright studio, slow camera move, no captions.</text:Value>
-  <h3:TextVideo id="shot" prompt={prompt} duration="8" resolution="2k" aspect-ratio="16:9"/>
+  <h3:TextVideo id="shot" prompt={prompt} duration="8" resolution="768P" aspect-ratio="16:9"/>
 </svml>`;
   const runExample = `<?svml using="@hypit/run-markup@1"?>
 <svrun version="1">
   <author source="../authors/generate.svml"/>
   <target output="shot.video"/>
 </svrun>`;
-  const buildCommands = `hypit runtime use hypit.runtime.json
-hypit auth login cheapbuddy.media
-hypit auth status cheapbuddy.media
-hypit doctor --endpoint cheapbuddy.media
-hypit check authors/generate.svml
-hypit check runs/generate.svrun
-hypit plan runs/generate.svrun
-hypit pricing runs/generate.svrun
-hypit build runs/generate.svrun --title "CheapBuddy media build" --follow
-hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
+  const buildCommands = `npx hypit runtime use hypit.runtime.json
+npx hypit auth login cheapbuddy.media
+npx hypit auth status cheapbuddy.media
+npx hypit doctor --endpoint cheapbuddy.media
+npx hypit check authors/generate.svml
+npx hypit check runs/generate.svrun
+npx hypit plan runs/generate.svrun
+npx hypit build runs/generate.svrun --title "CheapBuddy video build" --follow
+npx hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
 
   const copyCode = async (codeId, value) => {
     try {
@@ -712,7 +748,7 @@ hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
     <main>
       <section className="api-docs-hero section-wrap hypit-docs-hero">
         <div className="api-docs-hero-copy"><span className="section-index">HYPIT / 01</span><h1>{t('hypitTitle')}<br /><em>{t('hypitTitleAccent')}</em></h1><p>{t('hypitLead')}</p><div className="api-docs-hero-tags"><span>INSTALL PROVIDER</span><span>CHEAPBUDDY.CC</span><span>CHECK → BUILD</span></div></div>
-        <div className="hypit-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('hypitBoardTitle')}</span><span>provider-hypit</span></div><div className="hypit-flow-row"><span>01</span><b>{t('hypitFlowInstall')}</b><code>npm install</code></div><div className="hypit-flow-row"><span>02</span><b>{t('hypitFlowRuntime')}</b><code>cheapbuddy.media</code></div><div className="hypit-flow-row"><span>03</span><b>{t('hypitFlowBuild')}</b><code>check → plan → build</code></div><div className="hypit-board-foot">{t('hypitBoardFoot')}</div></div>
+        <div className="hypit-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('hypitBoardTitle')}</span><span>provider</span></div><div className="hypit-flow-row"><span>01</span><b>{t('hypitFlowInstall')}</b><code>npm install</code></div><div className="hypit-flow-row"><span>02</span><b>{t('hypitFlowRuntime')}</b><code>cheapbuddy.media</code></div><div className="hypit-flow-row"><span>03</span><b>{t('hypitFlowBuild')}</b><code>check → plan → build</code></div><div className="hypit-board-foot">{t('hypitBoardFoot')}</div></div>
       </section>
 
       <div className="comfy-docs-layout section-wrap">
@@ -722,7 +758,7 @@ hypit get <build-id> --output shot.video --to assets/generated-shot.mp4`;
 
           <section id="hypit-runtime" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">02</span><div><h2>{t('hypitRuntimeTitle')}</h2><p>{t('hypitRuntimeLead')}</p></div></div><ApiCodeBlock label="hypit.runtime.json" code={runtimeConfig} codeId="hypit-runtime" copied={copied} onCopy={copyCode} t={t} /><div className="api-callout"><strong>{t('hypitRuntimeNoteTitle')}</strong><p>{t('hypitRuntimeNote')}</p></div></section>
 
-          <section id="hypit-author" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">03</span><div><h2>{t('hypitAuthorTitle')}</h2><p>{t('hypitAuthorLead')}</p></div></div><div className="hypit-code-grid"><ApiCodeBlock label="authors/generate.svml" code={authorExample} codeId="hypit-author" copied={copied} onCopy={copyCode} t={t} /><ApiCodeBlock label="runs/generate.svrun" code={runExample} codeId="hypit-run" copied={copied} onCopy={copyCode} t={t} /></div><div className="api-field-grid hypit-capability-grid"><div className="api-field-card"><code>@hypit/gpt-image@1#gpt-image-2</code><strong>gpt-image-2</strong><p>{t('hypitImageCapability')}</p></div><div className="api-field-card"><code>@hypit/minimax-h3@1#minimax-h3</code><strong>MiniMax-H3</strong><p>{t('hypitVideoCapability')}</p></div><div className="api-field-card"><code>@hypit/seedance@1#seedance-2-mini</code><strong>Seedance</strong><p>{t('hypitSeedanceCapability')}</p></div></div></section>
+          <section id="hypit-author" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">03</span><div><h2>{t('hypitAuthorTitle')}</h2><p>{t('hypitAuthorLead')}</p></div></div><div className="hypit-code-grid"><ApiCodeBlock label="authors/generate.svml" code={authorExample} codeId="hypit-author" copied={copied} onCopy={copyCode} t={t} /><ApiCodeBlock label="runs/generate.svrun" code={runExample} codeId="hypit-run" copied={copied} onCopy={copyCode} t={t} /></div><div className="api-field-grid hypit-capability-grid"><div className="api-field-card"><code>@hypit/minimax-h3@1#minimax-h3</code><strong>MiniMax-H3</strong><p>{t('hypitVideoCapability')}</p></div></div></section>
 
           <section id="hypit-build" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">04</span><div><h2>{t('hypitBuildTitle')}</h2><p>{t('hypitBuildLead')}</p></div></div><ApiCodeBlock label="Hypit CLI" code={buildCommands} codeId="hypit-build" copied={copied} onCopy={copyCode} t={t} /><div className="api-callout"><strong>{t('hypitBuildNoteTitle')}</strong><p>{t('hypitBuildNote')}</p></div></section>
 
@@ -831,11 +867,12 @@ curl ${baseUrl}/videos/{video_id}/content \\
 
 function HomePage() {
   const [language, setLanguage] = useState(getInitialLanguage);
-  const [selected, setSelected] = useState(models.map((model) => model.id));
+  const [selected, setSelected] = useState(() => models.map((model) => model.id));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [showGenerator, setShowGenerator] = useState(false);
   const [platformId, setPlatformId] = useState('workbuddy');
+  const [openCodeProtocol, setOpenCodeProtocol] = useState('openai-compatible');
   const [showAccount, setShowAccount] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPaymentOrders, setShowPaymentOrders] = useState(false);
@@ -865,9 +902,13 @@ function HomePage() {
   const [balance, setBalance] = useState(null);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [checkoutInfo, setCheckoutInfo] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState(false);
   const paymentRequestRef = useRef(false);
   const [selectedPlanId, setSelectedPlanId] = useState(defaultPricingPlan.id);
   const [testing, setTesting] = useState(false);
+  const connectionTestVersion = useRef(0);
   const [testState, setTestState] = useState('idle');
   const [usageSummary, setUsageSummary] = useState(null);
   const [usageModels, setUsageModels] = useState([]);
@@ -901,11 +942,37 @@ function HomePage() {
   const activePlatform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
   const displayModels = useMemo(() => localizeModels(models, language), [language]);
   const selectedModels = useMemo(() => displayModels.filter((model) => selected.includes(model.id)), [displayModels, selected]);
+  const activeApiKey = session.apiKey;
+  const accessProtocol = platformId === 'claude' ? 'anthropic' : platformId === 'opencode' && selectedModels.some(({ id }) => id.startsWith('claude-')) ? openCodeProtocol : 'openai-compatible';
   const configDisplayModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)];
   const heroModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)].slice(0, 4);
   const usageExampleModels = [...displayModels.filter((model) => model.showInUsageExample), ...displayModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
+  useEffect(() => {
+    connectionTestVersion.current += 1;
+    setTesting(false);
+    setTestState('idle');
+    setTestLatency(0);
+  }, [platformId, openCodeProtocol, selected, session.token]);
   const consoleModels = displayModels.slice(0, 2);
-  const displayPricingPlans = useMemo(() => pricingPlans.map((plan) => ({ ...plan, name: t(plan.nameKey), description: t(plan.descriptionKey), tag: t(plan.tagKey) })), [language]);
+  const displayPricingPlans = useMemo(() => session.token
+    ? getCheckoutRechargePlans(checkoutInfo, language)
+    : pricingPlans.map((plan) => ({ ...plan, name: t(plan.nameKey), description: t(plan.descriptionKey), tag: t(plan.tagKey) })), [language, session.token, checkoutInfo]);
+  const selectedPricingPlan = displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0];
+
+  useEffect(() => {
+    let active = true;
+    setCheckoutInfo(null);
+    setCheckoutError(false);
+    setCheckoutLoading(Boolean(session.token));
+    if (session.token) getCheckoutInfo().then((info) => {
+      if (active) setCheckoutInfo(info);
+    }).catch(() => {
+      if (active) setCheckoutError(true);
+    }).finally(() => {
+      if (active) setCheckoutLoading(false);
+    });
+    return () => { active = false; };
+  }, [session.token]);
 
   useEffect(() => {
     getPublicSettings().then((settings) => {
@@ -958,6 +1025,7 @@ function HomePage() {
 
   const toggleModel = (id) => setSelected((current) => {
     if (current.includes(id)) return current.filter((item) => item !== id);
+    if (!displayModels.some((model) => model.id === id)) return current;
     return [...current, id];
   });
 
@@ -969,19 +1037,13 @@ function HomePage() {
     return [...new Set([...current, ...modelIds])];
   });
 
-  const getOrCreateApiKey = async () => {
-    const keys = await listApiKeys();
-    let key = keys.find((item) => item.status === 'active') || keys[0];
-    if (!key) key = await createApiKey('CheapBuddy WorkBuddy', cheapBuddyGroupId);
-    return key?.key || '';
-  };
-
   const ensureApiKey = async () => {
-    if (!session.token || session.apiKey) return session.apiKey;
+    if (!session.token) return '';
     setApiKeyLoading(true);
     try {
-      const apiKey = await getOrCreateApiKey();
-      setSession((current) => ({ ...current, apiKey }));
+      const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels, apiKey: session.apiKey });
+      if (getAuthToken() !== session.token) throw new Error(t('loginForConfig'));
+      setSession((current) => current.token === session.token ? { ...current, apiKey } : current);
       return apiKey;
     } finally {
       setApiKeyLoading(false);
@@ -991,9 +1053,8 @@ function HomePage() {
   const copyUserApiKey = async () => {
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
       await writeClipboard(apiKey);
       notify(t('apiKeyCopied'));
     } catch (error) {
@@ -1015,7 +1076,7 @@ function HomePage() {
       const [stats, modelResult, mediaResult] = await Promise.all([
         getUsageDashboardStats(),
         getUsageDashboardModels({ start_date: toDate(startDate), end_date: toDate(endDate) }),
-        listApiKeys().then((keys) => keys.find((item) => item.status === 'active')?.key || keys[0]?.key || '').then((apiKey) => getMediaUsageDashboardModels(apiKey, { start_date: toDate(startDate), end_date: toDate(endDate) })).catch((error) => {
+        listApiKeys().then((keys) => findApiKeyForGroup(keys, OPENAI_API_KEY_GROUP_ID)?.key || '').then((apiKey) => getMediaUsageDashboardModels(apiKey, { start_date: toDate(startDate), end_date: toDate(endDate) })).catch((error) => {
           if (error?.status !== 404 && error?.status !== 405) console.warn('Media usage is unavailable', error);
           return { models: [], summary: {} };
         }),
@@ -1067,6 +1128,15 @@ function HomePage() {
     setShowAccount(true);
     await loadUsage();
   };
+
+  useEffect(() => {
+    const openAccountLink = () => {
+      if (window.location.hash === '#account') openAccount();
+    };
+    openAccountLink();
+    window.addEventListener('hashchange', openAccountLink);
+    return () => window.removeEventListener('hashchange', openAccountLink);
+  }, [session.token]);
 
   const openAffiliate = async () => {
     if (!session.token) {
@@ -1121,7 +1191,7 @@ function HomePage() {
         setBalance(nextBalance);
         setSession((current) => ({ ...current, user: current.user ? { ...current.user, balance: nextBalance } : current.user }));
       }
-      notify(t('affiliateTransferSuccess', { amount: formatAmount(result?.transferred_quota || 0) }));
+      notify(t('affiliateTransferSuccess', { amount: formatLedgerAmount(result?.transferred_quota || 0) }));
       await loadAffiliate();
     } catch (error) {
       setAffiliateError(error.code === 'REQUEST_TIMEOUT' ? t('affiliateRequestTimeout') : error.message || t('affiliateTransferFailed'));
@@ -1172,9 +1242,9 @@ function HomePage() {
       setShowAuth(true);
       return;
     }
+    setShowGenerator(true);
     try {
       await ensureApiKey();
-      setShowGenerator(true);
     } catch (error) {
       notify(error.message || t('apiKeyReadFailed'));
     }
@@ -1239,11 +1309,13 @@ function HomePage() {
       if (action === 'register') {
         try {
           setApiKeyLoading(true);
-          const apiKey = await getOrCreateApiKey();
-          setSession({ ...nextSession, apiKey });
+          const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels });
+          if (getAuthToken() !== nextSession.token) return;
+          setSession((current) => current.token === nextSession.token ? { ...current, apiKey } : current);
           setShowGenerator(true);
           notify(t('registerSuccess'));
         } catch (error) {
+          if (getAuthToken() !== nextSession.token) return;
           setShowGenerator(true);
           notify(t('registerKeyFailed', { message: error.message || t('apiKeyReadFailed') }));
         } finally {
@@ -1262,6 +1334,7 @@ function HomePage() {
 
   const startRecharge = async (plan = defaultPricingPlan) => {
     if (paymentRequestRef.current) return;
+    if (!plan) return notify(language === 'en' ? 'No recharge offer is available.' : '当前暂无可用的充值商品。');
     if (!session.token) {
       setSelectedPlanId(plan.id);
       setShowAuth(true);
@@ -1272,14 +1345,12 @@ function HomePage() {
     setPaymentLoading(true);
     try {
       const checkout = await getCheckoutInfo();
-      const methods = checkout.methods || {};
-      const paymentType = selectPaymentType(methods, language);
-      if (!paymentType) throw new Error(language === 'en' ? t('stripePaymentNotConfigured') : t('paymentNotConfigured'));
-      if (language === 'en' && isStripePaymentType(paymentType) && !hasPaymentCurrency(methods, paymentType, 'USD')) {
-        throw new Error(t('stripePaymentNotConfigured'));
-      }
+      setCheckoutInfo(checkout);
+      const currentOffer = getCheckoutRechargePlans(checkout, language).find((offer) => offer.id === plan.id);
+      if (!currentOffer) throw new Error(language === 'en' ? 'This recharge offer is unavailable. Please refresh.' : '该充值商品暂不可用，请刷新后重试。');
+      const paymentType = currentOffer.paymentType;
       const paymentResultUrl = `${window.location.origin}/payment/result`;
-      const order = await createPaymentOrder({ amount: getPlanPaymentAmount(plan.amount, language), payment_type: paymentType, order_type: 'balance', payment_source: 'cheapbuddy', return_url: paymentResultUrl, is_mobile: window.innerWidth < 700 });
+      const order = await createPaymentOrder({ amount: currentOffer.amount, payment_type: currentOffer.paymentType, order_type: 'balance', payment_source: 'cheapbuddy', return_url: paymentResultUrl, is_mobile: window.innerWidth < 700 });
       if (isStripePaymentType(paymentType) && order.client_secret) {
         const stripeUrl = buildStripePaymentUrl({ orderId: order.order_id || order.id, clientSecret: order.client_secret, resumeToken: order.resume_token });
         if (!stripeUrl) throw new Error(t('stripePaymentFailed'));
@@ -1305,6 +1376,7 @@ function HomePage() {
 
   const openPaywall = () => {
     setShowAccount(false);
+    setShowGenerator(false);
     setShowPaywall(true);
   };
 
@@ -1318,10 +1390,9 @@ function HomePage() {
     if (!selectedModels.length) return notify(t('selectModelFirst'));
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
-      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl });
+      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl, protocol: accessProtocol });
       downloadTextFile(artifact.filename, artifact.content, artifact.mimeType);
       notify(t('configDownloaded', { filename: artifact.filename, platform: activePlatform.name }));
     } catch (error) {
@@ -1341,10 +1412,9 @@ function HomePage() {
     if (!selectedModels.length) return notify(t('selectModelFirst'));
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
-      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl });
+      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl, protocol: accessProtocol });
       await writeClipboard(artifact.content);
       notify(t('configCopied', { platform: activePlatform.name }));
     } catch (error) {
@@ -1364,10 +1434,9 @@ function HomePage() {
     if (!selectedModels.length) return notify(t('selectModelFirst'));
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
-      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl });
+      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl, protocol: accessProtocol });
       await writeClipboard(buildInstallPrompt(artifact, language));
       notify(t('promptCopied', { platform: activePlatform.name }));
     } catch (error) {
@@ -1377,109 +1446,62 @@ function HomePage() {
     }
   };
 
+  const copyMediaMcpPrompt = async (targetPlatformId) => {
+    try {
+      await writeClipboard(buildMediaMcpInstallPrompt(targetPlatformId, language));
+      const target = mediaMcpPlatformOptions.find(({ id }) => id === targetPlatformId);
+      notify(t('mediaMcpPromptCopied', { platform: target?.name || targetPlatformId }));
+    } catch (error) {
+      notify(error.message || t('copyFailed'));
+    }
+  };
+
   const testConnection = async () => {
     if (!selectedModels.length) {
       notify(t('selectModelFirst'));
       return;
     }
     setTesting(true);
+    const testVersion = ++connectionTestVersion.current;
     setTestState('idle');
     setTestLatency(0);
     const startedAt = performance.now();
 
     try {
-      const apiKey = session.apiKey || await ensureApiKey();
+      const apiKey = await ensureApiKey();
+      if (testVersion !== connectionTestVersion.current) return;
       if (!apiKey) throw new Error(t('missingApiKey'));
-      const selectedModel = selectedModels[0];
-      // The public API subdomain is Railway DNS-only and duplicates CORS
-      // headers on POST responses. Test through the same-origin Worker alias.
-      const connectionBaseUrl = ['cheapbuddy.cc', 'www.cheapbuddy.cc'].includes(window.location.hostname)
-        ? `${window.location.origin}/v1`
-        : baseUrl;
-      const mediaRequest = selectedModel.modality === 'image'
-        ? {
-          method: 'GET',
-          url: `${connectionBaseUrl}/models`,
-          isValid: (body) => Array.isArray(body.data) && body.data.some((model) => model.id === selectedModel.id),
+      for (const model of selectedModels) {
+        const protocolRequest = buildConnectionTestRequest(platformId, {
+          baseUrl: connectionBaseUrl, model, protocol: accessProtocol,
+        });
+        const response = await fetch(protocolRequest.url, {
+          method: protocolRequest.method || 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+            ...(protocolRequest.headers || {}),
+          },
+          body: protocolRequest.body ? JSON.stringify(protocolRequest.body) : undefined,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (testVersion !== connectionTestVersion.current) return;
+        if (!response.ok) {
+          throw new Error(`${model.id}: ${body.error?.message || body.message || t('apiRequestFailed', { status: response.status })}`);
         }
-          : selectedModel.modality === 'video'
-            ? {
-            method: 'GET',
-            url: `${connectionBaseUrl}/models`,
-            isValid: (body) => Array.isArray(body.data) && body.data.some((model) => model.id === selectedModel.id),
-          }
-          : null;
-
-      const protocolRequest = mediaRequest || {
-        workbuddy: {
-          url: `${connectionBaseUrl}/chat/completions`,
-          body: {
-            model: selectedModel.id,
-            messages: [{ role: 'user', content: 'Reply with OK only.' }],
-            temperature: 0,
-            max_tokens: 8,
-            stream: false,
-          },
-          isValid: (body) => Array.isArray(body.choices) && body.choices.length > 0,
-        },
-        opencode: {
-          url: `${connectionBaseUrl}/chat/completions`,
-          body: {
-            model: selectedModel.id,
-            messages: [{ role: 'user', content: 'Reply with OK only.' }],
-            temperature: 0,
-            max_tokens: 8,
-            stream: false,
-          },
-          isValid: (body) => Array.isArray(body.choices) && body.choices.length > 0,
-        },
-        claude: {
-          url: `${connectionBaseUrl}/messages`,
-          headers: { 'anthropic-version': '2023-06-01' },
-          body: {
-            model: selectedModel.id,
-            max_tokens: 8,
-            messages: [{ role: 'user', content: 'Reply with OK only.' }],
-            stream: false,
-          },
-          isValid: (body) => Array.isArray(body.content) && body.content.length > 0,
-        },
-        codex: {
-          url: `${connectionBaseUrl}/responses`,
-          body: {
-            model: selectedModel.id,
-            input: 'Reply with OK only.',
-            max_output_tokens: 8,
-            stream: false,
-          },
-          isValid: (body) => Boolean(body.id) || (Array.isArray(body.output) && body.output.length > 0),
-        },
-      }[platformId] || null;
-      if (!protocolRequest) throw new Error(t('connectionTestFailed'));
-      const response = await fetch(protocolRequest.url, {
-        method: protocolRequest.method || 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          ...(protocolRequest.headers || {}),
-        },
-        body: protocolRequest.body ? JSON.stringify(protocolRequest.body) : undefined,
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(body.error?.message || body.message || t('apiRequestFailed', { status: response.status }));
-      }
-      if (!protocolRequest.isValid(body)) {
-        throw new Error(t('badModelResponse'));
+        if (!protocolRequest.isValid(body)) {
+          throw new Error(`${model.id}: ${t('badModelResponse')}`);
+        }
       }
 
       setTestLatency(Math.max(1, Math.round(performance.now() - startedAt)));
       setTestState('success');
     } catch (error) {
+      if (testVersion !== connectionTestVersion.current) return;
       setTestState('error');
       notify(error.message || t('connectionTestFailed'));
     } finally {
-      setTesting(false);
+      if (testVersion === connectionTestVersion.current) setTesting(false);
     }
   };
 
@@ -1554,7 +1576,15 @@ function HomePage() {
 
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
-        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div><div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div></article>)}</div>
+        <p className="model-protocol-note">{t('claudeProtocolSupport')}</p>
+        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}>
+          <div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div>
+          <div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p>
+          <div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><strong>{t('officialModelPrice')}</strong><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div>
+          {model.retailInput && <div className="model-prices model-retail-prices" title={model.retailPriceUnit}><strong>{t('retailModelPrice')}</strong><span>{t('input')} <b>{model.retailInput}</b> / M</span><span>{t('output')} <b>{model.retailOutput}</b> / M</span></div>}
+          {model.channelId === 'claude' && <div className="model-cache-prices"><span>{t('officialModelPrice')}: {model.priceUnit}</span>{model.retailPriceUnit && <span>{t('retailModelPrice')}: {model.retailPriceUnit}</span>}<a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗ · {model.priceCheckedAt}</a><span>{t('claudePricePolicy')}</span></div>}
+          <div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div>
+        </article>)}</div>
         <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote')}</span><span className="shelf-line" /></div>
       </section>
 
@@ -1569,7 +1599,7 @@ function HomePage() {
         <div className="generator-panel"><div className="generator-copy"><span className="section-index">03</span><h2>{t('generatorTitle')}<br /><em>{t('generatorTitleAccent')}</em></h2><p>{t('generatorLead')}</p><div className="generator-perks"><span><Icon name="shield" size={17} /> {t('boundKey')}</span><span><Icon name="bolt" size={17} /> {t('readyNow')}</span></div><button className="button button-primary" onClick={openGenerator}>{t('openConfigCenter')} <Icon name="arrow" /></button></div><div className="mini-console"><div className="console-bar"><span><i /><i /><i /></span><small>cheapbuddy / models.json</small><span className="console-live">● {t('live')}</span></div><pre><code><span className="code-key">models</span>: [{consoleModels.map((model, index) => <span key={model.id}><br />  {'{'} <span className="code-key">id</span>: <span className="code-string">"{model.id}"</span>,<br />    <span className="code-key">name</span>: <span className="code-string">"{model.short}"</span>,<br />    <span className="code-key">url</span>: <span className="code-string">{JSON.stringify(baseUrl + '/chat/completions')}</span><br />  {'}'}{index < consoleModels.length - 1 ? ',' : ''}</span>)}<br />]</code></pre><div className="console-footer"><span><span className="mini-dot" /> {t('modelsReady', { count: models.length })}</span><span>JSON</span></div></div></div>
       </section>
 
-      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead')}</p></div><div className="pricing-plan-grid">{displayPricingPlans.map((plan) => { const paymentAmount = getPlanPaymentAmount(plan.amount, language); const currency = language === 'en' ? 'USD' : 'CNY'; return <article className={plan.featured ? 'pricing-plan-card featured' : 'pricing-plan-card'} key={plan.id}><div className="pricing-plan-top"><span>{plan.name}</span><small>{plan.tag}</small></div><div className="pricing-plan-price"><strong>{formatPaymentAmount(paymentAmount, currency)}</strong></div><div className="pricing-plan-balance"><b>{formatPaymentAmount(paymentAmount, currency)}</b><span>{t('sharedBalance')}</span></div><p className="pricing-plan-note">{t('pricingPlanNote')}</p><p>{plan.description}</p><button className={plan.featured ? 'button button-primary full-width' : 'button button-ghost full-width'} onClick={() => startRecharge(plan)} disabled={paymentLoading}>{paymentLoading && selectedPlanId === plan.id ? t('creatingOrder') : t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(paymentAmount) })} <Icon name="arrow" size={15} /></button></article>; })}</div><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><PricingComparison plan={displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]} language={language} t={t} /><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <>{language === 'en' ? '$' : '¥'}<strong>{formatAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{t('perModelRates')}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0])} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(getPlanPaymentAmount((displayPricingPlans.find((plan) => plan.id === selectedPlanId) || displayPricingPlans[0]).amount, language)) })} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b title={model.priceUnit}>{model.input} / {model.output}{model.priceSourceUrl && <> · <a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer" aria-label={t('officialPricingSource')}>↗</a></>}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
+      <section id="pricing" className="pricing-section section-wrap"><div className="pricing-head"><div><span className="section-index">04</span><h2>{t('pricingTitle')}<br /><em>{t('pricingTitleAccent')}</em></h2></div><p>{t('pricingLead')}</p></div><RechargePlanCards checkoutLoading={checkoutLoading} checkoutError={checkoutError} plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} language={language} t={t} /><p className="pricing-footnote"><span className="pricing-footnote-dot" />{t('pricingFootnote')}</p><PricingComparison plan={selectedPricingPlan} language={language} t={t} /><div className="pricing-grid"><div className="balance-card"><div className="balance-label">{t('currentBalance')} <span>{t('allModelsShared')}</span></div><div className="balance-amount">{balance === null ? <strong className="balance-login">{t('loginToSync')}</strong> : <><strong>{formatLedgerAmount(balance)}</strong><span>{t('availableBalance')}</span></>}</div><div className="rate-highlight"><span>{t('actualBilling')}</span><strong>{t('perModelRates')}</strong><small>{t('officialPriceBilling')}</small></div><button className="button button-blue full-width" onClick={() => startRecharge(selectedPricingPlan)} disabled={paymentLoading || checkoutLoading || checkoutError || !selectedPricingPlan}>{paymentLoading ? t('creatingOrder') : selectedPricingPlan ? t(language === 'en' ? 'rechargeUsdAmount' : 'rechargeAmount', { amount: formatAmount(selectedPricingPlan.payAmount ?? getPlanPaymentAmount(selectedPricingPlan.amount, language)) }) : language === 'en' ? 'Recharge unavailable' : '暂不可充值'} <Icon name="arrow" size={16} /></button></div><div className="usage-card"><div className="usage-top"><span>{t('usageExample')}</span><span className="usage-range">{t('inputOutput')} <Icon name="chevron" size={14} /></span></div><div className="usage-list">{usageExampleModels.map((model) => <div className="usage-row" key={model.id}><ModelMark model={model} /><span>{model.id}</span><b title={model.priceUnit}>{model.input} / {model.output}{model.priceSourceUrl && <> · <a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer" aria-label={t('officialPricingSource')}>↗</a></>}</b><i><em style={{ width: `${Math.min(92, 18 + usageExampleModels.indexOf(model) * 15)}%` }} /></i></div>)}</div><div className="usage-footer"><span><i className="usage-dot" /> {t('usageRealtime')}</span><span>{t('transparentBilling')}</span></div></div></div></section>
 
           <section id="guide" className="guide-section section-wrap"><div className="guide-copy"><span className="section-index">05</span><h2>{t('guideTitle')}<br />{t('guideTitleAccent')}</h2><p>{t('guideLead')}</p><button className="button button-primary guide-config-button" type="button" onClick={openGenerator}>{t('choosePlatformAndGenerate')} <Icon name="arrow" size={15} /></button><p className="guide-prompt-hint">{t('promptDescription')}</p></div><div className="guide-detail"><div className="guide-method"><span className="guide-method-mark">01</span><div><b>{t('guideStepDownload')}</b><p>{t('guideStepDownloadText')}</p></div></div><div className="guide-method"><span className="guide-method-mark">02</span><div><b>{t('guideStepRestart')}</b><p>{t('guideStepRestartText')}</p></div></div><div className="os-list platform-guide-list">{platformOptions.map((platform) => <button className={platform.id === platformId ? 'os-row active' : 'os-row'} key={platform.id} type="button" onClick={() => { changePlatform(platform.id); openGenerator(); }}><span className="os-icon">{platform.mark}</span><div><b>{platform.name}</b><small>{t(`platform_${platform.id}`)}</small></div><Icon name="arrow" size={17} /></button>)}</div></div></section>
     </main>
@@ -1577,14 +1607,14 @@ function HomePage() {
     <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/blog">Blog</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="/hypit">{t('navHypit')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
     {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={openPaywall} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
-    {showPaywall && <PaywallPanel plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} language={language} t={t} />}
+    {showPaywall && <PaywallPanel checkoutLoading={checkoutLoading} checkoutError={checkoutError} plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} language={language} t={t} />}
     {showPaymentOrders && <PaymentOrdersPanel orders={paymentOrders} error={paymentOrdersError} language={language} loading={paymentOrdersLoading} cancellingId={paymentOrderCancellingId} onClose={() => setShowPaymentOrders(false)} onRefresh={loadPaymentOrders} onCancel={cancelUserPaymentOrder} t={t} />}
 
     {showAffiliate && <AffiliatePanel detail={affiliateDetail} error={affiliateError} language={language} loading={affiliateLoading} transferring={affiliateTransferLoading} onClose={() => setShowAffiliate(false)} onCopyCode={(code) => copyAffiliateValue(code, 'affiliateCodeCopied')} onCopyLink={(link) => copyAffiliateValue(link, 'affiliateLinkCopied')} onRefresh={loadAffiliate} onTransfer={transferAffiliateBalance} t={t} />}
 
     {showAnnouncements && <AnnouncementsPanel announcements={announcements} loading={announcementLoading} error={announcementError} language={language} onClose={() => setShowAnnouncements(false)} onRefresh={loadAnnouncements} t={t} />}
 
-    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} session={session} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={startRecharge} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
+    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} protocol={accessProtocol} onProtocolChange={setOpenCodeProtocol} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} apiKey={activeApiKey} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={openPaywall} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyMcpPrompt={copyMediaMcpPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
     {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>{!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}</div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>{authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}<form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}
     {showAdminPicker && <AdminConsolePicker onClose={() => setShowAdminPicker(false)} t={t} />}
     {toast && <div className="toast"><span className="toast-icon">✓</span>{toast}</div>}

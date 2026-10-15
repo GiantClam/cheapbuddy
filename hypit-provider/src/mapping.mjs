@@ -40,7 +40,7 @@ const minimaxMapping = {
     prompt: { as: 'value', field: 'prompt' },
     duration: { as: 'value', field: 'seconds' },
     resolution: { as: 'value', field: 'resolution', whenAbsent: '2k' },
-    aspectRatio: { as: 'value', field: 'aspect_ratio' },
+    aspectRatio: { as: 'value', field: 'ratio' },
     referenceImage: { as: 'urlArray', field: 'reference_image_urls' },
     referenceVideo: { as: 'urlArray', field: 'reference_videos' },
     referenceAudio: { as: 'urlArray', field: 'reference_audios' },

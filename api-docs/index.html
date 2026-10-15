@@ -4,32 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07111f" />
-    <meta name="description" content="CheapBuddy OpenAI 兼容图片与视频 API 文档，包含认证、请求参数、异步任务查询和结果下载示例。" />
+    <meta name="description" content="沿用现有 CheapBuddy Base URL 和 API Key，任选 Anthropic 或 OpenAI-compatible 接入 Claude；含 Messages、计数、模型发现与既有图片/视频 API。" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://cheapbuddy.cc/api-docs" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="CheapBuddy" />
     <meta property="og:locale" content="zh_CN" />
-    <meta property="og:title" content="CheapBuddy OpenAI 兼容图片与视频 API 文档" />
-    <meta property="og:description" content="认证、图片生成、视频生成、任务查询和结果下载接口示例。" />
+    <meta property="og:title" content="CheapBuddy Claude、文本、图片与视频 API 文档" />
+    <meta property="og:description" content="现有 Key 的 Claude 原生 / 兼容文本接入，以及图片生成、视频任务查询和结果下载示例。" />
     <meta property="og:url" content="https://cheapbuddy.cc/api-docs" />
     <meta property="og:image" content="https://cheapbuddy.cc/og-cover.svg" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="CheapBuddy OpenAI 兼容图片与视频 API 文档" />
-    <meta name="twitter:description" content="认证、图片生成、视频生成、任务查询和结果下载接口示例。" />
+    <meta name="twitter:title" content="CheapBuddy Claude、文本、图片与视频 API 文档" />
+    <meta name="twitter:description" content="现有 Key 的 Claude 原生 / 兼容文本接入，以及图片生成、视频任务查询和结果下载示例。" />
     <meta name="twitter:image" content="https://cheapbuddy.cc/og-cover.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" />
     <link rel="icon" type="image/svg+xml" href="/cheapbuddy-mark.svg" />
     <link rel="apple-touch-icon" href="/cheapbuddy-mark.svg" />
-    <title>CheapBuddy OpenAI 兼容图片与视频 API 文档</title>
+    <title>CheapBuddy Claude、文本、图片与视频 API 文档</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "TechArticle",
-        "headline": "CheapBuddy OpenAI 兼容图片与视频 API 文档",
-        "description": "认证、图片生成、视频生成、任务查询和结果下载接口示例。",
+        "headline": "CheapBuddy Claude、文本、图片与视频 API 文档",
+        "description": "现有 Key 的 Claude 原生 / 兼容文本接入，以及图片生成、视频任务查询和结果下载示例。",
         "url": "https://cheapbuddy.cc/api-docs",
         "author": { "@type": "Organization", "name": "CheapBuddy", "url": "https://cheapbuddy.cc/" }
       }
@@ -40,10 +40,32 @@
     <noscript>
       <main>
         <article>
-          <h1>CheapBuddy OpenAI 兼容图片与视频 API 文档</h1>
-          <p>本文档介绍 CheapBuddy 的认证方式、图片生成、视频生成、异步任务查询和结果下载接口。</p>
+          <h1>CheapBuddy Claude、文本、图片与视频 API 文档</h1>
+          <p>本文档介绍同一现有 CheapBuddy Base URL / API Key 的 Claude 文本接入，以及既有图片生成、视频生成、异步任务查询和结果下载接口。</p>
           <h2>认证</h2>
           <p>使用 <code>Authorization: Bearer $CHEAPBUDDY_API_KEY</code> 发送 API 请求。</p>
+          <h2>Claude：同一个入口与现有 Key，两种协议任选其一</h2>
+          <p>公共根地址为 <code>https://api.cheapbuddy.cc</code>。支持 Claude 的 Sub2API 分组可访问六个 Claude 模型，不另建协议专用 Key、不轮换现有 Key。实际模型权限、额度、到期、封禁、余额检查和分组计费均由 Sub2API 现有配置决定。</p>
+          <p>按客户端能力选择 Anthropic 原生或 OpenAI-compatible。Chat Completions 和 Responses 属于兼容协议类别，不是第三种协议，也不需要同一次推理同时调用。现有根地址或 <code>/v1</code> Base URL 都可保留，无需 strip-v1 或更换 URL。不同 SDK 追加 <code>/v1/messages</code> 或 <code>/messages</code>；Relay 兼容安全 SDK 路径别名与重复 <code>/v1</code> 形式（如 <code>/v1/v1/messages</code>）。下文使用规范 HTTP 路径，不是要求修改客户端入口。Claude Code 原生示例使用根 Base URL 与 <code>ANTHROPIC_AUTH_TOKEN</code>，值为同一把现有 Key；配置生成器保留用户提供的 URL。</p>
+          <h3>Anthropic 原生 API</h3>
+          <p>使用 <code>x-api-key: $CHEAPBUDDY_API_KEY</code> 或同一 Key 的 Bearer 认证，任选一种；原生请求携带 <code>anthropic-version: 2023-06-01</code>。</p>
+          <ul>
+            <li><code>POST /v1/messages</code>：同步 JSON 或 <code>stream: true</code> 的 SSE。</li>
+            <li><code>POST /v1/messages/count_tokens</code>：输入 Token 计数，不等于最终账单。</li>
+            <li><code>GET /v1/models</code>：当前 Key 获准访问的原生模型列表。</li>
+            <li><code>GET /v1/models/{model_id}</code>：原生模型详情。</li>
+          </ul>
+          <p>原生模型列表 / 详情保留 Sub2API 响应，不混入媒体记录或补造能力字段；既有 OpenAI-compatible 聚合目录保持原合同。</p>
+          <pre><code>curl https://api.cheapbuddy.cc/v1/messages \
+  -H "x-api-key: $CHEAPBUDDY_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"claude-sonnet-5-5","max_tokens":256,"messages":[{"role":"user","content":"Hello"}]}'</code></pre>
+          <h3>OpenAI-compatible 文本 API</h3>
+          <p>WorkBuddy 使用 <code>POST /v1/chat/completions</code>；OpenCode 可选原生 Anthropic 或兼容 Chat；Codex 使用 <code>POST /v1/responses</code>，<code>wire_api = "responses"</code>。Claude 同样可使用这些既有接口，不需要换 Key；Sub2API 负责必要转换。</p>
+          <p>Relay 只做 HTTP 透传；Sub2API 负责业务语义、鉴权、模型路由、协议转换和文本计费。多轮 / system、工具、图片输入、Thinking 和缓存按 Sub2API 实际支持透传；未知字段、上游错误和 SSE 事件不由 Relay 重写。</p>
+          <p>模型 ID：<code>claude-fable-5</code>、<code>claude-fable-5-1</code>、<code>claude-opus-5</code>、<code>claude-opus-5-5</code>、<code>claude-sonnet-5</code>、<code>claude-sonnet-5-5</code>。官网模型卡展示 Anthropic 官方参考价；最终扣费沿用请求所属 Sub2API 分组配置，详见 <a href="/blog/claude-stable-channel-guide">接入与价格指南</a>。</p>
+          <p>首版不包含 Batch、Files、Admin；SDK 接入不保证全部平台特性，HTTP Responses 不等于原生 Responses WebSocket。服务不承诺 100% 可用性 SLA；生产发布与客户端验收状态不由本文档证明。图片、视频和 ComfyUI 的素材、权限、任务轮询与下载流程不变。</p>
           <h2>视频生成</h2>
           <p>通过 <code>POST /v1/videos</code> 创建视频任务，再使用 <code>GET /v1/videos/{id}</code> 查询状态。</p>
           <p>大 multipart 请求建议携带唯一的 <code>Idempotency-Key</code>。上传完成后即使客户端连接断开，已接收的任务仍会继续提交；POST 仍需等待上传完成后返回任务 ID。</p>

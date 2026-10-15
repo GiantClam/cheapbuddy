@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { capabilityRoutes, dataUrl, serviceModelFor } from '../src/mapping.mjs';
+import { capabilityRoutes, dataUrl, mappingFor, serviceModelFor } from '../src/mapping.mjs';
 import { pricingRequestPath, pricingSummary } from '../src/pricing.mjs';
 
 test('maps Hypit capability model names to CheapBuddy upstream model names', () => {
   assert.equal(serviceModelFor('@hypit/gpt-image@1#gpt-image-2'), 'gpt-image-2');
   assert.equal(serviceModelFor('@hypit/seedance@1#seedance-2-mini'), 'doubao-seedance-2-0-mini-260615');
   assert.equal(serviceModelFor('@hypit/minimax-h3@1#minimax-h3'), 'MiniMax-H3');
+});
+
+test('uses CheapBuddy public ratio field for MiniMax-H3 video requests', () => {
+  const route = capabilityRoutes.find((candidate) => candidate.serviceModel === 'MiniMax-H3');
+  const mapping = mappingFor(route);
+  assert.equal(mapping.fields.aspectRatio.field, 'ratio');
+  assert.equal(mapping.fields.resolution.whenAbsent, '2k');
 });
 
 test('declares the MVP capability surface', () => {
