@@ -131,7 +131,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 		}
 		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Request-ID,Idempotency-Key")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Request-ID,Idempotency-Key,X-Api-Key,Anthropic-Version,Anthropic-Beta")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -181,7 +181,11 @@ func (s *Server) purgeCache(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUserAPI(w http.ResponseWriter, r *http.Request) {
 	requestID := requestIDFromContext(r.Context())
-	pathName := path.Clean(r.URL.Path)
+	pathName := canonicalPublicTextPath(path.Clean(r.URL.Path))
+	if r.URL.Path != pathName {
+		r.URL.Path = pathName
+		r.URL.RawPath = ""
+	}
 	if pathName == "." {
 		pathName = "/"
 	}
@@ -201,14 +205,18 @@ func (s *Server) handleUserAPI(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
 		return
 	}
-	apiKey := bearer(r.Header.Get("Authorization"))
+	apiKey := clientAPIKey(r, pathName)
 	if apiKey == "" {
 		if !s.allowAnonymousRate(r.Context(), r) {
 			w.Header().Set("Retry-After", "60")
 			writeError(w, http.StatusTooManyRequests, "rate_limit_error", "Rate limit exceeded")
 			return
 		}
-		writeError(w, http.StatusUnauthorized, "authentication_error", "Missing Bearer API key")
+		writeError(w, http.StatusUnauthorized, "authentication_error", "Missing API key (Bearer or Anthropic x-api-key)")
+		return
+	}
+	if isOpaqueSub2APIRequest(r, pathName) {
+		s.proxyOpaqueSub2API(w, r, apiKey, requestID)
 		return
 	}
 	if pathName == "/v1/media" {
@@ -673,6 +681,7 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request, targetURL, author
 			request.Host = target.Host
 			stripHopHeaders(request.Header)
 			request.Header.Del("Cookie")
+			request.Header.Del("X-Api-Key")
 			request.Header.Set("Authorization", "Bearer "+authorization)
 			request.Header.Set("X-Request-ID", requestID)
 		},
@@ -680,7 +689,7 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request, targetURL, author
 			response.Header.Del("Set-Cookie")
 			response.Header.Del("WWW-Authenticate")
 			response.Header.Del("X-Request-ID")
-			if callbacks == nil {
+			if callbacks == nil && !isOpaqueSub2APIRequest(r, r.URL.Path) {
 				s.rewriteInsufficientBalanceResponse(response, r.URL.Path)
 			}
 			if callbacks != nil {
@@ -987,6 +996,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request, apiKey, re
 		classifiedRows = append(classifiedRows, classifySub2APITextModel(item, mediaCatalogModels, unclassifiedMediaCatalogModels, s.Config.VerifiedMediaModels))
 	}
 	rows = classifiedRows
+	rows = appendModelAliases(rows, seen, s.Config.ModelAliases)
 	for _, row := range mediaRows {
 		item, ok := row.(map[string]any)
 		if !ok {
@@ -1066,6 +1076,52 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request, apiKey, re
 	}
 	textPayload["data"] = rows
 	writeJSON(w, http.StatusOK, textPayload)
+}
+
+func appendModelAliases(rows []any, seen map[string]bool, aliases map[string]string) []any {
+	if len(rows) == 0 || len(aliases) == 0 {
+		return rows
+	}
+	byID := make(map[string]map[string]any, len(rows))
+	for _, row := range rows {
+		item, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := item["id"].(string)
+		if id != "" {
+			byID[id] = item
+		}
+	}
+	keys := make([]string, 0, len(aliases))
+	for alias := range aliases {
+		keys = append(keys, alias)
+	}
+	sort.Strings(keys)
+	for _, alias := range keys {
+		target := resolveModelAlias(aliases, alias)
+		if target == "" || alias == target {
+			continue
+		}
+		source := byID[alias]
+		if source == nil {
+			source = byID[target]
+		}
+		if source == nil {
+			continue
+		}
+		for _, id := range []string{alias, target} {
+			if seen[id] {
+				continue
+			}
+			clone := cloneJSONMap(source)
+			clone["id"] = id
+			rows = append(rows, clone)
+			seen[id] = true
+			byID[id] = clone
+		}
+	}
+	return rows
 }
 
 func (s *Server) fetchModelDetail(r *http.Request, baseURL, token, modelID, requestID string) (map[string]any, int, error) {
@@ -1799,6 +1855,10 @@ func classifyRoute(pathName, model string, cfg config.Config) routeClass {
 }
 
 func isAllowedPath(pathName string, cfg config.Config) bool {
+	if isNativeMessagePath(pathName) {
+		_, allowed := cfg.TextPaths[pathName]
+		return allowed
+	}
 	if pathName == "/v1/models" || modelDetailPath.MatchString(pathName) || (pathName == "/v1/pricing" && cfg.MediaEnabled) || (isMediaTaskPoll(pathName) && cfg.MediaEnabled) || (pathName == "/v1/media" && cfg.MediaEnabled) || (isMediaAssetPath(pathName) && cfg.MediaEnabled) {
 		return true
 	}
@@ -1851,6 +1911,41 @@ type preparedRouteBody struct {
 	h3Seconds     int
 }
 
+func resolveModelAlias(aliases map[string]string, model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" || aliases == nil {
+		return model
+	}
+	if target := strings.TrimSpace(aliases[model]); target != "" {
+		return target
+	}
+	return model
+}
+
+func rewriteJSONModelAlias(body []byte, contentType string, aliases map[string]string) []byte {
+	if len(body) == 0 || len(aliases) == 0 || !strings.Contains(strings.ToLower(contentType), "application/json") {
+		return body
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil || payload == nil {
+		return body
+	}
+	model, ok := payload["model"].(string)
+	if !ok {
+		return body
+	}
+	mapped := resolveModelAlias(aliases, model)
+	if mapped == model {
+		return body
+	}
+	payload["model"] = mapped
+	rewritten, err := json.Marshal(payload)
+	if err != nil {
+		return body
+	}
+	return rewritten
+}
+
 func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteBody, error) {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Body == nil {
 		return preparedRouteBody{}, nil
@@ -1881,6 +1976,7 @@ func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteB
 		return preparedRouteBody{}, fmt.Errorf("request body too large")
 	}
 	model := extractModel(body, contentType)
+	body = rewriteJSONModelAlias(body, contentType, s.Config.ModelAliases)
 	seconds := 0
 	if model == "MiniMax-H3" {
 		seconds, err = h3JSONSeconds(body)

@@ -192,3 +192,78 @@ cash reconciliation and exact configuration acceptance are in the ignored
 `output/usd-ledger-20261005/glm-report-20261006.md` operational report. The latest
 retail policy and persisted-price evidence are in `glm-primary-pricing-report.md`
 and `glm-primary-retail-verification.json` in the same directory.
+
+## Other model USD procurement audit — 2026-10-06
+
+The customer ledger remains USD for every account and the settlement FX remains 6.5 CNY per
+USD. The live supplier unit check returned `unit=USD` for accounts 2, 4, 5, 6, 7 and 8.
+Account 3 (Aiberm) returns HTTP 404 for both billing and usage, so its fallback cash
+denomination remains explicitly unverified. No account was disabled, unscheduled, remapped, or
+removed.
+
+Supplier `/v1/usage` responses identify `actual_cost` as USD, but the suppliers do not expose a
+cash invoice or input/output/cache/long-context rate card. The added cards preserve the observed
+model token mix and use the authorized USD usage cost as cost evidence. They are suitable for the
+observed mix and reconciliation; they do not prove every future service tier or long-context mix
+until supplier invoices are available. Account 6 has model-specific long-context/service-tier
+differences and must be reconciled separately.
+
+The effective customer price is calculated as `procurement cost × 1.05 ÷ 0.80`, after the public
+group factor of 0.72, with prices rounded upward so the persisted value itself still clears 20%.
+Account 2's observed MiniMax M3 and Qwen 3.8 Max costs were above their old public prices; both
+cards were raised to the USD cost floor. Cache writes use the input cost as a conservative
+reserve when the supplier did not expose a write rate. Persisted cards and margin evidence are
+in `output/usd-ledger-20261005/`.
+
+The reconciled public cards for every model other than Kimi K3 and GLM 5.3 now have a verified
+primary cost mapping and a minimum buffered margin of at least 20%. Models with no auditable
+cost card (`doubao-seed-2.0-code`, `doubao-seed-2.0-pro` and `qwen3.8-max-preview`) were removed
+from the public pricing list while their supplier account mappings remain available as fallback
+configuration. This prevents an unpriced request from becoming a free or loss-making request.
+
+`grok-imagine-image-2.0` is billed separately as a fixed per-request media model. The observed
+supplier cost was USD 5.608 for 36 requests (USD 0.15577778 each); its public base price is now
+USD 0.283970 per request, yielding USD 0.2044584 after the group factor and about 20% margin
+against a 5% reserve. `gpt-image-2.5` has no verified supplier cost and has no public billing
+card; its supplier mapping remains available for later audited rollout. Media pricing must never
+be inferred from token cards.
+
+The same primary-route check found `glm-5.3-flash` underpriced. Account 7's supplier snapshot
+contained 34 requests with USD 0.33566418 actual cost after its 0.45 supplier factor. Its public
+base prices are now USD 0.751954 input, 2.631625 output, 0.216198 cached input and 0.751954
+cache write per million tokens. These prices produce at least 20% buffered margin after the 0.72
+group factor for the observed cost mix.
+
+## MiniMax H3 media price — 2026-10-06
+
+MiniMax-H3 remains on the USD ledger. The requested customer rate of CNY 0.10 per
+second converts at the fixed settlement rate of CNY 6.5 per USD to USD
+0.0153846154 per second. Per the four-decimal upward-rounding policy, the saved
+customer price is USD 0.0154 per second.
+
+NewAPI's native H3 rate is USD 0.0600 per second and CheapBuddy's media quota is
+500,000 quota per USD. The production Relay multiplier is therefore
+`0.2566666666`; integer settlement uses ceiling rounding, producing 7,700 quota
+or USD 0.0154 for one successful second, USD 0.0616 for four seconds, and
+USD 0.1232 for eight seconds. The existing Grok and GPT image fallback entries
+remain in `RELAY_MEDIA_MULTIPLIER_BY_MODEL`; no backup route or account was
+removed or disabled.
+
+The read-only authenticated pricing check returned HTTP 200 with the expected
+H3 billing expression `tier("base", u("seconds") * 0.06)` and multiplier. The
+sanitized evidence is `output/usd-ledger-20261005/h3-price-final-20261006.json`.
+
+## Production integration evidence — 2026-10-07
+
+Using the supplied ordinary-user test account, both previously blocked production
+checks now pass. The account/catalog check observed the public settings, ordinary
+user session, existing group-2 model Key, model catalog, subscriptions and checkout
+catalog with no blockers; the catalog contained 12 text, 1 image and 1 video model.
+The production regression check also passed refresh-token rotation and revocation,
+Key creation/idempotent replay/conflict handling, model access control, unknown task
+isolation, media usage, CNY/USD recharge quote validation, logout and cleanup.
+
+The regression runner created one random test Key and deleted it, logged out both
+refresh sessions, and created no payment order or paid text, image or video request.
+The sanitized reports are `output/usd-ledger-20261005/coworkany-evidence-20261007.json`
+and `output/usd-ledger-20261005/production-regression-evidence-20261007.json`.

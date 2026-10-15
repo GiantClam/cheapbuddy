@@ -11,6 +11,8 @@ FROM alpine:3.22
 
 RUN addgroup -S relay && adduser -S relay -G relay && apk add --no-cache ca-certificates
 COPY --from=build /out/relay /usr/local/bin/relay
+COPY config /etc/cheapbuddy/config
+ENV RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 
 EXPOSE 8080
 USER relay

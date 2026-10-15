@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultPricingPlan, pricingPlans, getCheckoutRechargePlans } from './pricing.js';
+import * as pricingHelpers from './pricing.js';
 
 test('exposes public CNY payment examples without inventing an authenticated wallet quote', () => {
   assert.deepEqual(pricingPlans.map(({ id, amount }) => [id, amount]), [
@@ -90,4 +91,24 @@ test('equal server USD credits remain equal across CNY and USD payment options',
   };
   assert.equal(getCheckoutRechargePlans(info, 'en')[0].creditedBalance, 10);
   assert.equal(getCheckoutRechargePlans(info, 'zh')[0].creditedBalance, 10);
+});
+
+test('token prices use the model multiplier rather than a universal discount', () => {
+  const claude = { modality: 'text', priceStatus: 'verified', input: '$2.00', output: '$10.00', priceMultiplier: 1.1,
+    priceUnit: 'USD / MTok; cache read $0.10' };
+  assert.deepEqual(pricingHelpers.getModelRetailPricing(claude), { input: '$2.20', output: '$11.00', priceUnit: 'USD / MTok; cache read $0.11' });
+  assert.equal(pricingHelpers.getModelRetailPricing({ ...claude, priceMultiplier: 0.72 }).input, '$1.44');
+  assert.equal(pricingHelpers.getModelRetailPricing({ ...claude, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存' }).input, '¥0.022–¥0.044 缓存 · ¥1.10–¥2.20 未缓存');
+  assert.equal(claude.input, '$2.00');
+});
+
+test('retail prices do not invent rates for media, unverified prices or invalid multipliers', () => {
+  for (const model of [
+    { modality: 'image', priceStatus: 'verified', priceMultiplier: 1.1 },
+    { modality: 'text', priceStatus: 'unverified', priceMultiplier: 1.1 },
+    { modality: 'text', priceStatus: 'verified' },
+    { modality: 'text', priceStatus: 'verified', priceMultiplier: NaN },
+    { modality: 'text', priceStatus: 'verified', priceMultiplier: -1 },
+  ]) assert.equal(pricingHelpers.getModelRetailPricing(model), null);
+  assert.equal(pricingHelpers.getModelRetailPricing({ modality: 'text', priceStatus: 'verified', pricingScope: 'sub2api-group', priceMultiplier: 1.1 }), null);
 });

@@ -150,10 +150,27 @@ app.registerExtension({
     const modelIndex = node.widgets.indexOf(originalModelWidget);
     const initialModel = originalModelWidget.value && originalModelWidget.value !== "Refresh models"
       ? originalModelWidget.value : "Select model";
+    let modelValues = ["Select model"];
+    let refreshOnEmpty;
+    const resolveModelValues = () => {
+      refreshOnEmpty?.();
+      return modelValues;
+    };
     node.widgets.splice(modelIndex, 1);
-    const modelWidget = node.addWidget("combo", "model", initialModel, () => {}, { values: ["Select model"] });
+    const modelWidget = node.addWidget("combo", "model", initialModel, () => {}, { values: resolveModelValues });
     node.widgets.splice(node.widgets.indexOf(modelWidget), 1);
     node.widgets.splice(modelIndex, 0, modelWidget);
+    const hasCredentials = () => {
+      const key = String(find("api_key")?.value || "").trim();
+      return key && key !== "YOUR_CHEAPBUDDY_API_KEY";
+    };
+    const setModelValues = (values) => {
+      modelValues = values;
+      // Both canvas widgets and Vue widgets resolve function-valued options.
+      // Vue does not invoke the canvas widget's mouse/onPointerDown hooks.
+      // Preserve the options object shared with ComfyUI's widget value store.
+      modelWidget.options.values = resolveModelValues;
+    };
 
     const refresh = async () => {
       const baseUrl = find("base_url")?.value || "https://api.cheapbuddy.cc";
@@ -165,24 +182,25 @@ app.registerExtension({
     };
 
     const applyModels = (models) => {
-      modelWidget.options.values = models.map((item) => item.id);
-      if (!modelWidget.options.values.includes(modelWidget.value)) modelWidget.value = modelWidget.options.values[0];
+      setModelValues(models.map((item) => item.id));
+      if (!modelValues.includes(modelWidget.value)) modelWidget.value = modelValues[0];
       node.setDirtyCanvas(true, true);
     };
 
     const placeholders = new Set(["Select model", "Refresh models", "Loading models…"]);
-    const hasModels = () => Array.isArray(modelWidget.options.values)
-      && modelWidget.options.values.some((value) => !placeholders.has(value));
+    const hasModels = () => modelValues.some((value) => !placeholders.has(value));
     let refreshPromise;
-    const refreshOnEmpty = () => {
-      if (hasModels()) return false;
+    let retryAfter = 0;
+    refreshOnEmpty = () => {
+      if (hasModels() || !hasCredentials() || Date.now() < retryAfter) return false;
       if (!refreshPromise) {
-        modelWidget.options.values = ["Loading models…"];
+        setModelValues(["Loading models…"]);
         modelWidget.value = "Loading models…";
         node.setDirtyCanvas(true, true);
         refreshPromise = refresh()
           .catch((error) => {
-            modelWidget.options.values = ["Select model"];
+            retryAfter = Date.now() + 10000;
+            setModelValues(["Select model"]);
             modelWidget.value = "Select model";
             node.setDirtyCanvas(true, true);
             const apiKey = find("api_key")?.value || "";
@@ -205,15 +223,16 @@ app.registerExtension({
     };
     modelWidget.mouse = () => { refreshOnEmpty(); };
 
-    // A changed endpoint or key invalidates the current selection. Discovery
-    // happens on the next click of the model dropdown.
+    // A changed endpoint or key invalidates the current selection. Both renderers
+    // resolve the options again when the dropdown opens.
     for (const name of ["base_url", "api_key"]) {
       const widget = find(name);
       if (!widget) continue;
       const originalCallback = widget.callback;
       widget.callback = function (value) {
         originalCallback?.call(this, value);
-        modelWidget.options.values = ["Select model"];
+        retryAfter = 0;
+        setModelValues(["Select model"]);
         modelWidget.value = "Select model";
         node.setDirtyCanvas(true, true);
       };
@@ -249,10 +268,11 @@ app.registerExtension({
       }
       node.setDirtyCanvas(true, true);
     };
-    if (find("api_key")?.value && modelWidget.value && !placeholders.has(modelWidget.value)) {
+    setModelValues(modelValues);
+    if (hasCredentials() && modelWidget.value && !placeholders.has(modelWidget.value)) {
       modelWidget.callback(modelWidget.value).catch(() => {});
     }
-    if ((find("api_key")?.value || "").trim()) refreshOnEmpty();
+    if (hasCredentials()) refreshOnEmpty();
     node.cheapbuddyRefreshModels = refreshOnEmpty;
   },
 });

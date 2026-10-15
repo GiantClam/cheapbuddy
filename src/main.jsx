@@ -4,19 +4,24 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './styles.css';
 import './paywall.css';
-import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createApiKey, createPaymentOrder, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
 import { defaultPricingPlan, getCheckoutRechargePlans, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
-import { buildInstallPrompt, createPlatformArtifact, platformOptions } from './platform-config';
+import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
 import { mergeUsageModels } from './usage';
+import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
 
 import { localizeModels, modelCatalog as models } from './models';
 
 const baseUrl = String(import.meta.env.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc/v1').replace(/\/+$/, '');
-const cheapBuddyGroupId = Number(import.meta.env.VITE_CHEAPBUDDY_GROUP_ID || 1);
+// The public API host can duplicate CORS headers. Browser access checks use
+// the same-origin Worker alias, while generated clients keep their base URL.
+const connectionBaseUrl = ['cheapbuddy.cc', 'www.cheapbuddy.cc'].includes(window.location.hostname)
+  ? `${window.location.origin}/v1`
+  : baseUrl;
 const configuredTurnstileSiteKey = String(import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
 const turnstileRequiredByEnv = String(import.meta.env.VITE_TURNSTILE_REQUIRED || '').toLowerCase() === 'true';
 const adminPortalHost = String(import.meta.env.VITE_ADMIN_PORTAL_HOST || 'admin.cheapbuddy.cc').trim().toLowerCase();
@@ -359,27 +364,29 @@ function AdminConsolePicker({ onClose, t }) {
 
 function ConfigGeneratorModal({
   platformId, onPlatformChange, selectedModels, displayModels, selected, onToggleModel, onToggleAllModels,
-  session, apiKeyLoading, onCopyApiKey, balance, onRecharge, paymentLoading, endpoint,
-  testing, testState, testLatency, onTest, onCopyPrompt, onCopyConfig, onDownload,
+  protocol, onProtocolChange,
+  apiKey, apiKeyLoading, onCopyApiKey, balance, onRecharge, paymentLoading, endpoint,
+  testing, testState, testLatency, onTest, onCopyPrompt, onCopyMcpPrompt, onCopyConfig, onDownload,
   onCopyEndpoint, onClose, t,
 }) {
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  useEffect(() => setApiKeyVisible(false), [session.apiKey]);
+  useEffect(() => setApiKeyVisible(false), [apiKey]);
   const platform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
   const allModelsSelected = displayModels.length > 0 && displayModels.every(({ id }) => selected.includes(id));
-  const hasApiKey = Boolean(session.apiKey);
+  const hasApiKey = Boolean(apiKey);
   const displayedApiKey = hasApiKey
-    ? apiKeyVisible ? session.apiKey : `${session.apiKey.slice(0, 8)}••••${session.apiKey.slice(-4)}`
+    ? apiKeyVisible ? apiKey : `${apiKey.slice(0, 8)}••••${apiKey.slice(-4)}`
     : t('autoCreateKey');
   const previewArtifact = selectedModels.length ? createPlatformArtifact(platformId, {
     models: selectedModels,
-    apiKey: session.apiKey || 'sk-cheapbuddy-••••••••',
+    apiKey: apiKey || 'sk-cheapbuddy-••••••••',
     baseUrl: endpoint,
+    protocol,
   }) : null;
   const preview = previewArtifact?.content || '';
   const selectedModelIds = selectedModels.map((model) => model.id).join(', ');
   const modelInstruction = platformId === 'claude'
-    ? t('claudeModelInstruction', { model: selectedModels[0]?.id || '—', fastModel: selectedModels[1]?.id || selectedModels[0]?.id || '—' })
+    ? t('claudeModelInstruction', { model: selectedModels[0]?.id || '—' })
     : platformId === 'codex'
       ? t('codexModelInstruction', { model: selectedModels[0]?.id || '—' })
       : t('defaultModelInstruction', { model: selectedModels[0]?.id || '—' });
@@ -388,6 +395,7 @@ function ConfigGeneratorModal({
     <div className="generator-modal generator-modal-wide" role="dialog" aria-modal="true" aria-labelledby="generator-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY CONFIG</span><h2 id="generator-title">{t('configCenter')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
       <div className="modal-balance"><span>{t('currentBalance')}</span><strong>{balance === null ? t('loginToSync') : formatLedgerAmount(balance)}</strong><button onClick={onRecharge} disabled={paymentLoading}>{paymentLoading ? t('creatingOrder') : t('recharge')}</button></div>
+      <div className="generator-access-note"><p>{t('sharedModelAccess')}</p><p>{t('claudeProtocolSupport')}</p><small>{t('modelAccessRestrictions')}</small></div>
 
       <div className="modal-field platform-field">
         <label>{t('choosePlatform')} <span>{platform.name}</span></label>
@@ -396,14 +404,23 @@ function ConfigGeneratorModal({
         </div>
       </div>
 
+      {platformId === 'opencode' && selectedModels.some(({ id }) => id.startsWith('claude-')) && <div className="modal-field">
+        <label>{t('chooseAccessProtocol')}</label>
+        <div className="access-protocol-selector" role="group" aria-label={t('chooseAccessProtocol')}>
+          {['openai-compatible', 'anthropic'].map((option) => <button key={option} type="button" className={protocol === option ? 'button button-primary' : 'button button-ghost'} aria-pressed={protocol === option} onClick={() => onProtocolChange(option)}>{t(`protocol_${option}`)}</button>)}
+        </div>
+        <p className="model-selection-hint">{t('openCodeCompatibilityNote')}</p>
+      </div>}
+
       <div className="modal-field"><div className="model-selection-heading"><label>{t('chooseModels')} <span>{t('selectedModels', { selected: selectedModels.length, total: displayModels.length })}</span></label><button className="model-selection-toggle" type="button" onClick={onToggleAllModels} disabled={displayModels.length === 0}>{allModelsSelected ? t('clearModelSelection') : t('selectAllModels')}</button></div><p className="model-selection-hint">{t(`platformModelSelection_${platform.modelMode}`)}</p><div className="modal-models">{displayModels.map((model) => <button className={selected.includes(model.id) ? 'modal-model selected' : 'modal-model'} key={model.id} onClick={() => onToggleModel(model.id)}><ModelMark model={model} /><span><b>{model.id}</b><small>{model.description}</small><em className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</em></span><span className="modal-check">{selected.includes(model.id) ? <Icon name="check" size={14} /> : ''}</span></button>)}</div></div>
       <div className="modal-field"><label>{t('userApiKey')} <span>{apiKeyLoading ? t('syncingKey') : t('managedByCheapBuddy')}</span></label><div className="key-field"><code>{displayedApiKey}</code><div className="key-field-actions"><button className="key-visibility-button" type="button" onClick={() => setApiKeyVisible((visible) => !visible)} disabled={!hasApiKey || apiKeyLoading} aria-label={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')} aria-pressed={apiKeyVisible} title={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')}><Icon name={apiKeyVisible ? 'eyeOff' : 'eye'} size={17} /></button><button type="button" onClick={onCopyApiKey} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copyApiKey')}</button></div></div></div>
-      <div className="modal-field"><label>{t('endpoint')} <span>{t('openaiCompatible')}</span></label><div className="key-field"><code>{endpoint}</code><button onClick={onCopyEndpoint}><Icon name="copy" size={15} /> {t('copy')}</button></div></div>
+      <div className="modal-field"><label>{t('endpoint')} <span>{t(`protocol_${protocol}`)}</span></label><div className="key-field"><code>{endpoint}</code><button onClick={onCopyEndpoint}><Icon name="copy" size={15} /> {t('copy')}</button></div></div>
 
       {previewArtifact && <div className="modal-field"><label>{t('generatedConfig')} <span>{previewArtifact.filename}</span></label><div className="config-preview"><div><span>{t('targetPath')}</span><code>{previewArtifact.configPath}</code></div><div className="config-model-summary"><span>{t('includedModels')}</span><code title={selectedModelIds}>{selectedModelIds}</code></div><pre>{preview}</pre>{previewArtifact.credentialEnvKey && <div className="config-model-summary"><span>{t('credentialEnvInstruction', { env: previewArtifact.credentialEnvKey })}</span><code>{previewArtifact.credentialEnvKey}={previewArtifact.apiKey}</code></div>}</div></div>}
 
       <div className="test-row"><button className="button button-ghost" onClick={onTest} disabled={testing}>{testing ? t('testing') : t('testConnection')} {testState === 'success' && <span className="success-mark">{t('latency', { latency: testLatency })}</span>}</button><span>{testState === 'success' ? t('connectionSuccess') : testState === 'error' ? t('connectionFailed') : t('testBeforeDownload')}</span></div>
       <div className="config-methods"><div className="config-methods-head"><span>{t('methodTitle')}</span><small>{t('readyForPlatform', { platform: platform.name })}</small></div><div className="config-method-grid"><div className="config-method featured"><div className="config-method-title"><span className="config-method-mark">01</span><div><b>{t('generatedActions')}</b><small>{previewArtifact?.filename || t('selectModelFirst')}</small></div></div><p>{t('platformConfigDescription', { platform: platform.name })}</p><div className="config-method-actions"><button className="button button-primary" onClick={onCopyPrompt} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copySetupPrompt')}</button><button className="button button-ghost" onClick={onCopyConfig} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copyConfig')}</button><button className="button button-blue" onClick={onDownload} disabled={apiKeyLoading}><Icon name="download" size={15} /> {t('downloadConfig')}</button></div></div></div><ol className="config-instructions"><li>{t('pathInstruction', { path: previewArtifact?.configPath || '—' })}</li><li>{t('backupInstruction')}</li><li>{modelInstruction}</li><li>{t('restartInstruction', { platform: platform.name })}</li><li>{previewArtifact?.credentialEnvKey ? t('credentialEnvInstruction', { env: previewArtifact.credentialEnvKey }) : t('configSecurityInstruction')}</li></ol></div>
+      <div className="mcp-install-panel"><div className="config-methods-head"><span>{t('mediaMcpInstallTitle')}</span><small>{t('mediaMcpInstallBadge')}</small></div><p className="mcp-install-description">{t('mediaMcpInstallDescription')}</p><div className="mcp-install-actions"><a className="button button-blue mcp-download-button" href={MEDIA_MCPB_DOWNLOAD_PATH} download><span className="mcp-install-mark">CD</span>{t('mediaMcpDownloadExtension')}</a>{mediaMcpPlatformOptions.map((target) => <button className="button button-ghost" key={target.id} type="button" onClick={() => onCopyMcpPrompt(target.id)}><span className="mcp-install-mark">{target.mark}</span>{t(`mediaMcpPlatform_${target.id}`)}</button>)}</div><small className="mcp-install-note">{t('mediaMcpInstallNote')}</small></div>
     </div>
   </div>;
 }
@@ -618,8 +635,8 @@ function ComfyUIDocsPage() {
     </header>
     <main>
       <section className="api-docs-hero section-wrap comfy-docs-hero">
-        <div className="api-docs-hero-copy"><span className="section-index">COMFYUI / 01</span><h1>{t('comfyTitle')}<br /><em>{t('comfyTitleAccent')}</em></h1><p>{t('comfyLead')}</p><div className="api-docs-hero-tags"><span>TEXT + IMAGE + VIDEO</span><span>DYNAMIC MODELS</span><span>COMFYUI WORKFLOWS</span></div><div className="comfy-hero-actions"><a className="button button-primary" href="/downloads/ComfyUI-CheapBuddy-0.1.0.zip" download>{t('comfyDownloadZip')} <Icon name="download" size={15} /></a><a className="button button-ghost" href="#comfy-install">{t('comfyStartInstall')} <Icon name="arrow" size={15} /></a></div></div>
-        <div className="comfy-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('comfyBoardTitle')}</span><span>0.1.0</span></div><div className="comfy-flow-row"><span>01</span><b>{t('comfyFlowPrompt')}</b><code>CheapBuddy Text</code></div><div className="comfy-flow-row"><span>02</span><b>{t('comfyFlowImage')}</b><code>CheapBuddy Image</code></div><div className="comfy-flow-row"><span>03</span><b>{t('comfyFlowVideo')}</b><code>CheapBuddy Video</code></div><div className="comfy-board-foot">{t('comfyBoardFoot')}</div></div>
+        <div className="api-docs-hero-copy"><span className="section-index">COMFYUI / 01</span><h1>{t('comfyTitle')}<br /><em>{t('comfyTitleAccent')}</em></h1><p>{t('comfyLead')}</p><div className="api-docs-hero-tags"><span>TEXT + IMAGE + VIDEO</span><span>DYNAMIC MODELS</span><span>COMFYUI WORKFLOWS</span></div><div className="comfy-hero-actions"><a className="button button-primary" href="/downloads/ComfyUI-CheapBuddy-0.1.1.zip" download>{t('comfyDownloadZip')} <Icon name="download" size={15} /></a><a className="button button-ghost" href="#comfy-install">{t('comfyStartInstall')} <Icon name="arrow" size={15} /></a></div></div>
+        <div className="comfy-hero-board"><div className="api-route-board-head"><span className="live-line" /> <span>{t('comfyBoardTitle')}</span><span>0.1.1</span></div><div className="comfy-flow-row"><span>01</span><b>{t('comfyFlowPrompt')}</b><code>CheapBuddy Text</code></div><div className="comfy-flow-row"><span>02</span><b>{t('comfyFlowImage')}</b><code>CheapBuddy Image</code></div><div className="comfy-flow-row"><span>03</span><b>{t('comfyFlowVideo')}</b><code>CheapBuddy Video</code></div><div className="comfy-board-foot">{t('comfyBoardFoot')}</div></div>
       </section>
 
       <div className="comfy-docs-layout section-wrap">
@@ -627,11 +644,12 @@ function ComfyUIDocsPage() {
         <article className="api-docs-content">
           <section id="comfy-install" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">01</span><div><h2>{t('comfyInstallTitle')}</h2><p>{t('comfyInstallLead')}</p></div></div><div className="comfy-install-grid">{installSteps.map(([number, titleKey, textKey]) => <article className="comfy-step-card" key={number}><span>{number}</span><div><h3>{t(titleKey)}</h3><p>{t(textKey)}</p></div></article>)}</div><div className="comfy-command-card"><div className="api-code-toolbar"><span>{t('comfyInstallPathLabel')}</span><code>ComfyUI/custom_nodes/ComfyUI-CheapBuddy</code></div><pre><code>{`# unzip the release into ComfyUI/custom_nodes\n# restart ComfyUI completely\n# search for CheapBuddy in the node menu`}</code></pre></div></section>
 
+          <div className="api-callout comfy-callout"><strong>{t('comfyReleaseTitle')}</strong><p>{t('comfyReleaseText')}</p><p>{t('comfyReleaseUpgrade')}</p><a href="https://github.com/GiantClam/cheapbuddy/releases/tag/comfyui-v0.1.1" target="_blank" rel="noopener noreferrer">{t('comfyReleaseNotes')}</a></div>
           <section id="comfy-nodes" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">02</span><div><h2>{t('comfyNodesTitle')}</h2><p>{t('comfyNodesLead')}</p></div></div><div className="comfy-node-grid">{nodeCards.map(([mark, titleKey, textKey, io]) => <article className="comfy-node-card" key={titleKey}><span className="comfy-node-mark">{mark}</span><div><h3>{t(titleKey)}</h3><p>{t(textKey)}</p><code>{io}</code></div></article>)}</div><div className="api-callout comfy-callout"><strong>{t('comfyModelCalloutTitle')}</strong><p>{t('comfyModelCalloutText')}</p></div></section>
 
           <section id="comfy-scenarios" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">03</span><div><h2>{t('comfyScenariosTitle')}</h2><p>{t('comfyScenariosLead')}</p></div></div><div className="comfy-scenario-table"><div className="comfy-scenario-head"><span>{t('comfyScenarioColumn')}</span><span>{t('comfyInputColumn')}</span><span>{t('comfyOutputColumn')}</span></div>{scenarios.map(([titleKey, detailKey]) => <div className="comfy-scenario-row" key={titleKey}><strong>{t(titleKey)}</strong><p>{t(detailKey)}</p><span>{titleKey === 'comfyScenarioTextVideo' || titleKey === 'comfyScenarioImageVideo' || titleKey === 'comfyScenarioFramesVideo' || titleKey === 'comfyScenarioReferenceVideo' ? 'VIDEO' : 'IMAGE'}</span></div>)}</div></section>
 
-          <section id="comfy-publish" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">04</span><div><h2>{t('comfyPublishTitle')}</h2><p>{t('comfyPublishLead')}</p></div></div><div className="comfy-publish-grid"><article className="comfy-publish-card featured"><span className="comfy-publish-badge">01 / {t('comfyPublishRecommended')}</span><h3>{t('comfyPublishGithubTitle')}</h3><p>{t('comfyPublishGithubText')}</p><a href="/downloads/ComfyUI-CheapBuddy-0.1.0.zip" download>{t('comfyDownloadZip')} <Icon name="download" size={14} /></a></article><article className="comfy-publish-card"><span className="comfy-publish-badge">02 / {t('comfyPublishDiscovery')}</span><h3>{t('comfyPublishManagerTitle')}</h3><p>{t('comfyPublishManagerText')}</p><a href="https://github.com/ltdrdata/ComfyUI-Manager" target="_blank" rel="noopener noreferrer">{t('comfyManagerDocs')} <Icon name="arrow" size={14} /></a></article><article className="comfy-publish-card"><span className="comfy-publish-badge">03 / {t('comfyPublishMirror')}</span><h3>{t('comfyPublishPlatformTitle')}</h3><p>{t('comfyPublishPlatformText')}</p><span className="comfy-publish-muted">RunningHub · Comfy.icu</span></article></div><div className="comfy-publish-note"><strong>{t('comfyPublishDecision')}</strong><p>{t('comfyPublishDecisionText')}</p></div></section>
+          <section id="comfy-publish" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">04</span><div><h2>{t('comfyPublishTitle')}</h2><p>{t('comfyPublishLead')}</p></div></div><div className="comfy-publish-grid"><article className="comfy-publish-card featured"><span className="comfy-publish-badge">01 / {t('comfyPublishRecommended')}</span><h3>{t('comfyPublishGithubTitle')}</h3><p>{t('comfyPublishGithubText')}</p><a href="/downloads/ComfyUI-CheapBuddy-0.1.1.zip" download>{t('comfyDownloadZip')} <Icon name="download" size={14} /></a></article><article className="comfy-publish-card"><span className="comfy-publish-badge">02 / {t('comfyPublishDiscovery')}</span><h3>{t('comfyPublishManagerTitle')}</h3><p>{t('comfyPublishManagerText')}</p><a href="https://github.com/ltdrdata/ComfyUI-Manager" target="_blank" rel="noopener noreferrer">{t('comfyManagerDocs')} <Icon name="arrow" size={14} /></a></article><article className="comfy-publish-card"><span className="comfy-publish-badge">03 / {t('comfyPublishMirror')}</span><h3>{t('comfyPublishPlatformTitle')}</h3><p>{t('comfyPublishPlatformText')}</p><span className="comfy-publish-muted">RunningHub · Comfy.icu</span></article></div><div className="comfy-publish-note"><strong>{t('comfyPublishDecision')}</strong><p>{t('comfyPublishDecisionText')}</p></div></section>
 
           <section id="comfy-security" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">05</span><div><h2>{t('comfySecurityTitle')}</h2><p>{t('comfySecurityLead')}</p></div></div><div className="api-auth-card comfy-security-card"><div><Icon name="shield" size={20} /><strong>{t('comfySecurityKeyTitle')}</strong></div><p>{t('comfySecurityKeyText')}</p></div><div className="comfy-security-list"><span>{t('comfySecurityItemOne')}</span><span>{t('comfySecurityItemTwo')}</span><span>{t('comfySecurityItemThree')}</span></div></section>
         </article>
@@ -849,11 +867,12 @@ curl ${baseUrl}/videos/{video_id}/content \\
 
 function HomePage() {
   const [language, setLanguage] = useState(getInitialLanguage);
-  const [selected, setSelected] = useState(models.map((model) => model.id));
+  const [selected, setSelected] = useState(() => models.map((model) => model.id));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [showGenerator, setShowGenerator] = useState(false);
   const [platformId, setPlatformId] = useState('workbuddy');
+  const [openCodeProtocol, setOpenCodeProtocol] = useState('openai-compatible');
   const [showAccount, setShowAccount] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPaymentOrders, setShowPaymentOrders] = useState(false);
@@ -889,6 +908,7 @@ function HomePage() {
   const paymentRequestRef = useRef(false);
   const [selectedPlanId, setSelectedPlanId] = useState(defaultPricingPlan.id);
   const [testing, setTesting] = useState(false);
+  const connectionTestVersion = useRef(0);
   const [testState, setTestState] = useState('idle');
   const [usageSummary, setUsageSummary] = useState(null);
   const [usageModels, setUsageModels] = useState([]);
@@ -922,9 +942,17 @@ function HomePage() {
   const activePlatform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
   const displayModels = useMemo(() => localizeModels(models, language), [language]);
   const selectedModels = useMemo(() => displayModels.filter((model) => selected.includes(model.id)), [displayModels, selected]);
+  const activeApiKey = session.apiKey;
+  const accessProtocol = platformId === 'claude' ? 'anthropic' : platformId === 'opencode' && selectedModels.some(({ id }) => id.startsWith('claude-')) ? openCodeProtocol : 'openai-compatible';
   const configDisplayModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)];
   const heroModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)].slice(0, 4);
   const usageExampleModels = [...displayModels.filter((model) => model.showInUsageExample), ...displayModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
+  useEffect(() => {
+    connectionTestVersion.current += 1;
+    setTesting(false);
+    setTestState('idle');
+    setTestLatency(0);
+  }, [platformId, openCodeProtocol, selected, session.token]);
   const consoleModels = displayModels.slice(0, 2);
   const displayPricingPlans = useMemo(() => session.token
     ? getCheckoutRechargePlans(checkoutInfo, language)
@@ -997,6 +1025,7 @@ function HomePage() {
 
   const toggleModel = (id) => setSelected((current) => {
     if (current.includes(id)) return current.filter((item) => item !== id);
+    if (!displayModels.some((model) => model.id === id)) return current;
     return [...current, id];
   });
 
@@ -1008,19 +1037,13 @@ function HomePage() {
     return [...new Set([...current, ...modelIds])];
   });
 
-  const getOrCreateApiKey = async () => {
-    const keys = await listApiKeys();
-    let key = keys.find((item) => item.status === 'active') || keys[0];
-    if (!key) key = await createApiKey('CheapBuddy WorkBuddy', cheapBuddyGroupId);
-    return key?.key || '';
-  };
-
   const ensureApiKey = async () => {
-    if (!session.token || session.apiKey) return session.apiKey;
+    if (!session.token) return '';
     setApiKeyLoading(true);
     try {
-      const apiKey = await getOrCreateApiKey();
-      setSession((current) => ({ ...current, apiKey }));
+      const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels, apiKey: session.apiKey });
+      if (getAuthToken() !== session.token) throw new Error(t('loginForConfig'));
+      setSession((current) => current.token === session.token ? { ...current, apiKey } : current);
       return apiKey;
     } finally {
       setApiKeyLoading(false);
@@ -1030,9 +1053,8 @@ function HomePage() {
   const copyUserApiKey = async () => {
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
       await writeClipboard(apiKey);
       notify(t('apiKeyCopied'));
     } catch (error) {
@@ -1054,7 +1076,7 @@ function HomePage() {
       const [stats, modelResult, mediaResult] = await Promise.all([
         getUsageDashboardStats(),
         getUsageDashboardModels({ start_date: toDate(startDate), end_date: toDate(endDate) }),
-        listApiKeys().then((keys) => keys.find((item) => item.status === 'active')?.key || keys[0]?.key || '').then((apiKey) => getMediaUsageDashboardModels(apiKey, { start_date: toDate(startDate), end_date: toDate(endDate) })).catch((error) => {
+        listApiKeys().then((keys) => findApiKeyForGroup(keys, OPENAI_API_KEY_GROUP_ID)?.key || '').then((apiKey) => getMediaUsageDashboardModels(apiKey, { start_date: toDate(startDate), end_date: toDate(endDate) })).catch((error) => {
           if (error?.status !== 404 && error?.status !== 405) console.warn('Media usage is unavailable', error);
           return { models: [], summary: {} };
         }),
@@ -1220,9 +1242,9 @@ function HomePage() {
       setShowAuth(true);
       return;
     }
+    setShowGenerator(true);
     try {
       await ensureApiKey();
-      setShowGenerator(true);
     } catch (error) {
       notify(error.message || t('apiKeyReadFailed'));
     }
@@ -1287,11 +1309,13 @@ function HomePage() {
       if (action === 'register') {
         try {
           setApiKeyLoading(true);
-          const apiKey = await getOrCreateApiKey();
-          setSession({ ...nextSession, apiKey });
+          const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels });
+          if (getAuthToken() !== nextSession.token) return;
+          setSession((current) => current.token === nextSession.token ? { ...current, apiKey } : current);
           setShowGenerator(true);
           notify(t('registerSuccess'));
         } catch (error) {
+          if (getAuthToken() !== nextSession.token) return;
           setShowGenerator(true);
           notify(t('registerKeyFailed', { message: error.message || t('apiKeyReadFailed') }));
         } finally {
@@ -1366,10 +1390,9 @@ function HomePage() {
     if (!selectedModels.length) return notify(t('selectModelFirst'));
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
-      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl });
+      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl, protocol: accessProtocol });
       downloadTextFile(artifact.filename, artifact.content, artifact.mimeType);
       notify(t('configDownloaded', { filename: artifact.filename, platform: activePlatform.name }));
     } catch (error) {
@@ -1389,10 +1412,9 @@ function HomePage() {
     if (!selectedModels.length) return notify(t('selectModelFirst'));
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
-      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl });
+      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl, protocol: accessProtocol });
       await writeClipboard(artifact.content);
       notify(t('configCopied', { platform: activePlatform.name }));
     } catch (error) {
@@ -1412,10 +1434,9 @@ function HomePage() {
     if (!selectedModels.length) return notify(t('selectModelFirst'));
     setApiKeyLoading(true);
     try {
-      const apiKey = session.apiKey || await getOrCreateApiKey();
+      const apiKey = await ensureApiKey();
       if (!apiKey) throw new Error(t('missingApiKey'));
-      setSession((current) => ({ ...current, apiKey }));
-      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl });
+      const artifact = createPlatformArtifact(platformId, { models: selectedModels, apiKey, baseUrl, protocol: accessProtocol });
       await writeClipboard(buildInstallPrompt(artifact, language));
       notify(t('promptCopied', { platform: activePlatform.name }));
     } catch (error) {
@@ -1425,109 +1446,62 @@ function HomePage() {
     }
   };
 
+  const copyMediaMcpPrompt = async (targetPlatformId) => {
+    try {
+      await writeClipboard(buildMediaMcpInstallPrompt(targetPlatformId, language));
+      const target = mediaMcpPlatformOptions.find(({ id }) => id === targetPlatformId);
+      notify(t('mediaMcpPromptCopied', { platform: target?.name || targetPlatformId }));
+    } catch (error) {
+      notify(error.message || t('copyFailed'));
+    }
+  };
+
   const testConnection = async () => {
     if (!selectedModels.length) {
       notify(t('selectModelFirst'));
       return;
     }
     setTesting(true);
+    const testVersion = ++connectionTestVersion.current;
     setTestState('idle');
     setTestLatency(0);
     const startedAt = performance.now();
 
     try {
-      const apiKey = session.apiKey || await ensureApiKey();
+      const apiKey = await ensureApiKey();
+      if (testVersion !== connectionTestVersion.current) return;
       if (!apiKey) throw new Error(t('missingApiKey'));
-      const selectedModel = selectedModels[0];
-      // The public API subdomain is Railway DNS-only and duplicates CORS
-      // headers on POST responses. Test through the same-origin Worker alias.
-      const connectionBaseUrl = ['cheapbuddy.cc', 'www.cheapbuddy.cc'].includes(window.location.hostname)
-        ? `${window.location.origin}/v1`
-        : baseUrl;
-      const mediaRequest = selectedModel.modality === 'image'
-        ? {
-          method: 'GET',
-          url: `${connectionBaseUrl}/models`,
-          isValid: (body) => Array.isArray(body.data) && body.data.some((model) => model.id === selectedModel.id),
+      for (const model of selectedModels) {
+        const protocolRequest = buildConnectionTestRequest(platformId, {
+          baseUrl: connectionBaseUrl, model, protocol: accessProtocol,
+        });
+        const response = await fetch(protocolRequest.url, {
+          method: protocolRequest.method || 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+            ...(protocolRequest.headers || {}),
+          },
+          body: protocolRequest.body ? JSON.stringify(protocolRequest.body) : undefined,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (testVersion !== connectionTestVersion.current) return;
+        if (!response.ok) {
+          throw new Error(`${model.id}: ${body.error?.message || body.message || t('apiRequestFailed', { status: response.status })}`);
         }
-          : selectedModel.modality === 'video'
-            ? {
-            method: 'GET',
-            url: `${connectionBaseUrl}/models`,
-            isValid: (body) => Array.isArray(body.data) && body.data.some((model) => model.id === selectedModel.id),
-          }
-          : null;
-
-      const protocolRequest = mediaRequest || {
-        workbuddy: {
-          url: `${connectionBaseUrl}/chat/completions`,
-          body: {
-            model: selectedModel.id,
-            messages: [{ role: 'user', content: 'Reply with OK only.' }],
-            temperature: 0,
-            max_tokens: 8,
-            stream: false,
-          },
-          isValid: (body) => Array.isArray(body.choices) && body.choices.length > 0,
-        },
-        opencode: {
-          url: `${connectionBaseUrl}/chat/completions`,
-          body: {
-            model: selectedModel.id,
-            messages: [{ role: 'user', content: 'Reply with OK only.' }],
-            temperature: 0,
-            max_tokens: 8,
-            stream: false,
-          },
-          isValid: (body) => Array.isArray(body.choices) && body.choices.length > 0,
-        },
-        claude: {
-          url: `${connectionBaseUrl}/messages`,
-          headers: { 'anthropic-version': '2023-06-01' },
-          body: {
-            model: selectedModel.id,
-            max_tokens: 8,
-            messages: [{ role: 'user', content: 'Reply with OK only.' }],
-            stream: false,
-          },
-          isValid: (body) => Array.isArray(body.content) && body.content.length > 0,
-        },
-        codex: {
-          url: `${connectionBaseUrl}/responses`,
-          body: {
-            model: selectedModel.id,
-            input: 'Reply with OK only.',
-            max_output_tokens: 8,
-            stream: false,
-          },
-          isValid: (body) => Boolean(body.id) || (Array.isArray(body.output) && body.output.length > 0),
-        },
-      }[platformId] || null;
-      if (!protocolRequest) throw new Error(t('connectionTestFailed'));
-      const response = await fetch(protocolRequest.url, {
-        method: protocolRequest.method || 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          ...(protocolRequest.headers || {}),
-        },
-        body: protocolRequest.body ? JSON.stringify(protocolRequest.body) : undefined,
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(body.error?.message || body.message || t('apiRequestFailed', { status: response.status }));
-      }
-      if (!protocolRequest.isValid(body)) {
-        throw new Error(t('badModelResponse'));
+        if (!protocolRequest.isValid(body)) {
+          throw new Error(`${model.id}: ${t('badModelResponse')}`);
+        }
       }
 
       setTestLatency(Math.max(1, Math.round(performance.now() - startedAt)));
       setTestState('success');
     } catch (error) {
+      if (testVersion !== connectionTestVersion.current) return;
       setTestState('error');
       notify(error.message || t('connectionTestFailed'));
     } finally {
-      setTesting(false);
+      if (testVersion === connectionTestVersion.current) setTesting(false);
     }
   };
 
@@ -1602,7 +1576,15 @@ function HomePage() {
 
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
-        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}><div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div><div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p><div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div><div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div></article>)}</div>
+        <p className="model-protocol-note">{t('claudeProtocolSupport')}</p>
+        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}>
+          <div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div>
+          <div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p>
+          <div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><strong>{t('officialModelPrice')}</strong><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div>
+          {model.retailInput && <div className="model-prices model-retail-prices" title={model.retailPriceUnit}><strong>{t('retailModelPrice')}</strong><span>{t('input')} <b>{model.retailInput}</b> / M</span><span>{t('output')} <b>{model.retailOutput}</b> / M</span></div>}
+          {model.channelId === 'claude' && <div className="model-cache-prices"><span>{t('officialModelPrice')}: {model.priceUnit}</span>{model.retailPriceUnit && <span>{t('retailModelPrice')}: {model.retailPriceUnit}</span>}<a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗ · {model.priceCheckedAt}</a><span>{t('claudePricePolicy')}</span></div>}
+          <div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div>
+        </article>)}</div>
         <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote')}</span><span className="shelf-line" /></div>
       </section>
 
@@ -1632,7 +1614,7 @@ function HomePage() {
 
     {showAnnouncements && <AnnouncementsPanel announcements={announcements} loading={announcementLoading} error={announcementError} language={language} onClose={() => setShowAnnouncements(false)} onRefresh={loadAnnouncements} t={t} />}
 
-    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} session={session} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={openPaywall} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
+    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} protocol={accessProtocol} onProtocolChange={setOpenCodeProtocol} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} apiKey={activeApiKey} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={openPaywall} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyMcpPrompt={copyMediaMcpPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
     {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>{!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}</div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>{authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}<form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}
     {showAdminPicker && <AdminConsolePicker onClose={() => setShowAdminPicker(false)} t={t} />}
     {toast && <div className="toast"><span className="toast-icon">✓</span>{toast}</div>}

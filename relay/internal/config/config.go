@@ -32,6 +32,7 @@ type Config struct {
 	ReservationQuotaByModel  map[string]int64
 	MediaMultiplierByModel   map[string]float64
 	MediaBillingModeByModel  map[string]string
+	ModelAliases             map[string]string
 	QuotaPerUSD              float64
 	TextPaths                map[string]struct{}
 	MediaPaths               map[string]struct{}
@@ -90,6 +91,10 @@ func Load(getenv func(string) string) (Config, error) {
 	reservations := map[string]int64{}
 	multipliers := map[string]float64{}
 	billingModes := map[string]string{}
+	modelAliases, err := modelAliasMap(getenv("RELAY_MODEL_ALIASES"), getenv("RELAY_MODEL_ALIASES_FILE"))
+	if err != nil {
+		return Config{}, err
+	}
 	if mediaEnabled {
 		for _, name := range []string{"DATABASE_URL", "NEWAPI_INTERNAL_URL", "NEWAPI_ADMIN_TOKEN", "RELAY_TOKEN_ENCRYPTION_KEY"} {
 			if strings.TrimSpace(getenv(name)) == "" {
@@ -137,8 +142,9 @@ func Load(getenv func(string) string) (Config, error) {
 		ReservationQuotaByModel:  reservations,
 		MediaMultiplierByModel:   multipliers,
 		MediaBillingModeByModel:  billingModes,
+		ModelAliases:             modelAliases,
 		QuotaPerUSD:              floatValue(getenv("SUB2API_RELAY_QUOTA_PER_USD"), 500000),
-		TextPaths:                csvSetDefault(getenv("RELAY_TEXT_PATHS"), []string{"/v1/chat/completions", "/v1/responses", "/v1/messages"}),
+		TextPaths:                csvSetDefault(getenv("RELAY_TEXT_PATHS"), []string{"/v1/chat/completions", "/v1/responses", "/v1/messages", "/v1/messages/count_tokens"}),
 		MediaPaths:               csvSetDefault(getenv("RELAY_MEDIA_PATHS"), []string{"/v1/images/generations", "/v1/images/edits", "/v1/images/variations", "/v1/images/tasks", "/v1/video/generations", "/v1/videos", "/v1/audio/speech", "/v1/audio/transcriptions", "/v1/audio/translations", "/suno/submit/music", "/suno/submit/lyrics", "/suno/fetch"}),
 		AllowedCORSOrigins:       csvSet(getenv("RELAY_CORS_ORIGINS")),
 		IdentityTTL:              duration(getenv("RELAY_IDENTITY_CACHE_TTL"), DefaultIdentityTTL),
@@ -160,6 +166,36 @@ func Load(getenv func(string) string) (Config, error) {
 		NewAPILogPath:            "/api/log/",
 	}
 	return c, nil
+}
+
+func modelAliasMap(value, filePath string) (map[string]string, error) {
+	var raw []byte
+	if strings.TrimSpace(value) != "" {
+		raw = []byte(value)
+	} else if strings.TrimSpace(filePath) != "" {
+		var err error
+		raw, err = os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("read RELAY_MODEL_ALIASES_FILE %q: %w", filePath, err)
+		}
+	} else {
+		return map[string]string{}, nil
+	}
+
+	aliases := map[string]string{}
+	if err := json.Unmarshal(raw, &aliases); err != nil || aliases == nil {
+		return nil, fmt.Errorf("model aliases must be a JSON object")
+	}
+	validated := make(map[string]string, len(aliases))
+	for alias, target := range aliases {
+		alias = strings.TrimSpace(alias)
+		target = strings.TrimSpace(target)
+		if alias == "" || target == "" {
+			return nil, fmt.Errorf("model aliases contain an empty alias or target")
+		}
+		validated[alias] = target
+	}
+	return validated, nil
 }
 
 func visibleMediaModels(value string, verified map[string]struct{}) (map[string]struct{}, error) {

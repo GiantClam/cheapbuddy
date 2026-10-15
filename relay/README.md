@@ -20,6 +20,8 @@ All values below are Railway secrets/configuration, never frontend variables:
 | `NEWAPI_ADMIN_TOKEN` | Server-only NewAPI admin credential. |
 | `RELAY_TOKEN_ENCRYPTION_KEY` | Encrypts stored NewAPI shadow tokens. |
 | `RELAY_INTERNAL_ADMIN_TOKEN` | Restricts internal targeted cache purge. |
+| `RELAY_MODEL_ALIASES_FILE` | JSON file mapping public/catalog model IDs to downstream routing IDs. The target can be an internal Sub2API ID rather than a provider-native ID. The production image includes `config/model-aliases.json` at `/etc/cheapbuddy/config/model-aliases.json`. |
+| `RELAY_MODEL_ALIASES` | Optional JSON object override for the aliases file. When set, it takes precedence over `RELAY_MODEL_ALIASES_FILE`; set to `{}` to disable all aliases. |
 | `RELAY_PUBLIC_URL` | Optional public origin used for short-lived media URLs; when omitted, Relay derives the origin from the request and trusted proxy headers. |
 | `RELAY_VERIFIED_MODELS` | Comma-separated media models allowed by Relay. |
 | `RELAY_VISIBLE_MEDIA_MODELS` | Optional subset of verified media models shown by `/v1/models`; omitted means all verified models are shown. Hidden verified models remain callable by ID. |

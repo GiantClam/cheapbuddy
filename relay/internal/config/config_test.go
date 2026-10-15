@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -60,6 +61,61 @@ func TestLoadReadsPublicURL(t *testing.T) {
 	}
 	if config.PublicURL != "https://api.cheapbuddy.cc" {
 		t.Fatalf("public URL = %q", config.PublicURL)
+	}
+}
+
+func TestLoadReadsModelAliasesFromFile(t *testing.T) {
+	file := t.TempDir() + "/model-aliases.json"
+	if err := os.WriteFile(file, []byte(`{"deepseek/deepseek-v4.1-flash":"deepseek-flash"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(testEnv(map[string]string{"RELAY_MODEL_ALIASES_FILE": file}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.ModelAliases["deepseek/deepseek-v4.1-flash"]; got != "deepseek-flash" {
+		t.Fatalf("canonical DeepSeek alias = %q", got)
+	}
+	if got := cfg.ModelAliases["deepseek-flash"]; got != "" {
+		t.Fatalf("official DeepSeek ID should remain unchanged, got alias %q", got)
+	}
+}
+
+func TestLoadEnvironmentAliasesOverrideFile(t *testing.T) {
+	file := t.TempDir() + "/model-aliases.json"
+	if err := os.WriteFile(file, []byte(`{"from-file":"provider-file"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(testEnv(map[string]string{
+		"RELAY_MODEL_ALIASES_FILE": file,
+		"RELAY_MODEL_ALIASES":      `{"custom-deepseek":"deepseek-flash"}`,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ModelAliases["custom-deepseek"] != "deepseek-flash" {
+		t.Fatalf("custom alias not found: %#v", cfg.ModelAliases)
+	}
+	if cfg.ModelAliases["from-file"] != "" {
+		t.Fatalf("file aliases should be replaced by environment aliases: %#v", cfg.ModelAliases)
+	}
+
+	// Empty object disables all aliases
+	cfg, err = Load(testEnv(map[string]string{
+		"RELAY_MODEL_ALIASES": `{}`,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.ModelAliases) != 0 {
+		t.Fatalf("empty config should disable all aliases, got %#v", cfg.ModelAliases)
+	}
+
+	// Validation errors
+	for _, value := range []string{"not-json", `{"":"deepseek-flash"}`, `{"custom":""}`} {
+		if _, err := Load(testEnv(map[string]string{"RELAY_MODEL_ALIASES": value})); err == nil || !strings.Contains(err.Error(), "model aliases") {
+			t.Fatalf("expected alias validation error for %q, got %v", value, err)
+		}
 	}
 }
 

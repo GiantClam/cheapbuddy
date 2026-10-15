@@ -2,6 +2,8 @@
 
 日期：2026-10-04。本文对应用户提供的《cheapbuddy.cc 整改方案：复用现有接口接入 Coworkany》版本 2。
 
+> 2026-10-14 接入更新：下文分组配置与验收数据保留为历史记录，不作为 Claude 接入前置条件。支持 Claude 的 Sub2API 分组沿用同一个 CheapBuddy Base URL / API Key / USD 钱包，可在 Anthropic 与 OpenAI-compatible 两种协议中任选；实际模型权限、分组计费、额度、到期、封禁和余额检查仍由 Sub2API 配置决定。原生目录沿用 Sub2API 响应，既有聚合目录保持原合同。当前协议边界见 [Claude 稳定通道接入指南](./claude-stable-channel.md)。
+
 本次沿用既有公共接口：账号、会话、Key、会员及商品由 Sub2API 提供；Relay 承载模型目录、文本和媒体请求。Coworkany 适配、默认 Key 分组和充值目录修复已经发布到生产。本文把已验证的线上行为与尚未满足的验收项分开记录；测试凭据、JWT、API Key 和 Railway secrets 不进入仓库。
 
 ## 1. 固定配置与验证状态
@@ -14,7 +16,7 @@
 | 官网购买入口 | `https://cheapbuddy.cc/#account` | 方案候选；购买导航、付款及到账尚未验收 |
 | 推荐文本模型 | `gpt-6-sol` | 方案候选；必须存在于该用户实际 `/v1/models` 目录才可选用 |
 
-账号 JWT 与模型 API Key 是两类凭据。Coworkany Host 使用 JWT 调账号接口，使用同一用户模型 Key 调 Relay。系统浏览器打开购买页面后按官网正常登录；URL 中不得携带 JWT、refresh token 或 API Key。
+账号 JWT 与模型 API Key 是两类凭据。Coworkany Host 使用 JWT 调账号接口，使用同一用户匹配模型分组的 CheapBuddy Key 调 Relay；选择 Claude 时使用 Claude 分组 Key，OpenAI/媒体使用对应分组 Key，再按客户端支持选择 Chat Completions、Responses 或原生 Messages。系统浏览器打开购买页面后按官网正常登录；URL 中不得携带 JWT、refresh token 或 API Key。
 
 生产脱敏证据位于 `output/coworkany-existing-api-20261004/phase-one.json`、`gap-check.json`、`existing-key-phase-one.json`。公开设置、登录、`/auth/me`、Key 列表、有效会员、checkout-info、plans 均返回 200；名称为 `Coworkany/relay-check-20261004` 的 Key 创建成功但 `group_id=null`，其直连 Sub2API 模型目录返回 403，Relay 返回 502。改用当前账号已获准的 OpenAI 分组 Key 后，Relay 目录返回 200：9 个文本、1 个图片、1 个视频模型，没有未分类项。
 
@@ -107,7 +109,7 @@ Relay 的模型接口使用 OpenAI 兼容响应，不使用此账号包裹格式
 
 现有最小请求是 `{"name":"Coworkany/<device_id>"}`。可选 `group_id`、`custom_key`、`ip_whitelist`、`ip_blacklist`、`quota`、`expires_in_days`、`rate_limit_5h`、`rate_limit_1d`、`rate_limit_7d`。数值限制必须有限且非负，过期天数提供时必须大于零。
 
-生产已复现 C2 缺口：只传设备名称可创建未绑定分组的 Key，但该 Key 模型目录直连返回 403。现有官网前端显式传 `VITE_CHEAPBUDDY_GROUP_ID`，缺省 1，不能替代后端默认规则。
+生产已复现 C2 缺口：只传设备名称可创建未绑定分组的 Key，但该 Key 模型目录直连返回 403。官网前端通过 `VITE_CHEAPBUDDY_GROUP_ID` 选择 OpenAI 分组（当前默认为 2），并通过 `VITE_CLAUDE_GROUP_ID` 选择 Claude 分组（当前默认为 3）；前端配置不能替代后端的分组授权与计费规则。
 
 本地修复仅对名称以 `Coworkany/` 开头且省略 `group_id` 的创建请求启用默认绑定：读取 `COWORKANY_DEFAULT_GROUP_ID`（配置路径 `coworkany.default_group_id`），缺省 0，不自动猜测分组。配置必须指向活跃组，并通过当前用户原有权限校验：标准公开组、获授权专属组或当前有效订阅组。显式指定分组与其他既有客户端保持原行为。
 
@@ -178,7 +180,7 @@ alipay_force_qrcode, alipay_mobile_precreate_deep_link
 
 | 既有接口 | 用途 |
 | --- | --- |
-| `GET /v1/models` | 当前 Key 的混合模型目录，OpenAI `object=list`、`data=[]` 格式 |
+| `GET /v1/models` | 当前 Key 所属通道的授权模型目录，OpenAI `object=list`、`data=[]` 格式 |
 | `GET /v1/models/{id}` | 已配置模型详情；隐藏的已验证媒体模型可能仅详情可见 |
 | `POST /v1/chat/completions`、`POST /v1/responses` | 既有文本接口；部分已配置媒体模型也可走兼容路径 |
 | `POST /v1/images/generations`、`POST /v1/images/edits` | 已配置图片模型及参数协议 |
@@ -250,6 +252,14 @@ Hypit 联调期间发现并修正了 provider 的 MiniMax-H3 参数映射：Hypi
 随后使用用户新提供的配置完成真实 Hypit 复测。该配置中的同一用户 Key 未绑定模型分组；核对所有权及已有授权后，仅将该 Key 绑定到账号已经可用的分组 2，Key 内容、其他字段及余额均未改变。修复后模型目录、MiniMax-H3 详情、定价和媒体用量均为 200。新 Key 已写入独立的 Windows Credential Locker 槽位，由 `hypit.runtime.supplied.json` 引用并被该 Hypit 项目选中，旧测试凭据保留。
 
 这次生产 Build `bld_20261004T173330876Z_9D53E939A5` 使用未修改的 npm Provider，提交 4 秒、16:9、768P MiniMax-H3 视频，但 `/v1/videos` 返回 HTTP 500，Relay request ID 为 `0a64e0649e69f30402c7c5841492f216`；Build 为 `failed`，没有结果可导出，Worker 已停止且未重试。本次预扣 2 美元后可用余额为 20.29108473 美元、冻结 23.8 美元；它不是余额不足导致的 402。NewAPI 同期上游日志仍有 `credential store is unavailable`，但精确关联尚未确认，不能据此直接释放未知任务预扣。生产 Hypit 视频生成、轮询和导出仍未验收通过。复测证据为 `supplied-key-group-repair-evidence.json`、`supplied-config-evidence.json` 及 `supplied-build-evidence.json`，位于上述忽略的测试项目目录，不包含真实 Key。
+
+2026-10-06 11:21–11:26（北京时间）按用户要求继续线上验收，仅新增一次最小生产构建。npm latest 仍为 `@cheapbuddy/provider@0.1.2` 和 `@hypit/hypit@0.2.17`，本地 lockfile integrity 与 npm 返回值一致。独立 Runtime `hypit.runtime.acceptance-20261006.json` 使用已有系统凭据库槽位，不修改发布包或生产服务代码。Doctor、Author/Run check、plan 均通过。
+
+新 Build `bld_20261006T032153044Z_4E588E8885` 提交 MiniMax-H3 的 4 秒、16:9、768P 请求返回 200。任务 `task_xMPWQdEkhXq2xOWLW4LBNiP1VzBqOHGV` 经过 queued、in_progress、completed，content 下载返回 200 `video/mp4`，Hypit 最终为 `complete`、一个输出，`get` 导出成功。MP4 为 890084 字节、H.264/AAC，实测 1344×768、4.458333 秒；请求参数与上游实际媒体尺寸/时长分别记录，不声称输出严格等于名义四秒或精确 16:9。完整解码无错误。官方 provider 未改动，本地观察器只记录白名单状态和关联 ID，不记录认证头、密钥或带 query 的地址。
+
+新请求 Relay ID `596f1b3107a604e9b25c09f16e88d5ea`、NewAPI ID `202610060321566144776448268d9d6HOi2Nrgq` 与 NewAPI 任务 38（SUCCESS / 100%）、账单 115 精确关联。原生 quota 为 120000；`ceil(120000 × 1.6666667) / 500000 = 0.400002` 美元，与可用余额从 20.29108473 降至 19.89108273 的差值完全相符。新增 2 美元预扣已结算，冻结恢复到提交前 23.8 美元；历史未知任务冻结未释放。本次已通过基础文本生成视频的提交、轮询、下载、导出和请求关联计费验收；未重新验收参考素材组合或其他产品全部功能，也未证明旧异常任务已恢复。
+
+本次独立 Runtime 已选为测试项目默认配置，Worker 已停止、活动 Build 为零；没有额外充值或生产部署。脱敏证据 `acceptance-evidence-20261006.json`、`acceptance-summary-20261006.json`、`read-only-task-final-20261006.json` 及视频 `exports-acceptance-20261006/shot.mp4` 保存在上述忽略的测试项目目录，原失败证据保留。
 
 生产已配置 `COWORKANY_DEFAULT_GROUP_ID=2` 并写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；金额由服务端报价返回，不是固定汇率自动换算承诺。
 

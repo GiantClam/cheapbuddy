@@ -58,6 +58,20 @@ export const pricingPlans = [
 
 export const defaultPricingPlan = pricingPlans.find((plan) => plan.featured) || pricingPlans[0];
 
+export function getModelRetailPricing(model) {
+  if (model.pricingScope === 'sub2api-group') return null;
+  if (model.modality !== 'text' || model.priceStatus !== 'verified' ||
+      !Number.isFinite(model.priceMultiplier) || model.priceMultiplier <= 0) return null;
+  const scale = (value) => typeof value === 'string'
+    ? value.replace(/([$¥])\s*(\d+(?:\.\d+)?)/g, (_match, currency, amount) => {
+      const rounded = Math.round((Number(amount) * model.priceMultiplier + Number.EPSILON) * 10000) / 10000;
+      const [integer, fraction] = rounded.toFixed(4).split('.');
+      return `${currency}${integer}.${fraction.replace(/0+$/, '').padEnd(2, '0')}`;
+    })
+    : value;
+  return { input: scale(model.input), output: scale(model.output), priceUnit: scale(model.priceUnit) };
+}
+
 export function getCheckoutRechargePlans(checkout, language) {
   if (!checkout || checkout.balance_disabled || !Array.isArray(checkout.recharge_tiers)) return [];
   const currency = language === 'en' ? 'USD' : 'CNY';

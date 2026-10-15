@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getInitialLanguage, setStoredLanguage } from './i18n.js';
+import { getInitialLanguage, setStoredLanguage, translate } from './i18n.js';
 
 function installBrowserFixture(t, { storedLanguage = 'zh', hasLocale = true } = {}) {
   let stored = storedLanguage;
@@ -53,4 +53,21 @@ test('language selection remains usable on a page without Open Graph metadata', 
   const { document } = installBrowserFixture(t, { hasLocale: false });
   assert.doesNotThrow(() => setStoredLanguage('en'));
   assert.equal(document.documentElement.lang, 'en');
+});
+
+test('model and generator copy explains shared credentials and alternative protocols in both languages', () => {
+  for (const language of ['zh', 'en']) {
+    for (const key of ['sharedModelAccess', 'claudeProtocolSupport', 'chooseAccessProtocol', 'protocol_anthropic', 'protocol_openai-compatible', 'officialModelPrice', 'retailModelPrice', 'claudePricePolicy', 'modelAccessRestrictions', 'modelGroupSelectionRequired', 'openCodeCompatibilityNote']) {
+      assert.notEqual(translate(language, key), key);
+    }
+    assert.match(translate(language, 'claudePricePolicy'), /分组|group/i);
+    assert.match(translate(language, 'claudeProtocolSupport'), /Anthropic.*OpenAI-compatible/);
+    const sharedAccess = translate(language, 'sharedModelAccess');
+    assert.match(sharedAccess, /Claude/);
+    assert.match(sharedAccess, /OpenAI/);
+    assert.match(sharedAccess, /同一把|one CheapBuddy API key/);
+    assert.doesNotMatch(sharedAccess, /分别|separate|Claude-group/);
+    assert.doesNotMatch(translate(language, 'claudeModelInstruction', { model: 'claude-sonnet-5-5' }), /\{fastModel\}/);
+    assert.match(translate(language, 'openCodeCompatibilityNote'), /provider.*npm.*options/);
+  }
 });

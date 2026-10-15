@@ -44,6 +44,69 @@ func TestHiddenVerifiedMediaRemainsRoutable(t *testing.T) {
 	}
 }
 
+func TestReadRouteBodyMapsDeepSeekPublicSlugToOfficialProviderID(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek/deepseek-v4.1-flash","messages":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	server := &Server{Config: config.Config{
+		TextPaths:    map[string]struct{}{"/v1/chat/completions": {}},
+		ModelAliases: map[string]string{"deepseek/deepseek-v4.1-flash": "deepseek-flash"},
+		MaxBodyBytes: 1 << 20,
+	}}
+	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.body.Close()
+	body, err := io.ReadAll(prepared.body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["model"] != "deepseek-flash" {
+		t.Fatalf("upstream model = %#v", payload["model"])
+	}
+	if prepared.model != "deepseek/deepseek-v4.1-flash" {
+		t.Fatalf("route model identity = %q", prepared.model)
+	}
+}
+
+func TestReadRouteBodyLeavesOfficialModelIDUnchanged(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-flash"}`))
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+	server := &Server{Config: config.Config{
+		TextPaths:    map[string]struct{}{"/v1/chat/completions": {}},
+		ModelAliases: map[string]string{"deepseek/deepseek-v4.1-flash": "deepseek-flash"},
+		MaxBodyBytes: 1 << 20,
+	}}
+	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.body.Close()
+	body, err := io.ReadAll(prepared.body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != `{"model":"deepseek-flash"}` {
+		t.Fatalf("official model body changed: %s", body)
+	}
+}
+
+func TestAppendModelAliasesPublishesPublicAndOfficialIDs(t *testing.T) {
+	rows := []any{map[string]any{"id": "deepseek/deepseek-v4.1-flash", "type": "text"}}
+	seen := map[string]bool{"deepseek/deepseek-v4.1-flash": true}
+	rows = appendModelAliases(rows, seen, map[string]string{"deepseek/deepseek-v4.1-flash": "deepseek-flash"})
+	if len(rows) != 2 || !seen["deepseek-flash"] {
+		t.Fatalf("model aliases = %#v, seen = %#v", rows, seen)
+	}
+	if rows[1].(map[string]any)["id"] != "deepseek-flash" {
+		t.Fatalf("official alias row = %#v", rows[1])
+	}
+}
+
 func TestHiddenVerifiedMediaHasExplicitDetailButStaysOutOfList(t *testing.T) {
 	cfg := testConfig()
 	cfg.VerifiedMediaModels["grok-imagine-image-2.0"] = struct{}{}

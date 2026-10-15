@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { localizeModels, modelCatalog } from './models.js';
+import { CLAUDE_API_KEY_GROUP_ID, getModelApiKeyGroupId } from './key-groups.js';
 
 test('model catalog contains unique ids and generator metadata', () => {
   const ids = modelCatalog.map((model) => model.id);
 
   assert.equal(new Set(ids).size, ids.length);
+  assert.ok(modelCatalog.every((model) => !Object.prototype.hasOwnProperty.call(model, 'providerModelId')));
   assert.ok(ids.includes('grok-4.7'));
   assert.ok(ids.includes('gpt-6-astra'));
   assert.ok(ids.includes('gpt-6-sol'));
@@ -64,6 +66,12 @@ test('model catalog contains published text and media models', () => {
     'qwen3.8-max',
     'gpt-image-2.5',
     'MiniMax-H3',
+    'claude-fable-5',
+    'claude-fable-5-1',
+    'claude-opus-5',
+    'claude-opus-5-5',
+    'claude-sonnet-5',
+    'claude-sonnet-5-5',
   ]));
 });
 
@@ -133,6 +141,7 @@ test('converts verified USD prices to CNY in Chinese without mutating the catalo
 test('converts CNY prices and small price ranges to USD in English', () => {
   const qwen = modelCatalog.find((model) => model.id === 'qwen3.8-max');
   const deepseek = modelCatalog.find((model) => model.id === 'deepseek/deepseek-v4.1-flash');
+  assert.equal(deepseek.providerModelId, undefined);
   const [qwenEn, deepseekEn] = localizeModels([qwen, deepseek], 'en');
 
   assert.equal(qwenEn.input, '$1.8462');
@@ -168,4 +177,68 @@ test('localizes native currency and time units for media pricing', () => {
   assert.match(videoZh.priceUnit, /2K 官网价 ¥0.845\/秒/);
   assert.equal(videoEn.input, '$0.08 / sec');
   assert.match(videoEn.priceUnit, /2K is \$0.13\/sec/);
+});
+
+test('publishes exactly the six production Claude stable models with official cache rates', () => {
+  const expected = {
+    'claude-fable-5': [10, 50, 12.5, 20, 1],
+    'claude-fable-5-1': [10, 50, 12.5, 20, 0.25],
+    'claude-opus-5': [5, 25, 6.25, 10, 0.5],
+    'claude-opus-5-5': [4, 20, 5, 8, 0.2],
+    'claude-sonnet-5': [2, 10, 2.5, 4, 0.2],
+    'claude-sonnet-5-5': [2, 10, 2.5, 4, 0.1],
+  };
+  const claudeModels = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
+  assert.deepEqual(claudeModels.map(({ id }) => id), Object.keys(expected));
+  for (const model of claudeModels) {
+    const rates = model.officialPricing;
+    assert.deepEqual([rates.input, rates.output, rates.cacheWrite5m, rates.cacheWrite1h, rates.cacheRead], expected[model.id]);
+    assert.equal(model.pricingScope, 'sub2api-group');
+    assert.equal(model.priceStatus, 'verified');
+    assert.equal(model.priceCheckedAt, '2026-10-13');
+    assert.equal(model.priceSourceUrl, 'https://platform.claude.com/docs/en/about-claude/pricing');
+    assert.equal(model.channelId, 'claude');
+    assert.equal(model.modality, 'text');
+    assert.equal(model.endpointPath, '/messages');
+    assert.equal(model.vendor.en, 'Anthropic');
+  }
+});
+
+test('Claude models advertise two alternative protocols and resolve to the Claude key group', () => {
+  const claude = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
+  assert.equal(claude.length, 6);
+  for (const model of claude) {
+    assert.deepEqual(model.protocols, ['anthropic', 'openai-compatible']);
+    assert.equal(model.apiKeyGroupId, undefined);
+    assert.equal(getModelApiKeyGroupId(model), CLAUDE_API_KEY_GROUP_ID);
+  }
+  const openai = modelCatalog.find(({ id }) => id === 'gpt-6-sol');
+  assert.equal(openai.priceMultiplier, 0.72);
+});
+
+test('Claude cache prices remain official reference values without a global retail overlay', () => {
+  const sonnet = modelCatalog.find(({ id }) => id === 'claude-sonnet-5-5');
+  assert.ok(sonnet);
+  const [zh, en] = [localizeModels([sonnet], 'zh')[0], localizeModels([sonnet], 'en')[0]];
+  assert.equal(en.input, '$2.00');
+  assert.equal(en.retailInput, undefined);
+  assert.equal(en.retailOutput, undefined);
+  assert.match(en.priceUnit, /5m.*\$2.50.*1h.*\$4.00.*read.*\$0.10/);
+  assert.equal(en.retailPriceUnit, undefined);
+  assert.equal(zh.retailInput, undefined);
+  assert.equal(zh.retailPriceUnit, undefined);
+  assert.equal(sonnet.officialPricing.cacheRead, 0.1);
+});
+
+test('Claude catalog does not publish a global customer multiplier', () => {
+  for (const model of modelCatalog.filter(({ id }) => id.startsWith('claude-'))) {
+    const localized = localizeModels([model], 'en')[0];
+    const numbers = (text) => [...text.matchAll(/\$(\d+(?:\.\d+)?)/g)].map((match) => Number(match[1]));
+    const rates = Object.values(model.officialPricing);
+    assert.deepEqual(numbers(`${localized.input} ${localized.output} ${localized.priceUnit}`), rates);
+    assert.equal(localized.retailInput, undefined);
+    assert.equal(localized.retailOutput, undefined);
+    assert.equal(model.priceMultiplier, undefined);
+    assert.equal(model.pricingScope, 'sub2api-group');
+  }
 });
