@@ -49,8 +49,19 @@ boundary.
 - Claude Code live smoke: passed with the locally configured `tokfan/claude-opus-5-5`; it invoked `cheapbuddy_list_media_models` and returned `grok-imagine-image-2.0` and `MiniMax-H3`. Claude model credentials and `CHEAPBUDDY_API_KEY` were injected separately.
 - Image paid probe: passed; one JPEG artifact fetched from Relay, same-day media usage USD 0.000076.
 - H3 paid probe: passed; one 6-second 768P 16:9 MP4 artifact fetched from Relay, same-day media usage USD 0.092400.
-- npm publication: passed on 2026-10-15; official Registry reports `@cheapbuddy/media-mcp@0.1.1` as the `latest` dist-tag. Verified `npx @cheapbuddy/media-mcp@0.1.1 --help`, `--version`, `initialize`, and `tools/list` (six tools).
+- npm publication: `0.1.2` was the official Registry `latest` on 2026-10-16. Version `0.1.3` updates the MCP handshake to read its version from package metadata before publication.
 
-All client, paid-task, and npm publication gates are complete. `package.json`
-pins publication to `https://registry.npmjs.org/` so a local mirror does not
-receive the package.
+All client and paid-task gates are complete. `package.json` pins publication to
+`https://registry.npmjs.org/` so a local mirror does not receive the package.
+
+## Verification record: 2026-10-16
+
+- Published npm smoke: passed; `npx` resolved the current `@cheapbuddy/media-mcp` release from the official registry.
+- MCP stdio smoke: passed; `initialize` returned protocol `2025-06-18`, stdout contained only JSON-RPC, and `tools/list` returned exactly six tools.
+- Missing-key guard: passed; an unset `CHEAPBUDDY_API_KEY` exits with code 1 and a `configuration_error` on stderr without writing stdout.
+- Paid media generation was intentionally not repeated.
+
+## Verification record: 2026-10-17
+
+- Version source: passed; `serverInfo.version` is read from `package.json` and covered by the MCP protocol test.
+- Release target: `0.1.3`; publish only after the package tests, lint, pack, and registry dry checks pass.

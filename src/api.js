@@ -119,17 +119,25 @@ export function loginUser(email, password, turnstileToken = '') {
   });
 }
 
+export function sendVerificationCode(email, turnstileToken = '') {
+  return request('/auth/send-verify-code', {
+    method: 'POST',
+    body: JSON.stringify({ email, turnstile_token: turnstileToken || undefined }),
+  });
+}
+
 export function verifyAdminAccess() {
   return request('/admin/users?page=1&page_size=1');
 }
 
-export function registerUser(email, password, turnstileToken = '', affiliateCode = '') {
+export function registerUser(email, password, turnstileToken = '', affiliateCode = '', verificationCode = '') {
   const affCode = normalizeAffiliateCode(affiliateCode);
   return request('/auth/register', {
     method: 'POST',
     body: JSON.stringify({
       email,
       password,
+      verify_code: String(verificationCode || '').trim() || undefined,
       turnstile_token: turnstileToken || undefined,
       aff_code: affCode || undefined,
     }),
@@ -316,7 +324,7 @@ async function verifyApiKeyModels(apiKey, baseUrl, models) {
   }
 }
 
-export async function getOrCreateSharedApiKey({ baseUrl, models = [], apiKey } = {}) {
+export async function getOrCreateSharedApiKey({ baseUrl, models = [], apiKey, validateModels = true } = {}) {
   let key = String(apiKey || '').trim();
   if (!key) {
     const authToken = getAuthToken();
@@ -329,7 +337,7 @@ export async function getOrCreateSharedApiKey({ baseUrl, models = [], apiKey } =
     }
     key = await pending;
   }
-  await verifyApiKeyModels(key, baseUrl, models);
+  if (validateModels !== false) await verifyApiKeyModels(key, baseUrl, models);
   return key;
 }
 

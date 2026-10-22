@@ -28,8 +28,13 @@ $env:SUB2API_ADMIN_API_KEY = "<admin-api-key>"
 脚本不会修改线上账户。检测到差异时，在管理后台完成以下设置：
 
 - `ecophase-ai.com`：Priority 1、Active、Schedulable
-- `deepseek-flash` → `deepseek-v4.1-flash`
 - `deepseek/deepseek-v4.1-flash` → `deepseek-v4.1-flash`
+- `deepseek-v4.1-flash` → `deepseek-v4.1-flash`
+
+不要为 `ecophase-ai.com` 配置以下两个 ID：
+
+- `deepseek-flash`
+- `deepseek-v4.1-flash-1017`
 
 并确认 `CheapBuddy OpenAI` 组白名单勾选公开 ID 和内部路由 ID。
 
@@ -53,7 +58,7 @@ $env:CHEAPBUDDY_API_KEY = "<user-api-key>"
 
 成功响应只证明入口和上游可用。最终验收还要确认：
 
-- Account 为 `ecophase-ai.com`
+- Account 为支持实际请求模型 ID 的可调度账户；当前内部路由请求预期为 `pptoken-deepseek`
 - Requested Model 为公开 ID
 - Final Upstream Model 为 `deepseek-v4.1-flash`
 - 有实际 Cost

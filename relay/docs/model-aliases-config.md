@@ -32,6 +32,7 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 {
   "deepseek/deepseek-v4.1-flash": "deepseek-flash",
   "deepseek-v4.1-flash": "deepseek-flash",
+  "deepseek-v4.1-flash-1017": "deepseek-flash",
   "deepseek-v4.1-flash-0910": "deepseek-flash",
   "deepseek-v4.1-flash-expires-on-0910": "deepseek-flash",
   "deepseek/deepseek-v4-flash": "deepseek-flash",
@@ -61,6 +62,14 @@ deepseek-v4.1-flash
 
 `deepseek-flash` 是内部路由 ID，不是 DeepSeek 官方上游 ID。
 
+`deepseek-v4.1-flash-1017` 当前作为兼容公开别名放行，并映射到同一个
+`deepseek-flash` 内部路由 ID。该别名本身不证明上游账户已经切换到
+DeepSeek V4.1-Flash-1017；上游版本仍由 Sub2API 账户的模型映射决定。
+
+当前生产账户 `ecophase-ai.com` 不支持 `deepseek-flash` 或
+`deepseek-v4.1-flash-1017`，因此该账户不配置这两个 ID 的映射。Relay 别名命中
+后由调度器选择实际支持该 ID 的账户；Relay 能返回别名不等于每个上游账户都支持它。
+
 ## 与 Sub2API 的配合
 
 ### 组白名单
@@ -84,8 +93,8 @@ deepseek-flash → deepseek-v4.1-flash
 deepseek/deepseek-v4.1-flash → deepseek-v4.1-flash
 ```
 
-如果账户只声明 `deepseek-v4.1-flash`，但没有内部路由映射，Sub2API 的精确模型
-筛选可能跳过该账户，即使它的 Priority 更高。
+账户映射必须按上游实际能力配置。不要为了匹配 Relay 内部 ID，向不支持该 ID 的账户
+添加 `deepseek-flash` 或 `deepseek-v4.1-flash-1017` 映射。
 
 ## 行为边界
 

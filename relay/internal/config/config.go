@@ -33,6 +33,7 @@ type Config struct {
 	MediaMultiplierByModel   map[string]float64
 	MediaBillingModeByModel  map[string]string
 	ModelAliases             map[string]string
+	CatalogModelAllowlist    map[string]struct{}
 	QuotaPerUSD              float64
 	TextPaths                map[string]struct{}
 	MediaPaths               map[string]struct{}
@@ -143,6 +144,7 @@ func Load(getenv func(string) string) (Config, error) {
 		MediaMultiplierByModel:   multipliers,
 		MediaBillingModeByModel:  billingModes,
 		ModelAliases:             modelAliases,
+		CatalogModelAllowlist:    csvSet(getenv("RELAY_MODEL_CATALOG_ALLOWLIST")),
 		QuotaPerUSD:              floatValue(getenv("SUB2API_RELAY_QUOTA_PER_USD"), 500000),
 		TextPaths:                csvSetDefault(getenv("RELAY_TEXT_PATHS"), []string{"/v1/chat/completions", "/v1/responses", "/v1/messages", "/v1/messages/count_tokens"}),
 		MediaPaths:               csvSetDefault(getenv("RELAY_MEDIA_PATHS"), []string{"/v1/images/generations", "/v1/images/edits", "/v1/images/variations", "/v1/images/tasks", "/v1/video/generations", "/v1/videos", "/v1/audio/speech", "/v1/audio/transcriptions", "/v1/audio/translations", "/suno/submit/music", "/suno/submit/lyrics", "/suno/fetch"}),

@@ -1,5 +1,5 @@
-import { canonicalize, credentialRef, defineEndpointPackage, wakeAfter } from '@hypit/hypit/endpoint-kit';
-import { compileWireRequest, generationTypes, mappingSupportsRequest, sealGeneratedAudioSet, sealGeneratedImageSet, sealGeneratedVideoSet, selectWireModelForRequest } from '@hypit/hypit/generation';
+import { canonicalize, credentialRef, defineEndpoint, wakeAfter } from '@hypit/hypit/endpoint';
+import { compileWireRequest, generationTypes, mappingSupportsRequest, sealGeneratedAudioSet, sealGeneratedImageSet, sealGeneratedVideoSet, selectWireModelForRequest } from '@hypit/generation';
 import { capabilityRoutes, dataUrl, mappingFor, routeFor } from './mapping.mjs';
 import { pricingRequestPath, pricingSummary } from './pricing.mjs';
 import { assertWhisperXEvidenceWav, interpretWhisperXTranscript, sealAlignedTranscriptEvidence, speechEvidenceTypes, verifyWhisperXAlignmentRequest, whisperXCapabilities } from './whisperx.mjs';
@@ -225,7 +225,7 @@ export function createCheapBuddyProvider(options) {
         if (response.kind === 'bytes') payload = { data: [{ b64_json: Buffer.from(response.value).toString('base64'), media_type: response.mediaType }] };
         else payload = response.value;
       }
-      return { status: 'completed', result: { value: await sealAssets(payload, route, context.resources) } };
+      return { status: 'completed', result: { value: { kind: 'inline', value: await sealAssets(payload, route, context.resources) } } };
     },
   };
 
@@ -265,9 +265,7 @@ export function createCheapBuddyProvider(options) {
     return { value: { kind: 'inline', value: canonicalize(evidence) } };
   };
 
-  return defineEndpointPackage({
-    module: providerModule,
-    facet: 'gateway',
+  return defineEndpoint({
     instance: options.instance ?? 'cheapbuddy.media',
     pool: options.pool ?? 'cheapbuddy-media',
     credentials: { apiKey: options.apiKey ?? credentialRef('platform', 'cheapbuddy.api') },

@@ -5,19 +5,19 @@
 ## OpenCode
 
 ```text
-请在当前机器安装 CheapBuddy Media MCP，并直接执行文件操作：先备份用户级 ~/.config/opencode/opencode.json（Windows 为 %USERPROFILE%\\.config\\opencode\\opencode.json），再合并一个名为 cheapbuddy-media 的本地 MCP Server，保留其他配置。使用 npx --yes --registry=https://registry.npmjs.org @cheapbuddy/media-mcp@0.1.1，环境变量使用 {env:CHEAPBUDDY_API_KEY}，不要把 API Key 写入文件。如果当前 OpenCode 版本使用 mcp.servers 结构，使用同一条 server 配置转换到该结构。设置 CHEAPBUDDY_API_KEY 后完全重启 OpenCode，运行 opencode mcp list，确认 cheapbuddy-media connected，再检查 tools/list 返回 6 个 CheapBuddy 媒体工具。
+请在当前机器安装 CheapBuddy Media MCP，并直接执行文件操作：先备份用户级 ~/.config/opencode/opencode.json（Windows 为 %USERPROFILE%\\.config\\opencode\\opencode.json），再合并一个名为 cheapbuddy-media 的本地 MCP Server，保留其他配置。使用 npx --yes --registry=https://registry.npmjs.org @cheapbuddy/media-mcp@0.1.3，环境变量使用 {env:CHEAPBUDDY_API_KEY}，不要把 API Key 写入文件。如果当前 OpenCode 版本使用 mcp.servers 结构，使用同一条 server 配置转换到该结构。设置 CHEAPBUDDY_API_KEY 后完全重启 OpenCode，运行 opencode mcp list，确认 cheapbuddy-media connected，再检查 tools/list 返回 6 个 CheapBuddy 媒体工具。
 ```
 
 ## Claude Code
 
 ```text
-请为 Claude Code 配置 CheapBuddy Media MCP，并直接修改用户级配置（不要只解释）：先备份 ~/.claude.json（Windows 为 %USERPROFILE%\\.claude.json），保留其他 mcpServers，将 cheapbuddy-media 合并为 stdio Server，command 为 npx，args 为 ["--yes", "--registry=https://registry.npmjs.org", "@cheapbuddy/media-mcp@0.1.1"]，env 为 {"CHEAPBUDDY_API_KEY":"${CHEAPBUDDY_API_KEY}"}。不要把真实 Key 写入文件；如果环境变量不存在，先要求用户设置。保存后完全重启 Claude Code，运行 claude mcp list，确认连接成功，再发送 tools/list 并确认 6 个媒体工具。
+请为 Claude Code 配置 CheapBuddy Media MCP，并直接修改用户级配置（不要只解释）：先备份 ~/.claude.json（Windows 为 %USERPROFILE%\\.claude.json），保留其他 mcpServers，将 cheapbuddy-media 合并为 stdio Server，command 为 npx，args 为 ["--yes", "--registry=https://registry.npmjs.org", "@cheapbuddy/media-mcp@0.1.3"]，env 为 {"CHEAPBUDDY_API_KEY":"${CHEAPBUDDY_API_KEY}"}。不要把真实 Key 写入文件；如果环境变量不存在，先要求用户设置。保存后完全重启 Claude Code，运行 claude mcp list，确认连接成功，再发送 tools/list 并确认 6 个媒体工具。
 ```
 
 ## Codex
 
 ```text
-请为 Codex 配置 CheapBuddy Media MCP，并直接修改用户级 ~/.codex/config.toml（Windows 为 %USERPROFILE%\\.codex\\config.toml）：先备份文件，保留无关设置，合并 [mcp_servers.cheapbuddy_media]，command = "npx"，args = ["--yes", "--registry=https://registry.npmjs.org", "@cheapbuddy/media-mcp@0.1.1"]，并在 [mcp_servers.cheapbuddy_media.env] 中设置 CHEAPBUDDY_API_KEY = "${CHEAPBUDDY_API_KEY}"。不要写入真实 Key。保存后完全重启 Codex，运行 codex mcp list，确认 connected，再用 tools/list 验证 6 个工具。
+请为 Codex 配置 CheapBuddy Media MCP，并直接修改用户级 ~/.codex/config.toml（Windows 为 %USERPROFILE%\\.codex\\config.toml）：先备份文件，保留无关设置，合并 [mcp_servers.cheapbuddy_media]，command = "npx"，args = ["--yes", "--registry=https://registry.npmjs.org", "@cheapbuddy/media-mcp@0.1.3"]，并在 [mcp_servers.cheapbuddy_media.env] 中设置 CHEAPBUDDY_API_KEY = "${CHEAPBUDDY_API_KEY}"。不要写入真实 Key。保存后完全重启 Codex，运行 codex mcp list，确认 connected，再用 tools/list 验证 6 个工具。
 ```
 
 ## Claude Desktop
@@ -36,8 +36,8 @@ npm run pack:mcpb
 ## 故障检查
 
 ```powershell
-npx --yes --registry=https://registry.npmjs.org @cheapbuddy/media-mcp@0.1.1 --help
-npx --yes --registry=https://registry.npmjs.org @cheapbuddy/media-mcp@0.1.1 --version
+npx --yes --registry=https://registry.npmjs.org @cheapbuddy/media-mcp@0.1.3 --help
+npx --yes --registry=https://registry.npmjs.org @cheapbuddy/media-mcp@0.1.3 --version
 ```
 
-`--help` 和 `--version` 不需要 API Key；正常启动时 stdout 只能包含 MCP JSON-RPC 帧，诊断写入 stderr。若客户端显示 `Connection closed`，先执行 `npm view @cheapbuddy/media-mcp@0.1.1 version --registry=https://registry.npmjs.org`；只有确认 0.1.1 已发布后，才让 OpenCode、Claude Code 或 Codex 使用该 npm 版本。Claude Desktop 优先使用 `.mcpb`，绕过安装器对 npm CLI 的 `--help` 探测。
+`--help` 和 `--version` 不需要 API Key；正常启动时 stdout 只能包含 MCP JSON-RPC 帧，诊断写入 stderr。若客户端显示 `Connection closed`，先执行 `npm view @cheapbuddy/media-mcp@0.1.3 version --registry=https://registry.npmjs.org`；只有确认目标版本已发布后，才让 OpenCode、Claude Code 或 Codex 使用该 npm 版本。Claude Desktop 优先使用 `.mcpb`，绕过安装器对 npm CLI 的 `--help` 探测。

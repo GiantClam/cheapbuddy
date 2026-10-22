@@ -14,5 +14,12 @@
     "src",
     "README.md",
     "hypit.runtime.example.json"
-  ]
+  ],
+  "dependencies": {
+    "@hypit/generation": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "^0.3.1",
+    "@hypit/runtime-local": "^0.1.1"
+  }
 }

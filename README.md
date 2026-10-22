@@ -145,7 +145,7 @@ docker compose -f docker-compose.local.yml up -d
 
 Claude Desktop 普通 JSON 配置不应假定会展开 `${CHEAPBUDDY_API_KEY}`；Windows 用户需在本机替换示例中的占位符。支持 Desktop Extensions 的版本可使用 `media-mcp/manifest.json` 打包的 `.mcpb`，在 **Settings → Extensions → Advanced settings → Install Extension…** 中一键安装，API Key 由扩展的敏感配置字段收集。打包命令为 `cd media-mcp; npm install; npm run pack:mcpb`。
 
-安装器可能先调用 MCP 可执行文件的帮助命令；已发布的 `@cheapbuddy/media-mcp@0.1.1` 支持 `--help` / `--version`，正常 stdio 启动时 stdout 仍只输出 MCP JSON-RPC。OpenCode、Claude Code 和 Codex 的提示词现在可以直接使用这个版本。
+安装器可能先调用 MCP 可执行文件的帮助命令；已发布的 `@cheapbuddy/media-mcp` 支持 `--help` / `--version`，正常 stdio 启动时 stdout 仍只输出 MCP JSON-RPC。OpenCode、Claude Code 和 Codex 的提示词会从当前包元数据读取版本。
 
 ## Model catalog
 
@@ -222,7 +222,8 @@ H3 支持三种生成方式：无素材时为 text-to-video；使用 `first_fram
 首页已经直接复用 Sub2API 的用户面接口，不自建协议网关：
 
 - 登录：`POST /api/v1/auth/login`
-- 注册：`POST /api/v1/auth/register`；注册和登录都必须携带有效的 `turnstile_token`
+- 发送注册邮箱验证码：`POST /api/v1/auth/send-verify-code`；需要有效的 `turnstile_token`
+- 注册：`POST /api/v1/auth/register`；邮箱验证开启时需要 `verify_code`，注册和登录都必须完成有效的人机验证流程
 - 余额：`GET /api/v1/user/profile`
 - API Key：`GET/POST /api/v1/keys`
 - 充值：`GET /api/v1/payment/checkout-info`，然后 `POST /api/v1/payment/orders`

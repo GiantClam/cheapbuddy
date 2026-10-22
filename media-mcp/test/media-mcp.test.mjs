@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,6 +13,7 @@ import { mediaModelRows, normalizeModel } from "../src/catalog.mjs";
 import { decodeJobId, encodeJobId } from "../src/job-id.mjs";
 import { loadLocalMedia, validateHttpsUrl } from "../src/media-input.mjs";
 import { CheapBuddyHttpClient } from "../src/http.mjs";
+import { normalizeVideoResponse } from "../src/normalize.mjs";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 
@@ -293,12 +294,33 @@ test("a fresh backend resolves a stateless video job ID without local storage", 
   assert.equal(calls[0], "https://relay.example.test/v1/videos/task-restart");
 });
 
+test("completed video jobs use a Relay capability download URL", async () => {
+  const calls = [];
+  const backend = new CheapBuddyRelayBackend({
+    apiKey: "cb_test", baseUrl: "https://relay.example.test",
+    fetchImpl: async (url) => {
+      calls.push(url);
+      const payload = url.endsWith("/download-url")
+        ? { object: "video_download", url: "https://relay.example.test/v1/videos/task-cap/content?download_token=opaque", expires_at: "2026-10-15T01:00:00Z" }
+        : { id: "task-cap", status: "completed" };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  const payload = await backend.getVideoTask("task-cap");
+  const normalized = normalizeVideoResponse(payload, { backend, model: "MiniMax-H3" });
+  assert.equal(normalized.job.media[0].url, "https://relay.example.test/v1/videos/task-cap/content?download_token=opaque");
+  assert.equal(normalized.job.media[0].requires_auth, undefined);
+  assert.equal(calls.length, 2);
+});
+
 test("MCP protocol exposes exactly six tools", async () => {
   const backend = fakeBackend();
   const { server } = createMediaMcpServer({ backend });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "1.0.0" }, { capabilities: {} });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(client.getServerVersion()?.version, packageJson.version);
   const listed = await client.listTools();
   assert.deepEqual(listed.tools.map((tool) => tool.name), TOOL_NAMES);
   const result = await client.callTool({ name: "cheapbuddy_list_media_models", arguments: {} });

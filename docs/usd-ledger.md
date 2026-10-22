@@ -49,6 +49,11 @@ gift corresponds to USD 0.15384615 at the settlement rate.
 
 ## Kimi procurement and pricing
 
+The rate examples below describe the October 6 deployment. The October 19
+cash-cost reconciliation at the end of this document supersedes its 5% reserve
+and retail examples; current effective prices are USD 2.5 / 12.5 / 0.25 per
+million input / output / cache-read tokens.
+
 PPToken's confirmed cost after its 0.65 account factor is CNY 13 input, 65 output
 and 1.3 cached input per million tokens. At FX 6.5 this is USD 2, 10 and 0.2.
 Use input cost as the conservative cache-write reserve. The account multiplier
@@ -148,6 +153,9 @@ remaining profit limits. Do not copy credentials into this directory or logs.
 
 ## GLM procurement and retained fallback routes
 
+The October 19 reconciliation below supersedes this section's retail prices
+and 5% reserve. Its primary-route-only margin scope remains in effect.
+
 On 2026-10-06, 42 GLM-5.3 requests through account 7 matched PPToken's request
 and token totals. Supplier cash cost was CNY 15.6416553, or USD 2.4064085077;
 wallet charges totaled USD 3.7288079833. The old account-cost total USD 5.68036182
@@ -194,6 +202,13 @@ retail policy and persisted-price evidence are in `glm-primary-pricing-report.md
 and `glm-primary-retail-verification.json` in the same directory.
 
 ## Other model USD procurement audit — 2026-10-06
+
+**Historical record; cash-denomination conclusion withdrawn on 2026-10-19.**
+The `unit=USD` label below describes supplier nominal credits, not demonstrated
+USD cash expenditure. The earlier fitted costs and minimum-margin claims in
+this section must not be used as current procurement evidence. The cash-cost
+reconciliation below replaces verified text prices. Remaining legacy and media
+cost statistics require separate cash reconciliation.
 
 The customer ledger remains USD for every account and the settlement FX remains 6.5 CNY per
 USD. The live supplier unit check returned `unit=USD` for accounts 2, 4, 5, 6, 7 and 8.
@@ -267,3 +282,262 @@ The regression runner created one random test Key and deleted it, logged out bot
 refresh sessions, and created no payment order or paid text, image or video request.
 The sanitized reports are `output/usd-ledger-20261005/coworkany-evidence-20261007.json`
 and `output/usd-ledger-20261005/production-regression-evidence-20261007.json`.
+
+## DeepSeek peak surcharge removal and margin correction — 2026-10-19
+
+**Superseded by the cash-denomination correction below on the same day.**
+The removal of the 12 peak multipliers remains valid. The USD cost interpretation,
+USD 1.25 / 5 / 0.025 retail examples, and replay estimate below were incorrect:
+PPToken's nominal debit requires CNY-to-USD conversion. They are retained only
+as the earlier operational record, not as current prices or verified USD costs.
+
+The user requested a 20% model gross margin and cancellation of DeepSeek's peak
+doubling. The authenticated PPToken account-8 usage API reports USD. Its observed
+V4.1 sample of 2,099,474 uncached input, 28,803 output and 6,862,336 cache-read
+tokens reconciles exactly to USD 2.35193272 at USD 1 / 4 / 0.02 per million tokens.
+These are effective supplier rates; do not apply its 0.5 account factor again.
+The shared channel's existing account-cost statistic instead used a lower
+fallback estimate, so it must not be treated as the supplier bill.
+
+V4.1 retail now targets `verified supplier cost / 0.8`, with no additional 5%
+reserve. Channel 1, group 2 at 0.72, saves input/output/cache-read bases of
+USD 1.736112 / 6.944445 / 0.034723 per million tokens. Channel 3, group 4 at 1.1,
+saves USD 1.136364 / 4.545455 / 0.022728. After their existing group factors,
+both yield approximately USD 1.25 / 5 / 0.025. Cache-write pricing conservatively
+retains the input-cost reserve because the supplier sample has no cache writes.
+
+All three DeepSeek pricing rows in each of these two channels have their
+09:00–12:00 and 14:00–18:00 time multipliers set to 1. The period definitions
+remain stored, but they impose no surcharge. Other model prices and context
+intervals retain their previous semantic values. Supplier routes, account
+scheduling, group factors, historical charges and wallet balances were preserved.
+The admin form also materialized disabled feature flags that were previously
+absent; these retain the same disabled behavior.
+
+The prior last-request charge of USD 1.0815815368 would be approximately USD
+0.5150375 under the new rates, a 52.38% reduction. This is a replay, not a refund.
+The 20% calculation is against verified PPToken usage rates, not a guarantee of
+net business profit or of EcoPhase procurement margin. EcoPhase's inspected
+usage endpoints did not expose its actual bill; its procurement cost remains
+unverified. No new paid inference was submitted for this configuration change.
+
+Sanitized before/after snapshots, supplier evidence, exact margin calculations,
+semantic preservation checks and UI proof are in `.omx/logs/deepseek-margin-*`
+and `.omx/tmp/deepseek-price-*-20261019.result.txt`. Historical documentation
+above describes its original configuration; it does not override this later
+DeepSeek policy.
+
+## Cash-cost reconciliation and unbuffered 20% margin — 2026-10-19
+
+The later "Separate GPT cash costs and Claude policy costs" section below
+supersedes only this section's Claude retail/cost basis. GPT and other verified
+non-Claude retail corrections remain in effect.
+
+This section supersedes all earlier supplier-currency assumptions and retail
+examples for the text cards it verifies. Authenticated PPToken funding history
+shows CNY 200 purchasing 210 nominal dollar-labelled credits including a 10-credit
+promotion, and CNY 100.60 purchasing 100 credits including a payment fee. A label
+of `unit=USD` is insufficient to establish USD cash cost. Use the conservative
+ordinary funding basis CNY 1 per credit, excluding promotional bonuses. The
+existing business settlement rate remains CNY 6.5 per USD.
+
+For each observed token category, calculate:
+
+```
+cash USD cost = supplier nominal rate * current supplier group factor / 6.5
+effective customer USD price = cash USD cost / 0.8
+channel price = effective customer USD price / CheapBuddy group factor
+```
+
+There is no extra 5% reserve. Group factors remain 0.72 for normal OpenAI and
+1.1 for shared/Claude; explicit cards compensate for those factors. Two Astra
+group-level overrides were also reconciled because they take priority over the
+channel card. Twelve DeepSeek time periods remain at multiplier 1, and the
+groups' peak pricing remains disabled. Grok's observed long-context cost tier
+remains separate from clock-time pricing.
+
+Production transaction `cb-all-model-cash-margin-20261019-v2`, audit log 21555,
+committed 38 price rows and two group overrides, updating 168 monetary fields.
+Supplement `cb-all-model-cash-margin-20261019-v3-legacy`, audit log 21557, then
+updated eight more fields on the two legacy V4 Flash cards using an additional
+direct quote of nominal CNY 3 / 9 / 0.25 before the supplier's 0.5 factor.
+The combined exact-rational plan verifies 126 observed-category fields against at least
+20% primary procurement margin after upward rounding to 12 decimals per token.
+The other 50 fields retain their old cache/input ratios at the new base price
+and are explicitly provisional; their independent supplier cost is unverified.
+Unknown MiniMax M3, GLM 5.2, Grok 4.6 and mixed legacy DeepSeek Pro/0731/vision cards, media
+tariffs, and unobserved fast/flex/reasoning tariffs are outside this guarantee.
+Existing cost-statistics cards were preserved and require a separate cash-cost
+reconciliation; do not treat their displayed totals as verified procurement.
+
+Examples of effective customer prices in USD per million tokens (small stored
+rounding differences between groups are possible):
+
+| Model | Input | Output | Cache read |
+| --- | ---: | ---: | ---: |
+| DeepSeek V4.1 Flash | 0.19230840 | 0.76923144 | 0.00384624 |
+| GPT 6 Sol | 0.11076984 | 0.55384632 | 0.01107720 |
+| GPT 6 Astra | 0.55384632 | 2.76923088 | 0.05538528 |
+| Kimi K3 | 2.50000056 | 12.50000064 | 0.25000056 |
+| GLM 5.3 | 0.69230808 | 2.42307720 | 0.17307720 |
+| Claude Opus 5.5 | 0.42307760 | 2.11538470 | 0.02115410 |
+
+The operation invalidated 164 API-key authentication caches and the channel
+cache. Fresh production reads verify the stored plan, group factors, context
+metadata and unchanged routing. No paid inference was needed. This is primary
+model procurement gross margin, excluding fallback route expenses, funding fees,
+taxes, promotions and operating costs. It cannot guarantee net profit or every
+future route/tier mix. Historical usage and balances were not rewritten; the
+separately requested USD 1.50 account credit was a distinct earlier operation.
+
+Sanitized exact calculations, before/after snapshots, transaction receipt and
+verification are in `.omx/logs/all-model-margin-*` and
+`.omx/logs/all-model-price-plan-20261019.json`. Funding denomination proof is in
+`.omx/logs/supplier-cash-denomination-20261019.txt`.
+
+## Separate GPT cash costs and Claude policy costs — 2026-10-19
+
+The user explicitly selected **official Claude USD token prices multiplied by
+1.1** as the Claude cost basis, followed by a 20% gross margin. This is a
+user-defined pricing cost estimate, distinct from the previously observed
+PPToken cash procurement cost. Do not describe the policy estimate as an audited
+supplier invoice. Claude prices are not divided by the CNY settlement FX.
+
+Shared group 4 has six enabled exact Claude routes to the Anthropic platform,
+and continues to support GPT and Claude with one shared API key. The parent
+shared group remains the billing group; provider routing does not substitute
+the standalone Claude group's pricing or statistics rules.
+
+| Configuration | GPT | Claude |
+| --- | --- | --- |
+| Cost basis | Observed nominal CNY supplier rates × supplier factor ÷ 6.5, stored as USD | Official USD token prices |
+| Account cost multiplier | 1; supplier factor and FX already included in the cost card | 1.1, applied once |
+| Customer price target | Actual procurement USD cost ÷ 0.8 | Official USD price × 1.1 ÷ 0.8 = × 1.375 |
+| Shared channel base with group multiplier 1.1 | Target USD price ÷ 1.1 | Official USD price × 1.25 |
+
+Production operation `cb-family-cost-policy-20261019-v1`, audit log 21561,
+updated all 12 Claude cards in channels 2 and 3. Input, output, five-minute
+cache writes, one-hour cache writes and cache reads use current official USD
+prices. All 60 configured fields exactly satisfy the selected 20% policy margin.
+GPT and all other customer prices remain unchanged.
+
+The official baseline is the [Anthropic price table](https://platform.claude.com/docs/en/about-claude/pricing).
+For example, Opus 5.5 input/output base prices are USD 4/20 per million tokens;
+policy costs are USD 4.4/22 and final customer prices USD 5.5/27.5. Sonnet 5.5
+final input/output prices are USD 2.75/13.75. Fable 5/5.1 final input/output
+prices are USD 13.75/68.75. The operation does not enable clock-time peaks.
+
+Accounts 9, 10 and 11 now use cost multiplier 1.1. Their already-disabled
+automatic upstream multiplier write-back remains disabled; upstream billing
+probes remain enabled and retain supplier observations independently. This
+prevents a supplier's 0.55/1/1.6 group declaration from replacing the selected
+Claude policy cost factor.
+
+Cost-statistics rules are separate from retail cards. Claude rules contain
+unscaled official USD prices and match only account IDs 9/10/11. GPT rules
+match only account 6, whose normalized USD cash cost cards were corrected in
+channel 1 and added to shared channel 3. New cost rules have empty group-ID
+lists because rule selectors use account OR group matching, and blank pricing
+platforms because statistics use the parent composite group's platform. The
+Claude channel's "apply retail pricing to account statistics" switch is now
+off. The statistics table retains its existing ten-decimal token-cost precision;
+tiny GPT cost rounding differences remain, while retail calculations retain
+the exact procurement fractions.
+
+Production reads verify all planned values and unchanged routes/group factors.
+The scheduler's full account and metadata caches show GPT factor 1 and Claude
+factors 1.1. Three account-change events were emitted and channel/authentication
+caches were refreshed for 164 keys. No paid inference or historical-ledger
+rewrite was performed.
+
+The configured five-category price arithmetic is verified; runtime cost
+reporting is not fully verified for special tiers. Source inspection found an
+existing Anthropic statistics path that omits five-minute/one-hour cache-write
+token breakdown, and custom statistics rules do not apply Fast/service-tier
+modifiers. Those paths can misstate reported margins even when the configured
+retail prices are correct. They require a separate backend correction and paid
+or representative integration acceptance before claiming all special-tier
+runtime margins. This configuration operation does not change application code.
+
+Evidence: `.omx/logs/model-family-policy-plan-20261019.json`,
+`model-family-policy-applied-20261019.json`,
+`model-family-policy-verification-20261019.json` and
+`claude-official-price-basis-20261019.json`.
+
+## DeepSeek V4.1 Flash fixed off-peak discount — 2026-10-19
+
+The user selected **official USD off-peak prices multiplied by 0.72 for the
+entire day**, with peak charging kept disabled. This section supersedes the
+DeepSeek V4.1 Flash cost-plus-20%-margin retail examples above. It does not
+change the selected GPT, Claude, Kimi or other model policies.
+
+| Final customer price, USD per million tokens | Uncached input | Output | Cache read |
+| --- | ---: | ---: | ---: |
+| Normal group 2 | 0.108 | 0.432 | 0.00216 |
+| Shared group 4, after stored rounding | 0.1079991 | 0.4319997 | 0.0021593 |
+
+The group factors remain 0.72 and 1.1. Channel 1 card 526 uses official USD
+off-peak bases; channel 3 card 508 compensates for the 1.1 group factor. Bases
+are rounded down to twelve decimals per token so the customer price does not
+exceed the advertised fixed discount. All existing time-period factors remain
+1 and both group peak switches remain off. No holiday scheduler is required
+for this fixed-price policy.
+
+Both retail cards and group allowlists explicitly cover `deepseek-flash`,
+`deepseek-v4.1-flash`, `deepseek-v4.1-flash-1017` and
+`deepseek/deepseek-v4.1-flash`. Billing continues to use the requested model,
+without depending on Relay alias rewriting. No account mappings or priorities
+were changed. In particular, EcoPhase account 12 still excludes the two
+unsupported request IDs `deepseek-flash` and `deepseek-v4.1-flash-1017`.
+
+PPToken procurement statistics are maintained separately in genuine USD. Its
+observed nominal debit rates 1 / 4 / 0.02 per million tokens already include
+the supplier factor 0.5; divide once by the established 6.5 CNY/USD settlement
+rate. Do not multiply by 0.5 or divide by 6.5 again. Accounts 2 and 8 retain
+account multiplier 1 and disabled upstream multiplier write-back. Cost rule
+selectors contain account IDs only, with empty group-ID lists; blank cost-card
+platforms permit the shared composite group to match.
+
+The existing ten-decimal cost-card scale stores input/output/cache-read at
+USD 0.1538 / 0.6154 / 0.0031 per million tokens; their exact cash basis is
+0.1538461538 / 0.6153846154 / 0.0030769231. The cache-read rounding is about
+0.75% above that basis, and is a statistics precision limitation rather than
+a retail surcharge. Account 8's 1017 input/output tariff was independently
+reconciled against four supplier usage records. Its cache tariff and account
+2's cache tariff remain same-series estimates pending independent cached-usage
+evidence. EcoPhase procurement and the legacy DeepSeek cost cards remain
+unverified; fallback model-cost statistics must not be presented as audited
+cash costs.
+
+This fixed discount is intentionally below the currently verified PPToken
+procurement cost: off-peak model gross margin is approximately -42.45% before
+fees and operating expenses. A 20% margin is not promised for this policy.
+
+Production operation `cb-deepseek-usd-fixed72-20261019-v1`, audit 21572,
+updated two retail cards, two allowlists, cost row 180 and added cost rules
+95/96. Supplement `cb-deepseek-usd-fixed72-20261019-v2-cost1017`, audit 21574,
+added the account-8-specific 1017 cost match and shared rule 98 after obtaining
+its supplier evidence. Both transactions were first exercised with rollback.
+The first commit refreshed 161 API-key authentication caches and the channel
+cache; the cost-only supplement refreshed the channel cache.
+
+Production reads verified all changes, unchanged other model cards, unchanged
+account routing and group factors. Fourteen nonzero requests covered both
+groups, all four direct model IDs, Relay access, streaming and seven cache-hit
+cases. Persisted customer charges matched price recomputation within the
+ten-decimal usage scale, and the wallet matched the sum of per-entry charges
+rounded to eight decimals. Two empty-message requests were rejected with 400,
+created no usage records and did not debit the wallet. Two additional 1017
+requests verified the new USD procurement rule in both groups.
+
+One separate long 1017 probe timed out at the client while the upstream
+completed; its persisted nonzero usage is charged and is recorded separately.
+Do not describe all client timeouts as free failures. The current runtime did
+not populate `billing_usage_entries` for these probes; wallet verification uses
+the before/after balance and persisted `usage_logs.actual_cost`. A full durable
+wallet-entry ledger migration is a separate backend task.
+
+Existing balances and historical usage were not rewritten. Operational plans,
+sanitized snapshots, receipts, rollback SQL and runtime reconciliation are in
+`.omx/logs/deepseek-usd-72-*` and `.omx/tmp/deepseek-usd-72-*`. No application
+source or dependency changes were required for this configuration rollout.

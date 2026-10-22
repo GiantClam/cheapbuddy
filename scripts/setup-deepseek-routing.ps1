@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $publicModelId = "deepseek/deepseek-v4.1-flash"
 $routingModelId = "deepseek-flash"
 $upstreamModelId = "deepseek-v4.1-flash"
+$unsupportedAccountModelIds = @("deepseek-flash", "deepseek-v4.1-flash-1017")
 
 function Write-Result {
     param(
@@ -113,6 +114,7 @@ $checks = @(
         Search = "ecophase"
         Priority = 1
         RequireMapping = $true
+        ForbiddenMappings = $unsupportedAccountModelIds
     },
     @{
         Name = "pptoken-deepseek"
@@ -180,17 +182,22 @@ foreach ($check in $checks) {
             continue
         }
 
-        $routingTarget = [string](Get-ConfigValue -Object $mapping -Key $routingModelId)
         $publicTarget = [string](Get-ConfigValue -Object $mapping -Key $publicModelId)
+        $canonicalTarget = [string](Get-ConfigValue -Object $mapping -Key $upstreamModelId)
 
-        Write-Result "  $routingModelId → $routingTarget"
         Write-Result "  $publicModelId → $publicTarget"
+        Write-Result "  $upstreamModelId → $canonicalTarget"
 
-        if ($routingTarget -ne $upstreamModelId) {
-            $failures.Add("$($details.name) 缺少 $routingModelId → $upstreamModelId")
-        }
         if ($publicTarget -ne $upstreamModelId) {
             $failures.Add("$($details.name) 缺少 $publicModelId → $upstreamModelId")
+        }
+        if ($canonicalTarget -ne $upstreamModelId) {
+            $failures.Add("$($details.name) 缺少 $upstreamModelId → $upstreamModelId")
+        }
+        foreach ($forbiddenModelId in @($check.ForbiddenMappings)) {
+            if ($null -ne (Get-ConfigValue -Object $mapping -Key $forbiddenModelId)) {
+                $failures.Add("$($details.name) 不应配置 $forbiddenModelId 的映射")
+            }
         }
     }
 }
@@ -199,6 +206,7 @@ Write-Result ""
 Write-Result "仍需在管理后台确认 CheapBuddy OpenAI 白名单：" "Yellow"
 Write-Result "  $publicModelId"
 Write-Result "  $routingModelId"
+Write-Result "账户 ecophase-ai.com 不应映射：$($unsupportedAccountModelIds -join ', ')" "Yellow"
 
 if ($failures.Count -gt 0) {
     Write-Result ""

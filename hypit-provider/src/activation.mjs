@@ -5,12 +5,12 @@ import {
   runtimeConfigObject,
   runtimeConfigPositiveInteger,
   runtimeConfigString,
-} from '@hypit/hypit/runtime-kit';
+} from '@hypit/runtime-local/extension';
 import { createCheapBuddyProvider, providerModule } from './provider.mjs';
 
 export default {
-  format: 'hypit.node-package@1',
-  hostFacets: [createRuntimeEndpointAdapterFacet({
+  format: 'hypit.package@1',
+  facets: [createRuntimeEndpointAdapterFacet({
     use: providerModule.name,
     activate(context) {
       const config = runtimeConfigObject(context.config, 'CheapBuddy');

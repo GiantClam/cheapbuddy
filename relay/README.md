@@ -22,6 +22,7 @@ All values below are Railway secrets/configuration, never frontend variables:
 | `RELAY_INTERNAL_ADMIN_TOKEN` | Restricts internal targeted cache purge. |
 | `RELAY_MODEL_ALIASES_FILE` | JSON file mapping public/catalog model IDs to downstream routing IDs. The target can be an internal Sub2API ID rather than a provider-native ID. The production image includes `config/model-aliases.json` at `/etc/cheapbuddy/config/model-aliases.json`. |
 | `RELAY_MODEL_ALIASES` | Optional JSON object override for the aliases file. When set, it takes precedence over `RELAY_MODEL_ALIASES_FILE`; set to `{}` to disable all aliases. |
+| `RELAY_MODEL_CATALOG_ALLOWLIST` | Optional comma-separated exact model IDs returned by `/v1/models`. This filters discovery only; request routing and media capability configuration remain unchanged. |
 | `RELAY_PUBLIC_URL` | Optional public origin used for short-lived media URLs; when omitted, Relay derives the origin from the request and trusted proxy headers. |
 | `RELAY_VERIFIED_MODELS` | Comma-separated media models allowed by Relay. |
 | `RELAY_VISIBLE_MEDIA_MODELS` | Optional subset of verified media models shown by `/v1/models`; omitted means all verified models are shown. Hidden verified models remain callable by ID. |
@@ -90,7 +91,7 @@ detached context so a client or edge disconnect after upload does not cancel
 NewAPI task acceptance. Use a unique `Idempotency-Key` for large multipart
 uploads; the public API remains the existing upload-then-poll task contract.
 
-NewAPI owns asynchronous tasks and provider result URLs. Clients poll native task paths through this public domain and download results before provider URL expiry. CheapBuddy stores only request-scoped input media in the bounded 30-minute Relay memory store described above; it does not retain a permanent asset copy. Raw `mm_file://` provider references are rejected because the current host has no ownership-checked persistent file registry.
+NewAPI owns asynchronous tasks and provider result URLs. Clients poll native task paths through this public domain and download results before provider URL expiry. For video artifacts, authenticated clients can call `GET /v1/videos/{id}/download-url`; Relay returns a short-lived capability URL bound to the task and CheapBuddy user, so browsers and media clients can download without receiving the API key. CheapBuddy stores only request-scoped input media in the bounded 30-minute Relay memory store described above; it does not retain a permanent asset copy. Raw `mm_file://` provider references are rejected because the current host has no ownership-checked persistent file registry.
 
 Responses artifact URLs use NewAPI's host capability path
 (`/v1/tasks/{task_id}/artifacts/{key}/content`). In Relay mode, set NewAPI

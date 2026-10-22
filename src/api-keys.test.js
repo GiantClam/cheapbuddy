@@ -110,6 +110,58 @@ test('checks both model families with the supplied key and does not request repl
   assert.notEqual(calls[0].options.method, 'POST');
 });
 
+test('returns an existing shared key for display before checking selected model access', async (t) => {
+  const calls = mockSharedKeyApi(t, {
+    keys: [{ key: 'shared-key', status: 'active', group_id: 9, group: sharedGroup }],
+    modelIds: ['gpt-6-sol'],
+  });
+  const key = await api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels, validateModels: false });
+  assert.equal(key, 'shared-key');
+  assert.deepEqual(calls.map(({ url }) => url), ['/api/v1/keys?page=1&page_size=20']);
+  await assert.rejects(
+    api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels, apiKey: key }),
+    (error) => error.code === 'API_KEY_MODELS_UNAVAILABLE',
+  );
+  assert.equal(calls.at(-1).url, `${sharedBaseUrl}/models`);
+});
+
+test('does not contact unavailable model catalogs when only reading a shared key', async (t) => {
+  for (const failure of [401, 403, 'network', 'invalid']) {
+    await t.test(String(failure), async (subtest) => {
+      const calls = mockSharedKeyApi(subtest, {
+        keys: [{ key: 'shared-key', status: 'active', group_id: 9, group: sharedGroup }],
+        respond: (url) => {
+          if (url !== `${sharedBaseUrl}/models`) return undefined;
+          if (failure === 'network') throw new TypeError('network unavailable');
+          if (failure === 'invalid') return new Response('null');
+          return new Response(JSON.stringify({ message: 'Catalog unavailable' }), { status: failure });
+        },
+      });
+      assert.equal(await api.getOrCreateSharedApiKey({
+        baseUrl: sharedBaseUrl, models: sharedModels, validateModels: false,
+      }), 'shared-key');
+      assert.deepEqual(calls.map(({ url }) => url), ['/api/v1/keys?page=1&page_size=20']);
+    });
+  }
+});
+
+test('creates one authorized shared key for display without model catalog access', async (t) => {
+  const calls = mockSharedKeyApi(t, { modelIds: [] });
+  assert.equal(await api.getOrCreateSharedApiKey({
+    baseUrl: sharedBaseUrl, models: sharedModels, validateModels: false,
+  }), 'created-composite-key');
+  assert.deepEqual(calls.map(({ url }) => url), [
+    '/api/v1/keys?page=1&page_size=20', '/api/v1/groups/available', '/api/v1/keys',
+  ]);
+  assert.equal(calls.filter(({ options }) => options.method === 'POST').length, 1);
+});
+
+test('reuses a supplied key for display without additional API requests', async (t) => {
+  const calls = mockSharedKeyApi(t);
+  assert.equal(await api.getOrCreateSharedApiKey({ apiKey: ' current-key ', validateModels: false }), 'current-key');
+  assert.equal(calls.length, 0);
+});
+
 test('reuses an active composite key instead of separate OpenAI or Claude keys', async (t) => {
   const calls = mockSharedKeyApi(t, { keys: [
     { key: 'openai-key', status: 'active', group_id: 2, group: { platform: 'openai' } },
@@ -207,7 +259,7 @@ test('isolates pending discovery by account token and keeps that token through c
   } });
   let token = 'account-a';
   globalThis.window.localStorage.getItem = () => token;
-  const first = api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels });
+  const first = api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels, validateModels: false });
   token = 'account-b';
   const second = api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels });
   releaseLists();
@@ -220,6 +272,9 @@ test('isolates pending discovery by account token and keeps that token through c
     ]);
   }
   assert.ok(calls.every(({ options }) => !Object.hasOwn(options, 'authToken')));
+  const modelCalls = calls.filter(({ url }) => url === `${sharedBaseUrl}/models`);
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].options.headers.Authorization, 'Bearer key-for-account-b');
 });
 
 test('reuses a matching active key when only available-group metadata identifies it as composite', async (t) => {
@@ -234,6 +289,28 @@ test('refuses to create a provider-specific key when no shared group is authoriz
   await assert.rejects(api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels }), (error) => error.code === 'SHARED_API_KEY_GROUP_UNAVAILABLE');
   assert.equal(calls.length, 2);
   assert.equal(calls.filter(({ options }) => options.method === 'POST').length, 0);
+});
+
+test('preserves account and group authorization when only reading a shared key', async (t) => {
+  for (const failure of ['keys', 'groups', 'missing-group']) {
+    await t.test(failure, async (subtest) => {
+      const calls = mockSharedKeyApi(subtest, {
+        groups: failure === 'missing-group' ? [{ id: 2, platform: 'openai', status: 'active' }] : [sharedGroup],
+        respond: (url) => {
+          if ((failure === 'keys' && url.includes('/keys?'))
+            || (failure === 'groups' && url.includes('/groups/available'))) {
+            return new Response(JSON.stringify({ message: 'Access denied' }), { status: 403 });
+          }
+          return undefined;
+        },
+      });
+      await assert.rejects(api.getOrCreateSharedApiKey({
+        baseUrl: sharedBaseUrl, models: sharedModels, validateModels: false,
+      }), (error) => failure === 'missing-group' ? error.code === 'SHARED_API_KEY_GROUP_UNAVAILABLE' : error.status === 403);
+      assert.equal(calls.filter(({ options }) => options.method === 'POST').length, 0);
+      assert.equal(calls.filter(({ url }) => url === `${sharedBaseUrl}/models`).length, 0);
+    });
+  }
 });
 
 test('reads every key page before deciding whether a composite key must be created', async (t) => {
@@ -355,7 +432,7 @@ test('does not issue more credentials when a new shared key lacks selected model
 });
 
 test('does not create a replacement for a disabled, expired, or quota-exhausted shared key', async (t) => {
-  for (const fields of [
+  const unavailableKeys = [
     { status: 'inactive' },
     { expires_at: '2020-01-01T00:00:00Z' },
     { quota: 1, quota_used: 1 },
@@ -363,13 +440,16 @@ test('does not create a replacement for a disabled, expired, or quota-exhausted 
     { group: { ...sharedGroup, status: 'suspended' } },
     { group: { ...sharedGroup, id: 10 } },
     { group: { ...sharedGroup, id: 0 } },
-  ]) {
-    await t.test(JSON.stringify(fields), async (subtest) => {
-      const calls = mockSharedKeyApi(subtest, { keys: [{ key: 'limited-key', group_id: 9, group: sharedGroup, status: 'active', ...fields }] });
-      await assert.rejects(api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels }), (error) => error.code === 'API_KEY_UNAVAILABLE');
-      assert.equal(calls.filter(({ options }) => options.method === 'POST').length, 0);
-      assert.equal(calls.filter(({ url }) => url === `${sharedBaseUrl}/models`).length, 0);
-    });
+  ];
+  for (const validateModels of [true, false]) {
+    for (const fields of unavailableKeys) {
+      await t.test(JSON.stringify({ validateModels, ...fields }), async (subtest) => {
+        const calls = mockSharedKeyApi(subtest, { keys: [{ key: 'limited-key', group_id: 9, group: sharedGroup, status: 'active', ...fields }] });
+        await assert.rejects(api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: sharedModels, validateModels }), (error) => error.code === 'API_KEY_UNAVAILABLE');
+        assert.equal(calls.filter(({ options }) => options.method === 'POST').length, 0);
+        assert.equal(calls.filter(({ url }) => url === `${sharedBaseUrl}/models`).length, 0);
+      });
+    }
   }
 });
 

@@ -37,13 +37,15 @@ import (
 )
 
 var (
-	videoTaskPath    = regexp.MustCompile(`^/v1/(?:videos|video/generations)/[^/]+(?:/content)?$`)
-	responseTaskPath = regexp.MustCompile(`^/v1/responses/[^/]+$`)
-	imageTaskPath    = regexp.MustCompile(`^/v1/images/tasks/[^/]+$`)
-	sunoTaskPath     = regexp.MustCompile(`^/suno/fetch/[^/]+$`)
-	taskArtifactPath = regexp.MustCompile(`^/v1/tasks/[^/]+/artifacts/[^/]+/content$`)
-	modelDetailPath  = regexp.MustCompile(`^/v1/models/([^/]+)$`)
-	mediaAssetPath   = regexp.MustCompile(`^/v1/media/([a-f0-9]{64})$`)
+	videoTaskPath        = regexp.MustCompile(`^/v1/(?:videos|video/generations)/[^/]+(?:/content)?$`)
+	videoContentPath     = regexp.MustCompile(`^/v1/(?:videos|video/generations)/[^/]+/content$`)
+	videoDownloadURLPath = regexp.MustCompile(`^/v1/(?:videos|video/generations)/[^/]+/download-url$`)
+	responseTaskPath     = regexp.MustCompile(`^/v1/responses/[^/]+$`)
+	imageTaskPath        = regexp.MustCompile(`^/v1/images/tasks/[^/]+$`)
+	sunoTaskPath         = regexp.MustCompile(`^/suno/fetch/[^/]+$`)
+	taskArtifactPath     = regexp.MustCompile(`^/v1/tasks/[^/]+/artifacts/[^/]+/content$`)
+	modelDetailPath      = regexp.MustCompile(`^/v1/models/([^/]+)$`)
+	mediaAssetPath       = regexp.MustCompile(`^/v1/media/([a-f0-9]{64})$`)
 )
 
 type Server struct {
@@ -201,6 +203,14 @@ func (s *Server) handleUserAPI(w http.ResponseWriter, r *http.Request) {
 		s.handleMediaDownload(w, r, pathName)
 		return
 	}
+	if videoContentPath.MatchString(pathName) && r.URL.Query().Get("download_token") != "" {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
+			return
+		}
+		s.handleVideoCapabilityDownload(w, r, pathName)
+		return
+	}
 	if isTaskArtifactPath(pathName) && r.Method != http.MethodGet && r.Method != http.MethodHead {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
 		return
@@ -315,6 +325,10 @@ func (s *Server) handleUserAPI(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "rate_limit_error", "Rate limit exceeded")
 		return
 	}
+	if videoDownloadURLPath.MatchString(pathName) {
+		s.handleVideoDownloadURL(w, r, identity, taskIDFromVideoPath(pathName))
+		return
+	}
 	if isMediaTaskPoll(pathName) && !s.taskAuthorized(r.Context(), identity.UserID, taskIDFromPath(pathName)) {
 		writeError(w, http.StatusNotFound, "not_found", "Task is not available")
 		return
@@ -414,6 +428,88 @@ func (s *Server) mediaURL(r *http.Request, token string) string {
 		base = proto + "://" + r.Host
 	}
 	return base + "/v1/media/" + token
+}
+
+func (s *Server) videoDownloadURL(r *http.Request, taskID string, userID int64, expiresAt time.Time) (string, error) {
+	token, err := signVideoCapability(s.Config.TokenEncryptionKey, taskID, userID, expiresAt)
+	if err != nil {
+		return "", err
+	}
+	base := strings.TrimRight(s.Config.PublicURL, "/")
+	if base == "" {
+		proto := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0])
+		if proto != "http" && proto != "https" {
+			proto = "http"
+			if r.TLS != nil {
+				proto = "https"
+			}
+		}
+		base = proto + "://" + r.Host
+	}
+	return base + "/v1/videos/" + url.PathEscape(taskID) + "/content?download_token=" + url.QueryEscape(token), nil
+}
+
+func (s *Server) handleVideoDownloadURL(w http.ResponseWriter, r *http.Request, identity upstream.Identity, taskID string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
+		return
+	}
+	if taskID == "" || !s.taskAuthorized(r.Context(), identity.UserID, taskID) {
+		writeError(w, http.StatusNotFound, "not_found", "Task is not available")
+		return
+	}
+	expiresAt := time.Now().Add(videoCapabilityTTL)
+	if s.clock != nil {
+		expiresAt = s.clock().Add(videoCapabilityTTL)
+	}
+	downloadURL, err := s.videoDownloadURL(r, taskID, identity.UserID, expiresAt)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "server_error", "Video download URL is unavailable")
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-store, max-age=0")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"object":     "video_download",
+		"url":        downloadURL,
+		"expires_at": expiresAt.UTC().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleVideoCapabilityDownload(w http.ResponseWriter, r *http.Request, pathName string) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
+		return
+	}
+	taskID := taskIDFromPath(pathName)
+	now := time.Now()
+	if s.clock != nil {
+		now = s.clock()
+	}
+	userID, ok := verifyVideoCapability(s.Config.TokenEncryptionKey, r.URL.Query().Get("download_token"), taskID, now)
+	if !ok || s.Store == nil {
+		writeError(w, http.StatusNotFound, "not_found", "Video is not available")
+		return
+	}
+	belongs, err := s.Store.TaskBelongsToUser(r.Context(), userID, taskID)
+	if err != nil || !belongs {
+		writeError(w, http.StatusNotFound, "not_found", "Video is not available")
+		return
+	}
+	mapping, found, err := s.Store.FindMapping(r.Context(), userID)
+	if err != nil || !found {
+		writeError(w, http.StatusNotFound, "not_found", "Video is not available")
+		return
+	}
+	token, err := cryptobox.Decrypt(mapping.NewAPITokenCiphertext, s.Config.TokenEncryptionKey)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "Video is not available")
+		return
+	}
+	forwarded := r.Clone(r.Context())
+	query := forwarded.URL.Query()
+	query.Del("download_token")
+	forwarded.URL.RawQuery = query.Encode()
+	s.proxy(w, forwarded, s.Config.NewAPIURL, token, requestIDFromContext(r.Context()), nil)
 }
 
 func isSupportedMediaType(contentType string) bool {
@@ -1038,6 +1134,10 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request, apiKey, re
 		seen[id] = true
 	}
 	if modelID != "" {
+		if !catalogModelAllowed(s.Config, modelID) {
+			writeError(w, http.StatusNotFound, "model_not_found", "Model is not available")
+			return
+		}
 		if item, ok := hiddenMediaDetailItem(s.Config, modelID, mediaDetailsByID); ok {
 			rows = append(rows, item)
 			mediaSeen[modelID] = true
@@ -1074,8 +1174,35 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request, apiKey, re
 		writeError(w, http.StatusNotFound, "model_not_found", "Model is not available")
 		return
 	}
+	rows = filterCatalogRows(rows, s.Config.CatalogModelAllowlist)
 	textPayload["data"] = rows
 	writeJSON(w, http.StatusOK, textPayload)
+}
+
+func catalogModelAllowed(cfg config.Config, modelID string) bool {
+	if len(cfg.CatalogModelAllowlist) == 0 {
+		return true
+	}
+	_, ok := cfg.CatalogModelAllowlist[modelID]
+	return ok
+}
+
+func filterCatalogRows(rows []any, allowlist map[string]struct{}) []any {
+	if len(allowlist) == 0 {
+		return rows
+	}
+	filtered := make([]any, 0, len(rows))
+	for _, row := range rows {
+		item, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := item["id"].(string)
+		if _, allowed := allowlist[id]; allowed {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
 }
 
 func appendModelAliases(rows []any, seen map[string]bool, aliases map[string]string) []any {
@@ -1098,27 +1225,34 @@ func appendModelAliases(rows []any, seen map[string]bool, aliases map[string]str
 		keys = append(keys, alias)
 	}
 	sort.Strings(keys)
-	for _, alias := range keys {
-		target := resolveModelAlias(aliases, alias)
-		if target == "" || alias == target {
-			continue
-		}
-		source := byID[alias]
-		if source == nil {
-			source = byID[target]
-		}
-		if source == nil {
-			continue
-		}
-		for _, id := range []string{alias, target} {
-			if seen[id] {
+	for pass := 0; pass < len(keys); pass++ {
+		added := false
+		for _, alias := range keys {
+			target := resolveModelAlias(aliases, alias)
+			if target == "" || alias == target {
 				continue
 			}
-			clone := cloneJSONMap(source)
-			clone["id"] = id
-			rows = append(rows, clone)
-			seen[id] = true
-			byID[id] = clone
+			source := byID[alias]
+			if source == nil {
+				source = byID[target]
+			}
+			if source == nil {
+				continue
+			}
+			for _, id := range []string{alias, target} {
+				if seen[id] {
+					continue
+				}
+				clone := cloneJSONMap(source)
+				clone["id"] = id
+				rows = append(rows, clone)
+				seen[id] = true
+				byID[id] = clone
+				added = true
+			}
+		}
+		if !added {
+			break
 		}
 	}
 	return rows
@@ -1885,7 +2019,7 @@ func isMediaTaskPoll(pathName string) bool {
 	if pathName == "/v1/responses/compact" {
 		return false
 	}
-	return videoTaskPath.MatchString(pathName) || responseTaskPath.MatchString(pathName) || imageTaskPath.MatchString(pathName) || sunoTaskPath.MatchString(pathName) || isTaskArtifactPath(pathName)
+	return videoTaskPath.MatchString(pathName) || videoDownloadURLPath.MatchString(pathName) || responseTaskPath.MatchString(pathName) || imageTaskPath.MatchString(pathName) || sunoTaskPath.MatchString(pathName) || isTaskArtifactPath(pathName)
 }
 
 func isTaskArtifactPath(pathName string) bool {
@@ -1893,6 +2027,9 @@ func isTaskArtifactPath(pathName string) bool {
 }
 
 func taskIDFromPath(pathName string) string {
+	if videoDownloadURLPath.MatchString(pathName) {
+		return taskIDFromVideoPath(pathName)
+	}
 	if isTaskArtifactPath(pathName) {
 		parts := strings.Split(pathName, "/")
 		if len(parts) >= 4 {
@@ -1900,6 +2037,17 @@ func taskIDFromPath(pathName string) string {
 		}
 	}
 	return path.Base(strings.TrimSuffix(pathName, "/content"))
+}
+
+func taskIDFromVideoPath(pathName string) string {
+	parts := strings.Split(pathName, "/")
+	if len(parts) == 5 && parts[1] == "v1" && parts[2] == "videos" {
+		return parts[3]
+	}
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "video" && parts[3] == "generations" {
+		return parts[4]
+	}
+	return ""
 }
 
 type preparedRouteBody struct {

@@ -64,9 +64,27 @@ func TestLoadReadsPublicURL(t *testing.T) {
 	}
 }
 
+func TestLoadReadsCatalogModelAllowlist(t *testing.T) {
+	cfg, err := Load(testEnv(map[string]string{
+		"RELAY_MODEL_CATALOG_ALLOWLIST": " gpt-6-astra, claude-sonnet-5, gpt-6-astra ",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.CatalogModelAllowlist) != 2 {
+		t.Fatalf("catalog allowlist = %#v", cfg.CatalogModelAllowlist)
+	}
+	if _, ok := cfg.CatalogModelAllowlist["gpt-6-astra"]; !ok {
+		t.Fatal("catalog allowlist omitted OpenAI model")
+	}
+	if _, ok := cfg.CatalogModelAllowlist["claude-sonnet-5"]; !ok {
+		t.Fatal("catalog allowlist omitted Claude model")
+	}
+}
+
 func TestLoadReadsModelAliasesFromFile(t *testing.T) {
 	file := t.TempDir() + "/model-aliases.json"
-	if err := os.WriteFile(file, []byte(`{"deepseek/deepseek-v4.1-flash":"deepseek-flash"}`), 0o600); err != nil {
+	if err := os.WriteFile(file, []byte(`{"deepseek/deepseek-v4.1-flash":"deepseek-flash","deepseek-v4.1-flash-1017":"deepseek-flash"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(testEnv(map[string]string{"RELAY_MODEL_ALIASES_FILE": file}))
@@ -75,6 +93,9 @@ func TestLoadReadsModelAliasesFromFile(t *testing.T) {
 	}
 	if got := cfg.ModelAliases["deepseek/deepseek-v4.1-flash"]; got != "deepseek-flash" {
 		t.Fatalf("canonical DeepSeek alias = %q", got)
+	}
+	if got := cfg.ModelAliases["deepseek-v4.1-flash-1017"]; got != "deepseek-flash" {
+		t.Fatalf("1017 DeepSeek alias = %q", got)
 	}
 	if got := cfg.ModelAliases["deepseek-flash"]; got != "" {
 		t.Fatalf("official DeepSeek ID should remain unchanged, got alias %q", got)

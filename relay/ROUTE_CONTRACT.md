@@ -9,12 +9,12 @@ policy in front of NewAPI.
 | Class | Routes | Upstream | Notes |
 | --- | --- | --- | --- |
 | Text | `/v1/chat/completions`, `/v1/messages` | Sub2API | Text routing remains unchanged. |
-| Responses | `POST /v1/responses`, `GET /v1/responses/{response_id}` | NewAPI for verified media models | Supports `stream`, `sync`, and `background`; NewAPI owns polling and SSE framing. |
+| Responses | `POST /v1/responses`, `GET /v1/responses/{response_id}` | NewAPI for verified media models | Supports stream/background and bounded H3 sync observation; NewAPI owns task state and SSE rendering. |
 | Task artifacts | `GET|HEAD /v1/tasks/{task_id}/artifacts/{key}/content` | NewAPI | Capability URL emitted by Responses; Relay validates task ownership before forwarding it with the shadow token. |
 | Models | `GET /v1/models` | Sub2API + Relay media additions | Only verified, reserved, and priced media models are added. |
 | Pricing | `GET /v1/pricing?model={model}` | NewAPI account rate card + Relay billing metadata | Bearer-authenticated, read-only model rate lookup; preserves the account's NewAPI rate record and includes the default group ratio, CheapBuddy multiplier, and quota conversion. |
-| Image | `/v1/images/generations`, `/v1/images/edits`, `/v1/images/variations`, `/v1/images/tasks/*` | NewAPI | Native request/response format and polling preserved. |
-| Video | `/v1/videos`, `/v1/videos/{id}`, `/v1/videos/{id}/content` | NewAPI Task Plugin | Qingyan `MiniMax-H3`; request conversion and result artifacts are owned by NewAPI. |
+| Image | `/v1/images/generations`, `/v1/images/edits`, `/v1/images/variations`, `/v1/images/tasks/*` | NewAPI | Grok variations use native edits with a default prompt when omitted; other native formats and polling are preserved. |
+| Video | `/v1/videos`, `/v1/videos/{id}`, `/v1/videos/{id}/content`, `GET /v1/videos/{id}/download-url` | NewAPI Task Plugin | Qingyan `MiniMax-H3`; the download-url route returns a short-lived user/task-bound capability URL, while the capability content request can be fetched without a Bearer key. |
 | Audio/TTS | `POST /v1/audio/speech` | NewAPI | OpenAI-compatible speech synthesis; model selects the configured TTS channel. |
 | Audio/STT | `POST /v1/audio/transcriptions`, `POST /v1/audio/translations` | NewAPI | Multipart audio is relayed without persistent file storage; `model` must precede file parts. |
 | Music | `/suno/submit/music`, `/suno/submit/lyrics`, `/suno/fetch`, `/suno/fetch/{id}` | NewAPI | Native task contract preserved. |
@@ -34,6 +34,29 @@ to the Relay public origin (for example `https://api.example.com`). NewAPI then
 emits capability URLs that remain on the public Relay boundary. In standalone
 NewAPI mode, `TaskPublicAddress` may instead be the standalone NewAPI origin.
 The capability query is forwarded unchanged and is never logged by Relay.
+
+For H3 sync requests, Relay submits one native background task and observes its
+owner-authenticated response for at most 45 seconds. It returns completion or
+the latest pending native response with a durable response ID; callers can
+continue with `GET /v1/responses/{response_id}`. Stream/background requests keep
+their native observation behavior. Submission correlation is retained for
+billing, independently of subsequent retrieval request IDs.
+
+H3 JSON inline media is validated and placed in the existing 30-minute media
+bridge before native submission, preserving bytes, MIME, roles, and public
+idempotency identity. Grok variation adaptation also keeps the original public
+hash. Both adaptations occur after the idempotency guard and before wallet
+reservation; rewritten paid POSTs disable automatic transport replay.
+
+The current H3 provider deployment rejects `aigc_watermark=true`; default false
+works. The explicit upstream rejection is returned and the original hold is
+released without capture. Do not silently replace a requested true value with
+false or advertise watermark generation as available.
+
+For video artifacts, authenticated clients can call `GET
+/v1/videos/{id}/download-url`. Relay returns a short-lived capability URL bound
+to the task and CheapBuddy user; the URL carries no API key and its content
+request is checked against PostgreSQL task ownership before forwarding.
 
 The current NewAPI Task Plugin API has no persistent user-file CRUD endpoint.
 Video inputs use JSON URLs/Data URLs, the Relay's short-lived `/v1/media`

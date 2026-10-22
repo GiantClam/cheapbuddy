@@ -23,7 +23,7 @@ a project file:
   "mcpServers": {
     "cheapbuddy-media": {
       "command": "npx",
-      "args": ["--yes", "--registry=https://registry.npmjs.org", "@cheapbuddy/media-mcp@0.1.1"],
+      "args": ["--yes", "--registry=https://registry.npmjs.org", "@cheapbuddy/media-mcp@0.1.3"],
       "env": {
         "CHEAPBUDDY_API_KEY": "${CHEAPBUDDY_API_KEY}"
       }
@@ -140,9 +140,12 @@ artifacts promptly.
 Image generation may poll a processing task for up to 300 seconds, then returns
 an `img_task_...` ID and `poll_after_ms`. Video submission always returns
 immediately with a `vid_task_...` ID (or an explicit accepted-unknown result);
-call `cheapbuddy_get_media_job` to query it. IDs encode only the underlying
-Relay task ID and remain valid after this process restarts; no local task
-database is used.
+call `cheapbuddy_get_media_job` to query it. Completed video jobs now include a
+short-lived Relay capability URL that can be downloaded without copying the
+CheapBuddy API key into a browser or media client request. Older Relays fall
+back to the authenticated `/v1/videos/{id}/content` URL. IDs encode only the
+underlying Relay task ID and remain valid after this process restarts; no local
+task database is used.
 
 ## Architecture and security boundary
 

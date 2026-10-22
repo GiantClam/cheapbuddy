@@ -42,7 +42,10 @@ export function normalizeVideoResponse(payload, context) {
   const media = [];
   if (status === "completed") {
     const artifact = extractArtifactUrl(payload);
-    if (taskId && context.backend) {
+    const downloadUrl = payload?.download_url || payload?.data?.download_url || payload?.task?.download_url;
+    if (downloadUrl && context.backend?.isRelayUrl?.(downloadUrl)) {
+      media.push({ url: downloadUrl, mime_type: "video/mp4", ...(payload?.download_url_expires_at ? { expires_at: payload.download_url_expires_at } : {}), ...(extractExpiry(payload) ? { expires_at: extractExpiry(payload) } : {}) });
+    } else if (taskId && context.backend) {
       // Always prefer the Relay capability URL. A provider-signed URL in a
       // NewAPI task payload must not become an MCP-visible provider boundary.
       media.push({ url: context.backend.videoContentUrl(taskId), mime_type: "video/mp4", requires_auth: true, ...(extractExpiry(payload) ? { expires_at: extractExpiry(payload) } : {}) });

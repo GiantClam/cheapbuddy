@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiRequestError, cancelPaymentOrder, createPaymentOrder, getAffiliateDetail, getMediaUsageDashboardModels, listPaymentOrders, registerUser, transferAffiliateQuota } from './api.js';
+import { ApiRequestError, cancelPaymentOrder, createPaymentOrder, getAffiliateDetail, getMediaUsageDashboardModels, listPaymentOrders, registerUser, sendVerificationCode, transferAffiliateQuota } from './api.js';
 
 function mockWindow(value = 'fixture') {
   globalThis.window = {
@@ -74,6 +74,38 @@ test('sends a validated affiliate code only when registering from an invite link
     assert.equal(payload.aff_code, 'ABCD2345');
     await registerUser('new@example.com', 'secret1', 'turnstile', 'not a valid code');
     assert.equal(payload.aff_code, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('sends an email verification code before registering and includes it in the registration request', async () => {
+  mockWindow(null);
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify({ data: { access_token: 'fixture' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await sendVerificationCode('new@example.com', 'turnstile');
+    await registerUser('new@example.com', 'secret1', '', 'abcd2345', '123456');
+    assert.equal(calls[0].url, '/api/v1/auth/send-verify-code');
+    assert.deepEqual(JSON.parse(calls[0].options.body), {
+      email: 'new@example.com',
+      turnstile_token: 'turnstile',
+    });
+    assert.equal(calls[1].url, '/api/v1/auth/register');
+    assert.deepEqual(JSON.parse(calls[1].options.body), {
+      email: 'new@example.com',
+      password: 'secret1',
+      verify_code: '123456',
+      aff_code: 'ABCD2345',
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }

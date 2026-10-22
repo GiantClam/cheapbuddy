@@ -10,6 +10,7 @@ import {
   mediaMcpPlatformOptions,
   platformOptions,
 } from './platform-config.js';
+import mediaMcpPackage from '@cheapbuddy/media-mcp/package.json' with { type: 'json' };
 import { modelCatalog } from './models.js';
 import * as platformHelpers from './platform-config.js';
 
@@ -107,6 +108,7 @@ test('builds secret-free Media MCP install prompts with host-specific schemas', 
 
   for (const prompt of Object.values(prompts)) {
     assert.match(prompt, /registry=https:\/\/registry\.npmjs\.org/);
+    assert.match(prompt, new RegExp(`@cheapbuddy/media-mcp@${mediaMcpPackage.version.replaceAll('.', '\\.')}`));
     assert.match(prompt, /CHEAPBUDDY_API_KEY/);
     assert.match(prompt, /backup/i);
     assert.match(prompt, /merge/i);
@@ -451,6 +453,15 @@ test('connection probes follow the selected client protocol without unsupported 
     assert.equal(request.body.stream, false);
     assert.equal(request.isValid({}), false);
   }
+});
+
+test('connection probes use the selected model temperature for provider-specific constraints', () => {
+  const kimi = modelCatalog.find(({ id }) => id === 'kimi-k3');
+  const request = platformHelpers.buildConnectionTestRequest('workbuddy', { baseUrl: options.baseUrl, model: kimi });
+
+  assert.equal(request.url, 'https://api.cheapbuddy.cc/v1/chat/completions');
+  assert.equal(request.body.model, 'kimi-k3');
+  assert.equal(request.body.temperature, 1);
 });
 
 test('native connection probes keep non-Claude mixed-selection models on compatible OpenCode', () => {

@@ -106,7 +106,19 @@ export class CheapBuddyRelayBackend {
   }
 
   async getVideoTask(taskId) {
-    return this.http.readJson("GET", `/v1/videos/${encodeURIComponent(taskId)}`);
+    const payload = await this.http.readJson("GET", `/v1/videos/${encodeURIComponent(taskId)}`);
+    if (!isCompletedVideoPayload(payload)) return payload;
+    try {
+      const download = await this.http.readJson("GET", `/v1/videos/${encodeURIComponent(taskId)}/download-url`);
+      const url = download?.url || download?.download_url || download?.data?.url;
+      if (typeof url === "string" && this.isRelayUrl(url)) {
+        return { ...payload, download_url: url, download_url_expires_at: download.expires_at || download.data?.expires_at };
+      }
+    } catch {
+      // Older Relays do not expose capability URLs. Keep the authenticated
+      // content endpoint as a compatible fallback.
+    }
+    return payload;
   }
 
   videoContentUrl(taskId) {
@@ -124,6 +136,11 @@ export class CheapBuddyRelayBackend {
   async uploadResult(bytes, mimeType) {
     return this.http.uploadMedia(bytes, mimeType);
   }
+}
+
+function isCompletedVideoPayload(payload) {
+  const status = String(payload?.status || payload?.data?.status || payload?.task?.status || "").toLowerCase();
+  return ["completed", "complete", "success", "succeeded", "done", "finish"].includes(status);
 }
 
 async function normalizeVideoInputs(values) {

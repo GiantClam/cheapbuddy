@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './styles.css';
 import './paywall.css';
-import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, sendVerificationCode, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
 import { defaultPricingPlan, getCheckoutRechargePlans, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
@@ -126,6 +126,51 @@ function TurnstileWidget({ siteKey, action, resetKey, onToken, onError, t = (key
   }, [action, resetKey, siteKey]);
 
   return <div className="turnstile-wrap"><div ref={containerRef} /><small>{t('turnstileNote')}</small></div>;
+}
+
+function AuthModal({
+  authMode, authForm, authLoading, authError, turnstileRequired, turnstileSiteKey, turnstileToken,
+  turnstileError, turnstileResetKey, verificationCode, verificationEmail, verificationSending,
+  isAdminPortalHost, referralCode, onClose, onSwitchMode, onEmailChange, onPasswordChange,
+  onVerificationCodeChange, onSendVerification, onSubmit, onToken, onTurnstileError, t,
+}) {
+  const verificationSent = Boolean(verificationEmail);
+  const submitDisabled = authLoading
+    || (authMode === 'register' && (!verificationSent || !/^\d{6}$/.test(verificationCode)))
+    || (authMode === 'login' && turnstileRequired && (!turnstileSiteKey || !turnstileToken));
+
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
+      <div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}>
+        <button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => onSwitchMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>
+        {!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => onSwitchMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}
+      </div>
+      <p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>
+      {authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}
+      <form className="auth-form" onSubmit={onSubmit}>
+        <label>{t('email')}
+          {authMode === 'register' ? <div className="auth-email-row">
+            <input type="email" value={authForm.email} onChange={(event) => onEmailChange(event.target.value)} placeholder={t('emailPlaceholder')} autoComplete="email" required />
+            <button className="text-button auth-code-button" type="button" onClick={onSendVerification} disabled={authLoading || verificationSending || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>
+              {verificationSending ? t('sendingVerificationCode') : verificationSent ? t('resendVerificationCode') : t('sendVerificationCode')}
+            </button>
+          </div> : <input type="email" value={authForm.email} onChange={(event) => onEmailChange(event.target.value)} placeholder={t('emailPlaceholder')} autoComplete="email" required />}
+        </label>
+        {authMode === 'register' && <>
+          <p className="auth-verification-hint">{verificationSent ? t('verificationCodeSent') : t('emailVerificationHint')}</p>
+          {verificationSent && <label>{t('verificationCode')}<input type="text" value={verificationCode} onChange={(event) => onVerificationCodeChange(event.target.value)} placeholder={t('verificationCodePlaceholder')} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required /></label>}
+        </>}
+        <label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => onPasswordChange(event.target.value)} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>
+        {turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { onToken(token); }} onError={onTurnstileError} t={t} />}
+        {turnstileError && <p className="auth-error">{turnstileError}</p>}
+        {turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}
+        {authError && <p className="auth-error">{authError}</p>}
+        <button className="button button-primary full-width" disabled={submitDisabled}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button>
+      </form>
+      <p className="auth-footnote">{t('authFootnote')}</p>
+    </div>
+  </div>;
 }
 
 function Icon({ name, size = 18 }) {
@@ -365,7 +410,7 @@ function AdminConsolePicker({ onClose, t }) {
 function ConfigGeneratorModal({
   platformId, onPlatformChange, selectedModels, displayModels, selected, onToggleModel, onToggleAllModels,
   protocol, onProtocolChange,
-  apiKey, apiKeyLoading, onCopyApiKey, balance, onRecharge, paymentLoading, endpoint,
+  apiKey, apiKeyLoading, apiKeyError, onCopyApiKey, onRetryApiKey, balance, onRecharge, paymentLoading, endpoint,
   testing, testState, testLatency, onTest, onCopyPrompt, onCopyMcpPrompt, onCopyConfig, onDownload,
   onCopyEndpoint, onClose, t,
 }) {
@@ -376,7 +421,7 @@ function ConfigGeneratorModal({
   const hasApiKey = Boolean(apiKey);
   const displayedApiKey = hasApiKey
     ? apiKeyVisible ? apiKey : `${apiKey.slice(0, 8)}••••${apiKey.slice(-4)}`
-    : t('autoCreateKey');
+    : t(apiKeyLoading ? 'syncingKey' : 'apiKeyNotLoaded');
   const previewArtifact = selectedModels.length ? createPlatformArtifact(platformId, {
     models: selectedModels,
     apiKey: apiKey || 'sk-cheapbuddy-••••••••',
@@ -413,7 +458,18 @@ function ConfigGeneratorModal({
       </div>}
 
       <div className="modal-field"><div className="model-selection-heading"><label>{t('chooseModels')} <span>{t('selectedModels', { selected: selectedModels.length, total: displayModels.length })}</span></label><button className="model-selection-toggle" type="button" onClick={onToggleAllModels} disabled={displayModels.length === 0}>{allModelsSelected ? t('clearModelSelection') : t('selectAllModels')}</button></div><p className="model-selection-hint">{t(`platformModelSelection_${platform.modelMode}`)}</p><div className="modal-models">{displayModels.map((model) => <button className={selected.includes(model.id) ? 'modal-model selected' : 'modal-model'} key={model.id} onClick={() => onToggleModel(model.id)}><ModelMark model={model} /><span><b>{model.id}</b><small>{model.description}</small><em className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</em></span><span className="modal-check">{selected.includes(model.id) ? <Icon name="check" size={14} /> : ''}</span></button>)}</div></div>
-      <div className="modal-field"><label>{t('userApiKey')} <span>{apiKeyLoading ? t('syncingKey') : t('managedByCheapBuddy')}</span></label><div className="key-field"><code>{displayedApiKey}</code><div className="key-field-actions"><button className="key-visibility-button" type="button" onClick={() => setApiKeyVisible((visible) => !visible)} disabled={!hasApiKey || apiKeyLoading} aria-label={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')} aria-pressed={apiKeyVisible} title={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')}><Icon name={apiKeyVisible ? 'eyeOff' : 'eye'} size={17} /></button><button type="button" onClick={onCopyApiKey} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copyApiKey')}</button></div></div></div>
+      <div className="modal-field">
+        <label>{t('userApiKey')} <span>{apiKeyLoading ? t('syncingKey') : t('managedByCheapBuddy')}</span></label>
+        <div className="key-field">
+          <code>{displayedApiKey}</code>
+          <div className="key-field-actions">
+            <button className="key-visibility-button" type="button" onClick={() => setApiKeyVisible((visible) => !visible)} disabled={!hasApiKey || apiKeyLoading} aria-label={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')} aria-pressed={apiKeyVisible} title={t(apiKeyVisible ? 'hideApiKey' : 'showApiKey')}><Icon name={apiKeyVisible ? 'eyeOff' : 'eye'} size={17} /></button>
+            <button type="button" onClick={onCopyApiKey} disabled={apiKeyLoading}><Icon name="copy" size={15} /> {t('copyApiKey')}</button>
+            {apiKeyError && <button type="button" onClick={onRetryApiKey} disabled={apiKeyLoading}>{t('retryApiKey')}</button>}
+          </div>
+        </div>
+        {apiKeyError && <p className="auth-error" role="alert">{apiKeyError}</p>}
+      </div>
       <div className="modal-field"><label>{t('endpoint')} <span>{t(`protocol_${protocol}`)}</span></label><div className="key-field"><code>{endpoint}</code><button onClick={onCopyEndpoint}><Icon name="copy" size={15} /> {t('copy')}</button></div></div>
 
       {previewArtifact && <div className="modal-field"><label>{t('generatedConfig')} <span>{previewArtifact.filename}</span></label><div className="config-preview"><div><span>{t('targetPath')}</span><code>{previewArtifact.configPath}</code></div><div className="config-model-summary"><span>{t('includedModels')}</span><code title={selectedModelIds}>{selectedModelIds}</code></div><pre>{preview}</pre>{previewArtifact.credentialEnvKey && <div className="config-model-summary"><span>{t('credentialEnvInstruction', { env: previewArtifact.credentialEnvKey })}</span><code>{previewArtifact.credentialEnvKey}={previewArtifact.apiKey}</code></div>}</div></div>}
@@ -676,7 +732,7 @@ function HypitDocsPage() {
 
   const installCommand = `# In your Hypit project (Node.js >= 22.15.0)
 # If package.json does not exist yet: npm init -y
-npm install @hypit/hypit@latest @cheapbuddy/provider@latest`;
+npm install @hypit/hypit@0.2.18 @cheapbuddy/provider@0.1.2`;
   const runtimeConfig = `{
   "format": "hypit.runtime-local@1",
   "dataRoot": ".hypit/execution",
@@ -897,10 +953,14 @@ function HomePage() {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileError, setTurnstileError] = useState('');
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [verificationSending, setVerificationSending] = useState(false);
   const [publicTurnstile, setPublicTurnstile] = useState({ enabled: false, siteKey: '' });
   const [session, setSession] = useState(() => ({ token: getAuthToken(), user: getSavedUser(), apiKey: '' }));
   const [balance, setBalance] = useState(null);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [checkoutInfo, setCheckoutInfo] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -1037,14 +1097,23 @@ function HomePage() {
     return [...new Set([...current, ...modelIds])];
   });
 
-  const ensureApiKey = async () => {
+  useEffect(() => {
+    setApiKeyError('');
+    if (!session.token) setApiKeyLoading(false);
+  }, [session.token]);
+
+  const ensureApiKey = async ({ validateModels = true } = {}) => {
     if (!session.token) return '';
     setApiKeyLoading(true);
+    setApiKeyError('');
     try {
-      const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels, apiKey: session.apiKey });
+      const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels, apiKey: session.apiKey, validateModels });
       if (getAuthToken() !== session.token) throw new Error(t('loginForConfig'));
       setSession((current) => current.token === session.token ? { ...current, apiKey } : current);
       return apiKey;
+    } catch (error) {
+      if (getAuthToken() === session.token) setApiKeyError(error.message || t('apiKeyReadFailed'));
+      throw error;
     } finally {
       setApiKeyLoading(false);
     }
@@ -1053,7 +1122,7 @@ function HomePage() {
   const copyUserApiKey = async () => {
     setApiKeyLoading(true);
     try {
-      const apiKey = await ensureApiKey();
+      const apiKey = await ensureApiKey({ validateModels: false });
       if (!apiKey) throw new Error(t('missingApiKey'));
       await writeClipboard(apiKey);
       notify(t('apiKeyCopied'));
@@ -1244,7 +1313,7 @@ function HomePage() {
     }
     setShowGenerator(true);
     try {
-      await ensureApiKey();
+      await ensureApiKey({ validateModels: false });
     } catch (error) {
       notify(error.message || t('apiKeyReadFailed'));
     }
@@ -1255,10 +1324,65 @@ function HomePage() {
     setAuthError('');
     setTurnstileToken('');
     setTurnstileError('');
+    setVerificationCode('');
+    setVerificationEmail('');
     setTurnstileResetKey((current) => current + 1);
   };
 
   const isExistingUserError = (error) => /exist|已存在|already/i.test(error?.message || '');
+
+  const sendRegistrationVerificationCode = async () => {
+    const email = authForm.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError(t('enterEmailFirst'));
+      return;
+    }
+    if (turnstileRequired && !turnstileSiteKey) {
+      setAuthError(t('turnstileNotConfigured'));
+      return;
+    }
+    if (turnstileRequired && !turnstileToken) {
+      setAuthError(t('completeTurnstile'));
+      return;
+    }
+    setVerificationSending(true);
+    setAuthError('');
+    try {
+      await sendVerificationCode(email, turnstileToken);
+      setVerificationEmail(email.toLowerCase());
+      setVerificationCode('');
+      setTurnstileToken('');
+      setTurnstileError('');
+      setTurnstileResetKey((current) => current + 1);
+      setAuthError('');
+    } catch (error) {
+      setAuthError(error.message || t('verificationCodeSendFailed'));
+    } finally {
+      setVerificationSending(false);
+    }
+  };
+
+  const handleAuthEmailChange = (email) => {
+    setAuthForm((current) => ({ ...current, email }));
+    if (verificationEmail && verificationEmail !== email.trim().toLowerCase()) {
+      setVerificationEmail('');
+      setVerificationCode('');
+      setTurnstileToken('');
+      setTurnstileError('');
+      setTurnstileResetKey((current) => current + 1);
+    }
+    setAuthError('');
+  };
+
+  const handleAuthPasswordChange = (password) => {
+    setAuthForm((current) => ({ ...current, password }));
+    setAuthError('');
+  };
+
+  const handleVerificationCodeChange = (code) => {
+    setVerificationCode(code.replace(/\D/g, '').slice(0, 6));
+    setAuthError('');
+  };
 
   const submitLogin = async (event) => {
     event.preventDefault();
@@ -1270,8 +1394,20 @@ function HomePage() {
       setAuthError(t('turnstileNotConfigured'));
       return;
     }
-    if (turnstileRequired && !turnstileToken) {
+    if (turnstileRequired && !turnstileToken && !(authMode === 'register' && verificationEmail === authForm.email.trim().toLowerCase() && verificationCode.trim())) {
       setAuthError(t('completeTurnstile'));
+      return;
+    }
+    if (authMode === 'register' && !verificationEmail) {
+      setAuthError(t('sendVerificationCodeFirst'));
+      return;
+    }
+    if (authMode === 'register' && verificationEmail !== authForm.email.trim().toLowerCase()) {
+      setAuthError(t('verificationEmailChanged'));
+      return;
+    }
+    if (authMode === 'register' && !/^\d{6}$/.test(verificationCode.trim())) {
+      setAuthError(t('enterVerificationCode'));
       return;
     }
     setAuthLoading(true);
@@ -1281,12 +1417,10 @@ function HomePage() {
       let action = authMode;
       if (authMode === 'register') {
         try {
-          result = await registerUser(authForm.email.trim(), authForm.password, turnstileToken, referralCode);
+          result = await registerUser(authForm.email.trim(), authForm.password, '', referralCode, verificationCode);
         } catch (error) {
           if (!isExistingUserError(error)) throw error;
-          setAuthMode('login');
-          setTurnstileToken('');
-          setTurnstileResetKey((current) => current + 1);
+          switchAuthMode('login');
           throw new Error(t('alreadyRegistered'));
         }
       } else {
@@ -1309,13 +1443,14 @@ function HomePage() {
       if (action === 'register') {
         try {
           setApiKeyLoading(true);
-          const apiKey = await getOrCreateSharedApiKey({ baseUrl: connectionBaseUrl, models: selectedModels });
+          const apiKey = await getOrCreateSharedApiKey({ validateModels: false });
           if (getAuthToken() !== nextSession.token) return;
           setSession((current) => current.token === nextSession.token ? { ...current, apiKey } : current);
           setShowGenerator(true);
           notify(t('registerSuccess'));
         } catch (error) {
           if (getAuthToken() !== nextSession.token) return;
+          setApiKeyError(error.message || t('apiKeyReadFailed'));
           setShowGenerator(true);
           notify(t('registerKeyFailed', { message: error.message || t('apiKeyReadFailed') }));
         } finally {
@@ -1614,8 +1749,33 @@ function HomePage() {
 
     {showAnnouncements && <AnnouncementsPanel announcements={announcements} loading={announcementLoading} error={announcementError} language={language} onClose={() => setShowAnnouncements(false)} onRefresh={loadAnnouncements} t={t} />}
 
-    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} protocol={accessProtocol} onProtocolChange={setOpenCodeProtocol} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} apiKey={activeApiKey} apiKeyLoading={apiKeyLoading} onCopyApiKey={copyUserApiKey} balance={balance} onRecharge={openPaywall} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyMcpPrompt={copyMediaMcpPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
-    {showAuth && <div className="modal-backdrop" role="presentation" onClick={() => setShowAuth(false)}><div className="generator-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="auth-title">{t(authMode === 'login' ? 'loginTitle' : 'registerTitle')}</h2></div><button className="modal-close" onClick={() => setShowAuth(false)} aria-label={t('close')}>×</button></div><div className="auth-tabs" role="tablist" aria-label={t('accountOperations')}><button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>{!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => switchAuthMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}</div><p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>{authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}<form className="auth-form" onSubmit={submitLogin}><label>{t('email')}<input type="email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} placeholder={t('emailPlaceholder')} autoComplete="email" required /></label><label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>{turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }} onError={(message) => { setTurnstileToken(''); setTurnstileError(message); }} t={t} />}{turnstileError && <p className="auth-error">{turnstileError}</p>}{turnstileRequired && !turnstileSiteKey && <p className="auth-error">{t('turnstileMissing', { action: t(authMode === 'register' ? 'registerTab' : 'loginTab').toLowerCase() })}</p>}{authError && <p className="auth-error">{authError}</p>}<button className="button button-primary full-width" disabled={authLoading || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button></form><p className="auth-footnote">{t('authFootnote')}</p></div></div>}
+    {showGenerator && <ConfigGeneratorModal platformId={platformId} onPlatformChange={changePlatform} protocol={accessProtocol} onProtocolChange={setOpenCodeProtocol} selectedModels={selectedModels} displayModels={configDisplayModels} selected={selected} onToggleModel={toggleModel} onToggleAllModels={toggleAllModels} apiKey={activeApiKey} apiKeyLoading={apiKeyLoading} apiKeyError={apiKeyError} onCopyApiKey={copyUserApiKey} onRetryApiKey={openGenerator} balance={balance} onRecharge={openPaywall} paymentLoading={paymentLoading} endpoint={baseUrl} testing={testing} testState={testState} testLatency={testLatency} onTest={testConnection} onCopyPrompt={copyInstallPrompt} onCopyMcpPrompt={copyMediaMcpPrompt} onCopyConfig={copyConfig} onDownload={downloadConfig} onCopyEndpoint={() => writeClipboard(baseUrl).then(() => notify(t('endpointCopied'))).catch(() => notify(t('copyFailed')))} onClose={() => setShowGenerator(false)} t={t} />}
+    {showAuth && <AuthModal
+      authMode={authMode}
+      authForm={authForm}
+      authLoading={authLoading}
+      authError={authError}
+      turnstileRequired={turnstileRequired}
+      turnstileSiteKey={turnstileSiteKey}
+      turnstileToken={turnstileToken}
+      turnstileError={turnstileError}
+      turnstileResetKey={turnstileResetKey}
+      verificationCode={verificationCode}
+      verificationEmail={verificationEmail}
+      verificationSending={verificationSending}
+      isAdminPortalHost={isAdminPortalHost}
+      referralCode={referralCode}
+      onClose={() => setShowAuth(false)}
+      onSwitchMode={switchAuthMode}
+      onEmailChange={handleAuthEmailChange}
+      onPasswordChange={handleAuthPasswordChange}
+      onVerificationCodeChange={handleVerificationCodeChange}
+      onSendVerification={sendRegistrationVerificationCode}
+      onSubmit={submitLogin}
+      onToken={(token) => { setTurnstileToken(token); setTurnstileError(''); setAuthError(''); }}
+      onTurnstileError={(message) => { setTurnstileToken(''); setTurnstileError(message); }}
+      t={t}
+    />}
     {showAdminPicker && <AdminConsolePicker onClose={() => setShowAdminPicker(false)} t={t} />}
     {toast && <div className="toast"><span className="toast-icon">✓</span>{toast}</div>}
   </div>;

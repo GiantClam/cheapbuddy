@@ -15,6 +15,3 @@ routes = [
   { pattern = "cheapbuddy.cc/v1/*", zone_name = "cheapbuddy.cc" },
   { pattern = "www.cheapbuddy.cc/v1/*", zone_name = "cheapbuddy.cc" },
 ]
-
-[triggers]
-crons = ["*/5 * * * *"]

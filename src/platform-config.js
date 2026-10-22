@@ -1,3 +1,5 @@
+import mediaMcpPackage from '@cheapbuddy/media-mcp/package.json' with { type: 'json' };
+
 export const platformOptions = [
   { id: 'workbuddy', name: 'WorkBuddy', mark: 'WB', modelMode: 'all', maxModels: null },
   { id: 'claude', name: 'Claude Code', mark: 'CL', modelMode: 'all', maxModels: null },
@@ -5,7 +7,7 @@ export const platformOptions = [
   { id: 'codex', name: 'Codex', mark: 'CX', modelMode: 'all', maxModels: null },
 ];
 
-const MEDIA_MCP_PACKAGE = '@cheapbuddy/media-mcp@0.1.1';
+const MEDIA_MCP_PACKAGE = `@cheapbuddy/media-mcp@${mediaMcpPackage.version}`;
 const MEDIA_MCP_REGISTRY = 'https://registry.npmjs.org';
 const MEDIA_MCP_SERVER = 'cheapbuddy-media';
 export const MEDIA_MCPB_DOWNLOAD_PATH = '/downloads/cheapbuddy-media.mcpb';
@@ -373,7 +375,12 @@ export function buildConnectionTestRequest(platformId, { baseUrl, model, protoco
   }
   return {
     url: `${apiBaseUrl}/chat/completions`,
-    body: { ...common, messages: [{ role: 'user', content: 'Reply with OK only.' }], max_tokens: 8, ...(!isClaudeModel(model) ? { temperature: 0 } : {}) },
+    body: {
+      ...common,
+      messages: [{ role: 'user', content: 'Reply with OK only.' }],
+      max_tokens: 8,
+      ...(!isClaudeModel(model) && Number.isFinite(model.temperature) ? { temperature: model.temperature } : {}),
+    },
     isValid: (body) => Array.isArray(body.choices) && body.choices.length > 0,
   };
 }

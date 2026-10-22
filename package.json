@@ -15,6 +15,10 @@
     "start": "node scripts/start.mjs"
   },
   "dependencies": {
+    "@cheapbuddy/media-mcp": "^0.1.3",
+    "@cheapbuddy/provider": "^0.1.2",
+    "@hypit/hypit": "^0.3.1",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@vitejs/plugin-react": "latest",
     "react": "latest",
     "react-dom": "latest",

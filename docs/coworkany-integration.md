@@ -261,6 +261,8 @@ Hypit 联调期间发现并修正了 provider 的 MiniMax-H3 参数映射：Hypi
 
 本次独立 Runtime 已选为测试项目默认配置，Worker 已停止、活动 Build 为零；没有额外充值或生产部署。脱敏证据 `acceptance-evidence-20261006.json`、`acceptance-summary-20261006.json`、`read-only-task-final-20261006.json` 及视频 `exports-acceptance-20261006/shot.mp4` 保存在上述忽略的测试项目目录，原失败证据保留。
 
+2026-10-17 开始迁移本地 `@cheapbuddy/provider-hypit` 到 Hypit `0.3.1` 公共 SDK。Provider 入口改用 `@hypit/hypit/endpoint`、`@hypit/generation` 和 `@hypit/runtime-local/extension`，并按 0.3.x 合约将生成结果封装为 `StoredValue`。本地 0.3.1 fixture 已通过 `doctor`、Author `check`、`plan`，并在模拟 Relay 中完成提交、两次轮询、MP4 下载和 Build 导出，最终 Build 为 `complete` 且输出数为 1。npm 已发布的 `@cheapbuddy/provider@0.1.2` 仍依赖已移除的 0.2.x 私有导入，不能与 Hypit `0.3.1` 混用；在新 Provider 发布前，线上安装文档继续固定在 `@hypit/hypit@0.2.18` 与 `@cheapbuddy/provider@0.1.2`，未进行生产部署或新的收费生成。
+
 生产已配置 `COWORKANY_DEFAULT_GROUP_ID=2` 并写入 `PAYMENT_RECHARGE_TIERS`。当前官网基准为下表；金额由服务端报价返回，不是固定汇率自动换算承诺。
 
 | 档位 ID | CNY amount | USD amount |

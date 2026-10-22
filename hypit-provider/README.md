@@ -1,10 +1,11 @@
 # CheapBuddy Provider for Hypit
 
 This directory is the local experimental `@cheapbuddy/provider-hypit` package,
-not the published npm provider. For normal Hypit use, install the current npm
-release instead:
+updated for the Hypit 0.3.x public SDK. It is not the published npm provider.
+The published provider remains on the Hypit 0.2.x compatibility line until a
+new npm release is published:
 
-    npm install @hypit/hypit@latest @cheapbuddy/provider@latest
+    npm install @hypit/hypit@0.2.18 @cheapbuddy/provider@0.1.2
 
 Set the Runtime endpoint's `use` to `@cheapbuddy/provider` and bind only
 `@hypit/minimax-h3@1#minimax-h3`. The published provider currently supports
@@ -29,13 +30,13 @@ Keep reference inputs below 48 MiB.
 
 Install from the CheapBuddy checkout:
 
-    npm install ./hypit-provider
+    npm install @hypit/hypit@0.3.1 ./hypit-provider
 
 The complete runtime example is in `hypit.runtime.example.json`.
 
-The active Hypit Distribution supplies the public `@hypit/hypit/*` SDK imports;
-this package intentionally does not install a second copy of the Hypit
-workspace.
+The active Hypit 0.3.x Distribution supplies the public `@hypit/hypit/*` SDK
+imports, `@hypit/generation`, and `@hypit/runtime-local`. This package declares
+those compatibility requirements instead of installing a second Hypit copy.
 
 Configure an endpoint in hypit.runtime.json:
 
