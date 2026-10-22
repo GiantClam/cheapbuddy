@@ -2,11 +2,11 @@
 
 配置说明更新日期：2026-10-15；价格核对日期：2026-10-13。本文说明接入合同与配置示例，不作为已完成生产部署或客户端全功能验收的证明。
 
-**配置中心允许同时选择 OpenAI 与 Claude 文本模型，并让这些模型共用同一把 `CheapBuddy Shared` Key。** 每把 Key 仍只绑定一个 Sub2API 分组；共享 Key 绑定 `platform=composite` 的分组，由该分组的账号、路由、价格与授权提供跨平台访问。CheapBuddy Base URL 和 USD 余额保持不变。旧 `CheapBuddy Claude Stable` 或 OpenAI 单平台 Key 继续遵守原权限，配置中心不会自动迁移它们、改绑分组或扩大授权。历史单平台分组的倍率不代表新共享分组的价格；最终扣费以共享 Key 的服务端配置为准。
+**WorkBuddy、OpenCode 与 Codex 配置可同时选择 OpenAI 与 Claude 文本模型，并让这些模型共用同一把 `CheapBuddy Shared` Key。Claude Code 使用 Anthropic Messages 协议，只支持 Claude 模型。** 每把 Key 仍只绑定一个 Sub2API 分组；共享 Key 绑定 `platform=composite` 的分组，由该分组的账号、路由、价格与授权提供跨平台访问。CheapBuddy Base URL 和 USD 余额保持不变。旧 `CheapBuddy Claude Stable` 或 OpenAI 单平台 Key 继续遵守原权限，配置中心不会自动迁移它们、改绑分组或扩大授权。历史单平台分组的倍率不代表新共享分组的价格；最终扣费以共享 Key 的服务端配置为准。
 
 ## 1. 沿用现有入口与 Key，选择模型
 
-在 [CheapBuddy 官网](https://cheapbuddy.cc/) 登录，进入配置中心，选择目标客户端、协议和模型。WorkBuddy、Claude Code、OpenCode 与 Codex 的选择器均允许同时选择 OpenAI 与 Claude 模型，并按目标客户端与协议生成配置。选择器不再按旧单平台分组互斥；实际模型访问应通过同一把共享 Key 的连接测试核验。
+在 [CheapBuddy 官网](https://cheapbuddy.cc/) 登录，进入配置中心，选择目标客户端、协议和模型。WorkBuddy、OpenCode 与 Codex 的选择器允许同时选择 OpenAI 与 Claude 模型；Claude Code 的选择器只显示支持 Anthropic Messages 的 Claude 模型。GLM 等 OpenAI-compatible 模型请使用 WorkBuddy 或 OpenCode 的兼容协议。实际模型访问应通过同一把共享 Key 的连接测试核验。
 
 配置中心先从 `GET /api/v1/keys` 复用有效的 composite 分组 Key；没有时，从 `GET /api/v1/groups/available` 取得当前用户有权绑定的活跃 composite 分组，再通过 `POST /api/v1/keys` 创建名为 `CheapBuddy Shared` 的 Key。部署时可用 `VITE_CHEAPBUDDY_SHARED_GROUP_ID` 指定共享分组；不会猜测写死的默认分组 ID，也不会改用普通单平台 Key。
 

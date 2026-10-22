@@ -10,7 +10,7 @@ import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliat
 import { defaultPricingPlan, getCheckoutRechargePlans, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
-import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
+import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
 import { mergeUsageModels } from './usage';
 import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
@@ -1004,10 +1004,11 @@ function HomePage() {
 
   const activePlatform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
   const displayModels = useMemo(() => localizeModels(models, language), [language]);
-  const selectedModels = useMemo(() => displayModels.filter((model) => selected.includes(model.id)), [displayModels, selected]);
+  const platformDisplayModels = useMemo(() => getModelsForPlatform(platformId, displayModels), [platformId, displayModels]);
+  const selectedModels = useMemo(() => platformDisplayModels.filter((model) => selected.includes(model.id)), [platformDisplayModels, selected]);
   const activeApiKey = session.apiKey;
   const accessProtocol = platformId === 'claude' ? 'anthropic' : platformId === 'opencode' && selectedModels.some(({ id }) => id.startsWith('claude-')) ? openCodeProtocol : 'openai-compatible';
-  const configDisplayModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)];
+  const configDisplayModels = [...platformDisplayModels.filter((model) => model.featured), ...platformDisplayModels.filter((model) => !model.featured)];
   const heroModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)].slice(0, 4);
   const usageExampleModels = [...displayModels.filter((model) => model.showInUsageExample), ...displayModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
   useEffect(() => {
@@ -1089,7 +1090,7 @@ function HomePage() {
 
   const toggleModel = (id) => setSelected((current) => {
     if (current.includes(id)) return current.filter((item) => item !== id);
-    if (!displayModels.some((model) => model.id === id)) return current;
+    if (!platformDisplayModels.some((model) => model.id === id)) return current;
     return [...current, id];
   });
 

@@ -2,7 +2,7 @@
 
 **CheapBuddy 是一个面向开发者、创作者和 AI 工作流用户的多模型 AI Gateway。**
 
-通过 [cheapbuddy.cc](https://cheapbuddy.cc/) 注册并管理账户，使用统一 CheapBuddy Base URL 和 USD 钱包。配置中心支持同时选择 OpenAI 与 Claude 文本模型，复用或创建绑定 Sub2API `composite` 分组的 `CheapBuddy Shared` Key，并在复制或下载前用同一把 Key 验证全部所选模型。每把 Key 仍只绑定一个分组；跨平台访问由 composite 分组的授权、账号和模型路由提供，最终计费沿用服务端分组配置。
+通过 [cheapbuddy.cc](https://cheapbuddy.cc/) 注册并管理账户，使用统一 CheapBuddy Base URL 和 USD 钱包。WorkBuddy、OpenCode 与 Codex 配置可同时选择 OpenAI 与 Claude 文本模型；Claude Code 使用 Anthropic Messages 协议，只支持 Claude 模型。配置中心复用或创建绑定 Sub2API `composite` 分组的 `CheapBuddy Shared` Key，并在复制或下载前验证当前平台支持的已选模型。每把 Key 仍只绑定一个分组；跨平台访问由 composite 分组的授权、账号和模型路由提供，最终计费沿用服务端分组配置。
 
 ## 快速访问
 
@@ -93,7 +93,7 @@ curl https://api.cheapbuddy.cc/v1/chat/completions \
 
 ## Claude 稳定通道
 
-Claude 使用统一 CheapBuddy Base URL。配置中心使用具有 Claude 与 OpenAI 权限的 `CheapBuddy Shared` Key；已有单平台 Claude Key 仍可按原授权使用。支持 Claude 的分组可访问 `claude-fable-5`、`claude-fable-5-1`、`claude-opus-5`、`claude-opus-5-5`、`claude-sonnet-5`、`claude-sonnet-5-5`；实际可用模型以该 Key 的 Sub2API 授权和 `GET /v1/models` 返回为准。最终价格由请求所属分组的倍率、渠道模型价格、账号统计规则和用户配置共同决定，官网展示的 Anthropic 价格仅作官方参考价。
+Claude 使用统一 CheapBuddy Base URL。配置中心使用具有 Claude 与 OpenAI 权限的 `CheapBuddy Shared` Key；已有单平台 Claude Key 仍可按原授权使用。支持 Claude 的分组可访问 `claude-fable-5`、`claude-fable-5-1`、`claude-opus-5`、`claude-opus-5-5`、`claude-sonnet-5`、`claude-sonnet-5-5`；实际可用模型以该 Key 的 Sub2API 授权和 `GET /v1/models` 返回为准。Claude Code 原生发送 Anthropic Messages 请求，因此只能配置支持该协议的 Claude 模型；GLM 等 OpenAI-compatible 模型请在 WorkBuddy 或 OpenCode 的兼容协议中使用。最终价格由请求所属分组的倍率、渠道模型价格、账号统计规则和用户配置共同决定，官网展示的 Anthropic 价格仅作官方参考价。
 
 两种协议任选其一：Anthropic 原生使用 `POST /v1/messages`（同步 / SSE）、`POST /v1/messages/count_tokens`、`GET /v1/models` 和 `GET /v1/models/{model_id}`；OpenAI-compatible 使用既有 Chat Completions 或 Responses。具备两类模型权限的共享 Key 可同时用于这些接口。Claude Code 示例用根地址 `ANTHROPIC_BASE_URL=https://api.cheapbuddy.cc` 和共享 Key 的 `ANTHROPIC_AUTH_TOKEN`。现有根地址或 `/v1` Base URL 都可保留，无需 strip-v1 或更换 URL。不同 SDK 追加 `/v1/messages` 或 `/messages`；Relay 兼容规范路径与 SDK 引起的重复 `/v1` 形式。`/v1/messages` 是规范 HTTP 示例，不是要求用户修改入口。Claude Code 配置生成器保留用户提供的 Base URL。Relay 只做 HTTP 透传；Sub2API 负责业务语义、协议转换、鉴权、模型路由和文本计费。Batch / Files / Admin 不在首版范围，HTTP Responses 兼容不代表原生 Responses WebSocket 或所有平台特性，也不是 100% 可用性 SLA。
 

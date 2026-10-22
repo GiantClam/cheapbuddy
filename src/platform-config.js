@@ -2,7 +2,7 @@ import mediaMcpPackage from '@cheapbuddy/media-mcp/package.json' with { type: 'j
 
 export const platformOptions = [
   { id: 'workbuddy', name: 'WorkBuddy', mark: 'WB', modelMode: 'all', maxModels: null },
-  { id: 'claude', name: 'Claude Code', mark: 'CL', modelMode: 'all', maxModels: null },
+  { id: 'claude', name: 'Claude Code', mark: 'CL', modelMode: 'claude', maxModels: null },
   { id: 'opencode', name: 'OpenCode', mark: 'OC', modelMode: 'all', maxModels: null },
   { id: 'codex', name: 'Codex', mark: 'CX', modelMode: 'all', maxModels: null },
 ];
@@ -107,6 +107,16 @@ function isClaudeModel(model) {
   return model.id.startsWith('claude-');
 }
 
+function supportsAnthropicMessages(model) {
+  return Array.isArray(model.protocols) && model.protocols.includes('anthropic');
+}
+
+export function getModelsForPlatform(platformId, models) {
+  if (!platformOptions.some(({ id }) => id === platformId)) throw new Error('Unsupported platform');
+  if (!Array.isArray(models)) return [];
+  return platformId === 'claude' ? models.filter(supportsAnthropicMessages) : models;
+}
+
 // Generated client configs use the public catalog ID. Provider-specific model
 // translation belongs at the Relay/account boundary so every client sees the
 // same identifier.
@@ -146,6 +156,9 @@ function requireOptions(platformId, { apiKey, baseUrl, models } = {}) {
     throw new Error(`${platform.name} supports at most ${platform.maxModels} selected model${platform.maxModels === 1 ? '' : 's'}`);
   }
   validateModels(models);
+  if (platformId === 'claude' && models.some((model) => !supportsAnthropicMessages(model))) {
+    throw new Error('Claude Code requires Claude models for the Anthropic Messages protocol');
+  }
   validateBaseUrl(baseUrl);
 }
 
@@ -357,6 +370,9 @@ export function createPlatformArtifact(platformId, options) {
 export function buildConnectionTestRequest(platformId, { baseUrl, model, protocol } = {}) {
   if (!platformOptions.some(({ id }) => id === platformId)) throw new Error('Unsupported platform');
   if (!model?.id) throw new Error('Select a model');
+  if (platformId === 'claude' && !supportsAnthropicMessages(model)) {
+    throw new Error('Claude Code requires Claude models for the Anthropic Messages protocol');
+  }
   const apiBaseUrl = validateBaseUrl(baseUrl);
   const selectedProtocol = accessProtocol(platformId, protocol);
   if (!isTextModel(model)) {

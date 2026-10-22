@@ -157,14 +157,15 @@ test('normalizes localized vendor objects for WorkBuddy', () => {
 });
 
 test('builds a Claude Code user gateway config using the Messages endpoint base', () => {
-  const artifact = createPlatformArtifact('claude', options);
+  const claudeModel = modelCatalog.find(({ id }) => id === 'claude-sonnet-5-5');
+  const artifact = createPlatformArtifact('claude', { ...options, models: [claudeModel] });
   const config = JSON.parse(artifact.content);
 
   assert.equal(artifact.filename, 'settings.json');
   assert.equal(artifact.configPath, '~/.claude/settings.json');
   assert.equal(config.env.ANTHROPIC_BASE_URL, 'https://api.cheapbuddy.cc/v1');
   assert.equal(config.env.ANTHROPIC_AUTH_TOKEN, options.apiKey);
-  assert.equal(config.env.ANTHROPIC_MODEL, 'glm-5.2');
+  assert.equal(config.env.ANTHROPIC_MODEL, claudeModel.id);
   assert.equal(config.env.ANTHROPIC_DEFAULT_HAIKU_MODEL, undefined);
   assert.equal(config.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY, '1');
   assert.match(buildInstallPrompt(artifact), /ANTHROPIC_BASE_URL.*原有.*\/v1/);
@@ -215,13 +216,12 @@ test('keeps Grok 4.7 in generated platform configurations', () => {
 
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', grokOptions).content);
   const opencode = JSON.parse(createPlatformArtifact('opencode', grokOptions).content);
-  const claude = JSON.parse(createPlatformArtifact('claude', grokOptions).content);
   const codex = createPlatformArtifact('codex', grokOptions).content;
 
   assert.equal(workbuddy.models[0].id, 'grok-4.7');
   assert.equal(workbuddy.models[0].maxInputTokens, 500000);
   assert.equal(opencode.provider.cheapbuddy.models['grok-4.7'].limit.context, 500000);
-  assert.equal(claude.env.ANTHROPIC_MODEL, 'grok-4.7');
+  assert.throws(() => createPlatformArtifact('claude', grokOptions), /Claude Code requires Claude models/i);
   assert.match(codex, /^model = "grok-4\.7"/m);
 });
 
@@ -230,14 +230,13 @@ test('keeps GPT-6 Astra in every generated platform configuration', () => {
 
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', astraOptions).content);
   const opencode = JSON.parse(createPlatformArtifact('opencode', astraOptions).content);
-  const claude = JSON.parse(createPlatformArtifact('claude', astraOptions).content);
   const codex = createPlatformArtifact('codex', astraOptions).content;
 
   assert.equal(workbuddy.models[0].id, 'gpt-6-astra');
   assert.equal(workbuddy.models[0].name, 'CheapBuddy');
   assert.equal(opencode.provider.cheapbuddy.models['gpt-6-astra'].id, 'gpt-6-astra');
   assert.equal(opencode.provider.cheapbuddy.models['gpt-6-astra'].limit.context, 1050000);
-  assert.equal(claude.env.ANTHROPIC_MODEL, 'gpt-6-astra');
+  assert.throws(() => createPlatformArtifact('claude', astraOptions), /Claude Code requires Claude models/i);
   assert.match(codex, /^model = "gpt-6-astra"/m);
 });
 
@@ -247,14 +246,13 @@ test('keeps GPT-6.1 Sol in every generated platform configuration', () => {
 
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', sol61Options).content);
   const opencode = JSON.parse(createPlatformArtifact('opencode', sol61Options).content);
-  const claude = JSON.parse(createPlatformArtifact('claude', sol61Options).content);
   const codex = createPlatformArtifact('codex', sol61Options).content;
 
   assert.equal(workbuddy.models[0].id, 'gpt-6.1-sol');
   assert.equal(workbuddy.models[0].maxInputTokens, 922000);
   assert.equal(opencode.provider.cheapbuddy.models['gpt-6.1-sol'].id, 'gpt-6.1-sol');
   assert.equal(opencode.provider.cheapbuddy.models['gpt-6.1-sol'].limit.context, 922000);
-  assert.equal(claude.env.ANTHROPIC_MODEL, 'gpt-6.1-sol');
+  assert.throws(() => createPlatformArtifact('claude', sol61Options), /Claude Code requires Claude models/i);
   assert.match(codex, /^model = "gpt-6\.1-sol"/m);
 });
 
@@ -264,14 +262,13 @@ test('keeps the public DeepSeek ID consistent in every generated client configur
 
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', deepseekOptions).content);
   const opencode = JSON.parse(createPlatformArtifact('opencode', deepseekOptions).content);
-  const claude = JSON.parse(createPlatformArtifact('claude', deepseekOptions).content);
   const codex = createPlatformArtifact('codex', deepseekOptions).content;
 
   assert.equal(workbuddy.models[0].id, 'deepseek/deepseek-v4.1-flash');
   assert.deepEqual(workbuddy.availableModels, ['deepseek/deepseek-v4.1-flash']);
   assert.equal(opencode.model, 'cheapbuddy/deepseek/deepseek-v4.1-flash');
   assert.equal(opencode.provider.cheapbuddy.models['deepseek/deepseek-v4.1-flash'].id, 'deepseek/deepseek-v4.1-flash');
-  assert.equal(claude.env.ANTHROPIC_MODEL, 'deepseek/deepseek-v4.1-flash');
+  assert.throws(() => createPlatformArtifact('claude', deepseekOptions), /Claude Code requires Claude models/i);
   assert.match(codex, /^model = "deepseek\/deepseek-v4\.1-flash"/m);
   assert.equal(platformHelpers.buildConnectionTestRequest('workbuddy', {
     baseUrl: options.baseUrl,
@@ -336,7 +333,7 @@ test('rejects invalid generator inputs', () => {
   assert.throws(() => createPlatformArtifact('codex', { ...singleModelOptions, models: [{ ...selectedModels[0], maxInputTokens: 0 }] }), /maxInputTokens/i);
   assert.throws(() => createPlatformArtifact('workbuddy', { ...options, models: [selectedModels[0], { ...selectedModels[0] }] }), /Duplicate/i);
   assert.doesNotThrow(() => createPlatformArtifact('codex', options));
-  assert.doesNotThrow(() => createPlatformArtifact('claude', { ...options, models: [...selectedModels, { ...selectedModels[0], id: 'third-model' }] }));
+  assert.throws(() => createPlatformArtifact('claude', options), /Claude Code requires Claude models/i);
 });
 
 test('allows a local HTTP gateway during development', () => {
@@ -345,8 +342,8 @@ test('allows a local HTTP gateway during development', () => {
 });
 
 const claudeModels = [
-  { ...selectedModels[0], id: 'claude-opus-5-5', short: 'Claude Opus 5.5', family: 'opus', vendor: 'Anthropic', channelId: 'claude', endpointPath: '/messages' },
-  { ...selectedModels[1], id: 'claude-sonnet-5-5', short: 'Claude Sonnet 5.5', family: 'sonnet', vendor: 'Anthropic', channelId: 'claude', endpointPath: '/messages' },
+  { ...selectedModels[0], id: 'claude-opus-5-5', short: 'Claude Opus 5.5', family: 'opus', vendor: 'Anthropic', channelId: 'claude', endpointPath: '/messages', protocols: ['anthropic', 'openai-compatible'] },
+  { ...selectedModels[1], id: 'claude-sonnet-5-5', short: 'Claude Sonnet 5.5', family: 'sonnet', vendor: 'Anthropic', channelId: 'claude', endpointPath: '/messages', protocols: ['anthropic', 'openai-compatible'] },
 ];
 const claudeOptions = { ...options, models: claudeModels, apiKeyGroupId: 3 };
 
@@ -386,6 +383,10 @@ test('a Fable-only Claude config does not invent Opus, Sonnet or Haiku role alia
 test('generates mixed Claude and OpenAI selections with one shared key for every client', () => {
   const mixedModels = [modelCatalog.find(({ id }) => id === 'gpt-6.1-sol'), claudeModels[0]];
   for (const { id } of platformOptions) {
+    if (id === 'claude') {
+      assert.throws(() => createPlatformArtifact(id, { ...options, models: mixedModels }), /Claude Code requires Claude models/i);
+      continue;
+    }
     const artifact = createPlatformArtifact(id, { ...options, models: mixedModels });
     assert.equal(artifact.apiKey, generatedApiKey);
     assert.equal(artifact.defaultModelId, mixedModels[0].id);
@@ -453,6 +454,12 @@ test('connection probes follow the selected client protocol without unsupported 
     assert.equal(request.body.stream, false);
     assert.equal(request.isValid({}), false);
   }
+
+  const glm53 = modelCatalog.find(({ id }) => id === 'glm-5.3');
+  assert.throws(
+    () => platformHelpers.buildConnectionTestRequest('claude', { baseUrl: options.baseUrl, model: glm53 }),
+    /Claude Code requires Claude models/i,
+  );
 });
 
 test('connection probes use the selected model temperature for provider-specific constraints', () => {
@@ -462,6 +469,20 @@ test('connection probes use the selected model temperature for provider-specific
   assert.equal(request.url, 'https://api.cheapbuddy.cc/v1/chat/completions');
   assert.equal(request.body.model, 'kimi-k3');
   assert.equal(request.body.temperature, 1);
+});
+
+test('Claude Code only offers Claude models that use Anthropic Messages', () => {
+  const claudeModelsForPlatform = platformHelpers.getModelsForPlatform('claude', modelCatalog);
+  const glm53 = modelCatalog.find(({ id }) => id === 'glm-5.3');
+
+  assert.ok(claudeModelsForPlatform.length > 0);
+  assert.ok(claudeModelsForPlatform.every(({ protocols }) => protocols?.includes('anthropic')));
+  assert.ok(platformHelpers.getModelsForPlatform('workbuddy', modelCatalog).some(({ id }) => id === 'glm-5.3'));
+  for (const platformId of ['workbuddy', 'opencode']) {
+    const request = platformHelpers.buildConnectionTestRequest(platformId, { baseUrl: options.baseUrl, model: glm53 });
+    assert.equal(request.url, 'https://api.cheapbuddy.cc/v1/chat/completions');
+  }
+  assert.throws(() => platformHelpers.getModelsForPlatform('unknown', modelCatalog), /platform/i);
 });
 
 test('native connection probes keep non-Claude mixed-selection models on compatible OpenCode', () => {

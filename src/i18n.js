@@ -455,6 +455,7 @@ Object.assign(messages.zh, {
   codexModelInstruction: 'Codex 默认模型为 `{model}`；其他已选模型 ID 会列在配置注释中，可用 `--model <模型 ID>` 切换。',
   includedModels: '已包含模型',
   platformModelSelection_all: '可选择多个模型，也可一键全选；模型如何呈现取决于各平台的原生配置格式。',
+  platformModelSelection_claude: 'Claude Code 使用 Anthropic Messages 协议，只显示 Claude 模型；GLM 等 OpenAI 兼容模型请使用 WorkBuddy 或 OpenCode 的兼容协议。',
   restartInstruction: '保存后完全退出并重新启动 {platform}。',
   configSecurityInstruction: '配置包含个人 API Key，只保存在自己的设备上，不要提交到 Git 或转发。',
   credentialEnvInstruction: 'Codex config.toml 使用静态 Authorization 请求头包含 API Key；请勿分享或提交此配置文件。',
@@ -569,6 +570,7 @@ Object.assign(messages.en, {
   codexModelInstruction: 'Codex defaults to `{model}`; other selected model IDs are listed in the config comment and can be switched with `--model <model-id>`.',
   includedModels: 'Models in this configuration',
   platformModelSelection_all: 'Select any number of models or use Select all; how they appear depends on each platform’s native config format.',
+  platformModelSelection_claude: 'Claude Code uses the Anthropic Messages protocol and shows Claude models only. Use WorkBuddy or OpenCode with the compatible protocol for GLM and other OpenAI-compatible models.',
   restartInstruction: 'Save the file, then fully quit and restart {platform}.',
   configSecurityInstruction: 'This config contains your personal API key. Keep it on your own device and never commit or forward it.',
   credentialEnvInstruction: 'The Codex config contains your API key in a static Authorization header. Keep this file private and never commit or forward it.',
@@ -1124,7 +1126,7 @@ Object.assign(messages.en, {
 });
 
 Object.assign(messages.zh, {
-  sharedModelAccess: 'OpenAI 与 Claude 模型可同时选择，共用同一把 CheapBuddy API Key、Base URL 和 USD 余额。生成配置前会验证这把 Key 可访问全部所选模型。',
+  sharedModelAccess: 'WorkBuddy、OpenCode 与 Codex 可同时选择 OpenAI 与 Claude 模型，共用同一把 CheapBuddy API Key、Base URL 和 USD 余额；Claude Code 使用 Anthropic Messages 协议，只支持 Claude 模型。',
   claudeProtocolSupport: 'Claude 提供 Anthropic 或 OpenAI-compatible 两种任选接入协议；Chat Completions 与 Responses 是兼容类别内的接口。Relay 透明转发，协议处理由 Sub2API 提供。',
   modelAccessRestrictions: '统一 Key 使用已授权的复合分组；模型限制、额度、到期、封禁和余额检查仍由服务端执行。',
   modelGroupSelectionRequired: '当前账号没有可用的统一模型分组，请联系管理员配置 OpenAI 与 Claude 的复合分组及模型权限。',
@@ -1146,7 +1148,7 @@ Object.assign(messages.zh, {
 });
 
 Object.assign(messages.en, {
-  sharedModelAccess: 'Select OpenAI and Claude models together with one CheapBuddy API key, base URL, and USD balance. Access to every selected model is verified with that key before generating the config.',
+  sharedModelAccess: 'WorkBuddy, OpenCode, and Codex can select OpenAI and Claude models together with one CheapBuddy API key, base URL, and USD balance. Claude Code uses Anthropic Messages and supports Claude models only.',
   claudeProtocolSupport: 'Claude offers two alternative protocols: Anthropic or OpenAI-compatible. Chat Completions and Responses are interfaces within the compatible category. Relay forwards transparently; Sub2API handles the protocol.',
   modelAccessRestrictions: 'The shared key uses an authorized composite group. Model restrictions, quotas, expiry, disabled status, and balance checks remain enforced by the server.',
   modelGroupSelectionRequired: 'No shared model group is available for this account. Ask the administrator to configure a composite group with OpenAI and Claude model access.',
