@@ -1,4 +1,5 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
+import { getRegistrationVerificationPayload, hasValidRegistrationVerification, isEmailVerificationEnabled } from './auth-registration.js';
 import { createRoot } from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -130,13 +131,14 @@ function TurnstileWidget({ siteKey, action, resetKey, onToken, onError, t = (key
 
 function AuthModal({
   authMode, authForm, authLoading, authError, turnstileRequired, turnstileSiteKey, turnstileToken,
-  turnstileError, turnstileResetKey, verificationCode, verificationEmail, verificationSending,
+  turnstileError, turnstileResetKey, verificationCode, verificationEmail, verificationSending, emailVerificationEnabled,
   isAdminPortalHost, referralCode, onClose, onSwitchMode, onEmailChange, onPasswordChange,
   onVerificationCodeChange, onSendVerification, onSubmit, onToken, onTurnstileError, t,
 }) {
   const verificationSent = Boolean(verificationEmail);
   const submitDisabled = authLoading
-    || (authMode === 'register' && (!verificationSent || !/^\d{6}$/.test(verificationCode)))
+    || (authMode === 'register' && emailVerificationEnabled && (!verificationSent || !hasValidRegistrationVerification({ emailVerificationEnabled, email: authForm.email, verificationEmail, verificationCode })))
+    || (authMode === 'register' && !emailVerificationEnabled && turnstileRequired && (!turnstileSiteKey || !turnstileToken))
     || (authMode === 'login' && turnstileRequired && (!turnstileSiteKey || !turnstileToken));
 
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -146,18 +148,18 @@ function AuthModal({
         <button className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => onSwitchMode('login')} role="tab" aria-selected={authMode === 'login'}>{t('loginTab')}</button>
         {!isAdminPortalHost && <button className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'} type="button" onClick={() => onSwitchMode('register')} role="tab" aria-selected={authMode === 'register'}>{t('registerTab')}</button>}
       </div>
-      <p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : 'registerIntro')}</p>
+      <p className="auth-intro">{t(authMode === 'login' ? 'loginIntro' : emailVerificationEnabled ? 'registerIntro' : 'registerIntroWithoutEmailVerification')}</p>
       {authMode === 'register' && referralCode && <p className="affiliate-registration-notice">{t('affiliateRegistrationNotice', { code: referralCode })}</p>}
       <form className="auth-form" onSubmit={onSubmit}>
         <label>{t('email')}
-          {authMode === 'register' ? <div className="auth-email-row">
+          {authMode === 'register' && emailVerificationEnabled ? <div className="auth-email-row">
             <input type="email" value={authForm.email} onChange={(event) => onEmailChange(event.target.value)} placeholder={t('emailPlaceholder')} autoComplete="email" required />
             <button className="text-button auth-code-button" type="button" onClick={onSendVerification} disabled={authLoading || verificationSending || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>
               {verificationSending ? t('sendingVerificationCode') : verificationSent ? t('resendVerificationCode') : t('sendVerificationCode')}
             </button>
           </div> : <input type="email" value={authForm.email} onChange={(event) => onEmailChange(event.target.value)} placeholder={t('emailPlaceholder')} autoComplete="email" required />}
         </label>
-        {authMode === 'register' && <>
+        {authMode === 'register' && emailVerificationEnabled && <>
           <p className="auth-verification-hint">{verificationSent ? t('verificationCodeSent') : t('emailVerificationHint')}</p>
           {verificationSent && <label>{t('verificationCode')}<input type="text" value={verificationCode} onChange={(event) => onVerificationCodeChange(event.target.value)} placeholder={t('verificationCodePlaceholder')} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required /></label>}
         </>}
@@ -168,7 +170,7 @@ function AuthModal({
         {authError && <p className="auth-error">{authError}</p>}
         <button className="button button-primary full-width" disabled={submitDisabled}>{authLoading ? authMode === 'register' ? t('processing') : t('loggingIn') : authMode === 'register' ? t('registerTrial') : t('loginContinue')} <Icon name="arrow" size={16} /></button>
       </form>
-      <p className="auth-footnote">{t('authFootnote')}</p>
+      <p className="auth-footnote">{t(emailVerificationEnabled ? 'authFootnote' : 'authFootnoteEmailVerificationDisabled')}</p>
     </div>
   </div>;
 }
@@ -956,6 +958,7 @@ function HomePage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [verificationSending, setVerificationSending] = useState(false);
+  const [emailVerificationEnabled, setEmailVerificationEnabled] = useState(true);
   const [publicTurnstile, setPublicTurnstile] = useState({ enabled: false, siteKey: '' });
   const [session, setSession] = useState(() => ({ token: getAuthToken(), user: getSavedUser(), apiKey: '' }));
   const [balance, setBalance] = useState(null);
@@ -1036,6 +1039,7 @@ function HomePage() {
 
   useEffect(() => {
     getPublicSettings().then((settings) => {
+      setEmailVerificationEnabled(isEmailVerificationEnabled(settings));
       setPublicTurnstile({
         enabled: Boolean(settings?.turnstile_enabled),
         siteKey: settings?.turnstile_enabled ? String(settings.turnstile_site_key || '').trim() : '',
@@ -1394,19 +1398,25 @@ function HomePage() {
       setAuthError(t('turnstileNotConfigured'));
       return;
     }
-    if (turnstileRequired && !turnstileToken && !(authMode === 'register' && verificationEmail === authForm.email.trim().toLowerCase() && verificationCode.trim())) {
+    const registrationVerificationValid = hasValidRegistrationVerification({
+      emailVerificationEnabled,
+      email: authForm.email,
+      verificationEmail,
+      verificationCode,
+    });
+    if (turnstileRequired && !turnstileToken && !(authMode === 'register' && emailVerificationEnabled && registrationVerificationValid)) {
       setAuthError(t('completeTurnstile'));
       return;
     }
-    if (authMode === 'register' && !verificationEmail) {
+    if (authMode === 'register' && emailVerificationEnabled && !verificationEmail) {
       setAuthError(t('sendVerificationCodeFirst'));
       return;
     }
-    if (authMode === 'register' && verificationEmail !== authForm.email.trim().toLowerCase()) {
+    if (authMode === 'register' && emailVerificationEnabled && verificationEmail !== authForm.email.trim().toLowerCase()) {
       setAuthError(t('verificationEmailChanged'));
       return;
     }
-    if (authMode === 'register' && !/^\d{6}$/.test(verificationCode.trim())) {
+    if (authMode === 'register' && emailVerificationEnabled && !/^\d{6}$/.test(verificationCode.trim())) {
       setAuthError(t('enterVerificationCode'));
       return;
     }
@@ -1417,7 +1427,8 @@ function HomePage() {
       let action = authMode;
       if (authMode === 'register') {
         try {
-          result = await registerUser(authForm.email.trim(), authForm.password, '', referralCode, verificationCode);
+          const verificationPayload = getRegistrationVerificationPayload({ emailVerificationEnabled, turnstileToken, verificationCode });
+          result = await registerUser(authForm.email.trim(), authForm.password, verificationPayload.turnstileToken, referralCode, verificationPayload.verificationCode);
         } catch (error) {
           if (!isExistingUserError(error)) throw error;
           switchAuthMode('login');
@@ -1763,6 +1774,7 @@ function HomePage() {
       verificationCode={verificationCode}
       verificationEmail={verificationEmail}
       verificationSending={verificationSending}
+      emailVerificationEnabled={emailVerificationEnabled}
       isAdminPortalHost={isAdminPortalHost}
       referralCode={referralCode}
       onClose={() => setShowAuth(false)}
