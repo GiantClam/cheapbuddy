@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getRegistrationVerificationPayload, hasValidRegistrationVerification, isEmailVerificationEnabled } from './auth-registration.js';
+import { getRegistrationVerificationPayload, hasValidRegistrationVerification, isEmailVerificationEnabled, isEmailVerificationRequiredError } from './auth-registration.js';
 
 test('email verification follows an explicit public setting', () => {
   assert.equal(isEmailVerificationEnabled({ email_verify_enabled: true }), true);
@@ -49,4 +49,10 @@ test('registration keeps the existing email verification payload when it is enab
     turnstileToken: 'unused-after-email-check',
     verificationCode: '123456',
   }), { turnstileToken: '', verificationCode: '123456' });
+});
+
+test('recognizes a backend email verification policy response', () => {
+  assert.equal(isEmailVerificationRequiredError(new Error('email verification is required')), true);
+  assert.equal(isEmailVerificationRequiredError(new Error('邮箱验证是必需的')), true);
+  assert.equal(isEmailVerificationRequiredError(new Error('invalid verification code')), false);
 });

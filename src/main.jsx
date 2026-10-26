@@ -1,5 +1,5 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
-import { getRegistrationVerificationPayload, hasValidRegistrationVerification, isEmailVerificationEnabled } from './auth-registration.js';
+import { getRegistrationVerificationPayload, hasValidRegistrationVerification, isEmailVerificationEnabled, isEmailVerificationRequiredError } from './auth-registration.js';
 import { createRoot } from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1431,6 +1431,15 @@ function HomePage() {
           const verificationPayload = getRegistrationVerificationPayload({ emailVerificationEnabled, turnstileToken, verificationCode });
           result = await registerUser(authForm.email.trim(), authForm.password, verificationPayload.turnstileToken, referralCode, verificationPayload.verificationCode);
         } catch (error) {
+          if (isEmailVerificationRequiredError(error)) {
+            setEmailVerificationEnabled(true);
+            setVerificationEmail('');
+            setVerificationCode('');
+            setTurnstileToken('');
+            setTurnstileError('');
+            setTurnstileResetKey((current) => current + 1);
+            throw new Error(t('sendVerificationCodeFirst'));
+          }
           if (!isExistingUserError(error)) throw error;
           switchAuthMode('login');
           throw new Error(t('alreadyRegistered'));
