@@ -154,14 +154,14 @@ function AuthModal({
         <label>{t('email')}
           {authMode === 'register' && emailVerificationEnabled ? <div className="auth-email-row">
             <input type="email" value={authForm.email} onChange={(event) => onEmailChange(event.target.value)} placeholder={t('emailPlaceholder')} autoComplete="email" required />
-            <button className="text-button auth-code-button" type="button" onClick={onSendVerification} disabled={authLoading || verificationSending || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>
-              {verificationSending ? t('sendingVerificationCode') : verificationSent ? t('resendVerificationCode') : t('sendVerificationCode')}
+            <button className="button button-primary button-small auth-code-button" type="button" onClick={onSendVerification} disabled={authLoading || verificationSending || (turnstileRequired && (!turnstileSiteKey || !turnstileToken))}>
+              <Icon name="mail" size={15} /> {verificationSending ? t('sendingVerificationCode') : verificationSent ? t('resendVerificationCode') : t('sendVerificationCode')}
             </button>
           </div> : <input type="email" value={authForm.email} onChange={(event) => onEmailChange(event.target.value)} placeholder={t('emailPlaceholder')} autoComplete="email" required />}
         </label>
         {authMode === 'register' && emailVerificationEnabled && <>
           <p className="auth-verification-hint">{verificationSent ? t('verificationCodeSent') : t('emailVerificationHint')}</p>
-          {verificationSent && <label>{t('verificationCode')}<input type="text" value={verificationCode} onChange={(event) => onVerificationCodeChange(event.target.value)} placeholder={t('verificationCodePlaceholder')} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required /></label>}
+          <label>{t('verificationCode')}<input id="registration-verification-code" type="text" value={verificationCode} onChange={(event) => onVerificationCodeChange(event.target.value)} placeholder={t('verificationCodePlaceholder')} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required /></label>
         </>}
         <label>{t('password')}<input type="password" value={authForm.password} onChange={(event) => onPasswordChange(event.target.value)} placeholder={t(authMode === 'register' ? 'registerPasswordPlaceholder' : 'loginPasswordPlaceholder')} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} minLength={6} required /></label>
         {turnstileRequired && turnstileSiteKey && <TurnstileWidget key={`${authMode}-${turnstileResetKey}`} siteKey={turnstileSiteKey} action={authMode} resetKey={turnstileResetKey} onToken={(token) => { onToken(token); }} onError={onTurnstileError} t={t} />}
@@ -178,6 +178,7 @@ function AuthModal({
 function Icon({ name, size = 18 }) {
   const paths = {
     arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
+    mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
     chevron: <path d="m6 9 6 6 6-6" />,
     check: <path d="m5 12 4 4L19 6" />,
     copy: <><rect x="9" y="9" width="10" height="10" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
