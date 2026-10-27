@@ -12,7 +12,7 @@
 ```text
 公开 ID：     deepseek/deepseek-v4.1-flash
 内部路由 ID： deepseek-flash
-上游实际 ID： deepseek-v4.1-flash
+上游实际 ID： deepseek-4.1-flash-1017
 ```
 
 不要把内部路由 ID 写入 WorkBuddy、Claude Code、OpenCode 或 Codex 的生成配置。
@@ -29,11 +29,11 @@ $env:SUB2API_ADMIN_API_KEY = "<admin-api-key>"
 
 - `ecophase-ai.com`：Priority 1、Active、Schedulable
 - `deepseek/deepseek-v4.1-flash` → `deepseek-v4.1-flash`
-- `deepseek-v4.1-flash` → `deepseek-v4.1-flash`
+- `deepseek-flash` → `deepseek-4.1-flash-1017`
+- 账户模型白名单包含 `deepseek-4.1-flash-1017`
 
-不要为 `ecophase-ai.com` 配置以下两个 ID：
+不要为 `ecophase-ai.com` 配置以下旧 ID：
 
-- `deepseek-flash`
 - `deepseek-v4.1-flash-1017`
 
 并确认 `CheapBuddy OpenAI` 组白名单勾选公开 ID 和内部路由 ID。
@@ -58,9 +58,9 @@ $env:CHEAPBUDDY_API_KEY = "<user-api-key>"
 
 成功响应只证明入口和上游可用。最终验收还要确认：
 
-- Account 为支持实际请求模型 ID 的可调度账户；当前内部路由请求预期为 `pptoken-deepseek`
+- Account 应为 Priority 1 的 `ecophase-ai.com`
 - Requested Model 为公开 ID
-- Final Upstream Model 为 `deepseek-v4.1-flash`
+- Final Upstream Model 为 `deepseek-4.1-flash-1017`
 - 有实际 Cost
 
 详细步骤见 `scripts/VERIFICATION-GUIDE.md`。

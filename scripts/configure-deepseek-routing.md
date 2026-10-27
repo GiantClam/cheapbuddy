@@ -6,7 +6,7 @@
 | --- | --- |
 | 客户端、网站和公开模型目录 | `deepseek/deepseek-v4.1-flash` |
 | Relay/Sub2API 内部调度 | `deepseek-flash` |
-| EcoPhase 上游实际模型 | `deepseek-v4.1-flash` |
+| EcoPhase 上游实际模型 | `deepseek-4.1-flash-1017` |
 
 客户端生成配置不得输出后两种 ID。
 
@@ -22,7 +22,8 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 
 ```json
 {
-  "deepseek/deepseek-v4.1-flash": "deepseek-flash"
+  "deepseek/deepseek-v4.1-flash": "deepseek-flash",
+  "deepseek-4.1-flash-1017": "deepseek-flash"
 }
 ```
 
@@ -43,26 +44,26 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 - Status：Active
 - Schedulable：启用
 - Priority：1
-- Model Restriction：`deepseek-v4.1-flash`
+- Model Restriction：`deepseek-v4.1-flash`、`deepseek-4.1-flash-1017`
 - Model Mapping：
 
 ```text
 deepseek/deepseek-v4.1-flash → deepseek-v4.1-flash
-deepseek-v4.1-flash → deepseek-v4.1-flash
+deepseek-flash → deepseek-4.1-flash-1017
 ```
 
-该账户不支持以下两个 ID，因此不得添加账户级映射：
+该账户应勾选以下模型白名单：
 
 ```text
 deepseek-flash
-deepseek-v4.1-flash-1017
+deepseek-4.1-flash-1017
 ```
 
 Relay 的内部别名配置与 Sub2API 账户映射分开维护。其他支持内部路由 ID 的账户可以继续作为后备渠道。
 
 `pptoken-deepseek` 当前为 Priority 2，只应在 Priority 1 账户不可用、超限或模型不匹配
-时接管请求。`ecophase-ai.com` 不支持 `deepseek-flash` 和
-`deepseek-v4.1-flash-1017`，命中这两个 ID 时不得把它们映射到该账户。
+时接管请求。请求 `deepseek-flash` 或 `deepseek-4.1-flash-1017` 时，优先命中
+`ecophase-ai.com` 的 `deepseek-4.1-flash-1017`。
 
 ## 安全审计脚本
 
@@ -88,14 +89,14 @@ $env:CHEAPBUDDY_API_KEY = "<user-api-key>"
 
 然后检查 Usage：
 
-- Account：支持实际请求模型 ID 的可调度账户；当前内部路由请求预期为 `pptoken-deepseek`
+- Account：优先为 `ecophase-ai.com`
 - Requested Model：`deepseek/deepseek-v4.1-flash`
-- Final Upstream Model：`deepseek-v4.1-flash`
+- Final Upstream Model：`deepseek-4.1-flash-1017`
 - Cost：存在实际用户计费和账户成本
 
-2026-10-19 当前生产配置下，经过 Relay 重写为 `deepseek-flash` 的请求由支持该
-ID 的后备账户承接；`ecophase-ai.com` 不支持 `deepseek-flash` 或
-`deepseek-v4.1-flash-1017`。
+2026-10-27 生产配置已更新：`ecophase-ai.com` 为 Priority 1，
+`deepseek-flash` 映射到 `deepseek-4.1-flash-1017`；`pptoken-deepseek`
+保留为 Priority 2 后备。
 
 2026-10-15 17:37:41 的请求
 `1fa7d9aab0f6c178a687873c7f4cde3c` 已完成上述验证。

@@ -74,5 +74,5 @@ Write-Host ""
 Write-Host "请在管理后台 Usage 中核对：" -ForegroundColor Yellow
 Write-Host "  Account: ecophase-ai.com"
 Write-Host "  Requested Model: $publicModelId"
-Write-Host "  Final Upstream Model: deepseek-v4.1-flash"
+Write-Host "  Final Upstream Model: deepseek-4.1-flash-1017"
 Write-Host "  用户 Cost 和账户成本均已记录"

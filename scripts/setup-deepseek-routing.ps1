@@ -9,8 +9,9 @@ $ErrorActionPreference = "Stop"
 
 $publicModelId = "deepseek/deepseek-v4.1-flash"
 $routingModelId = "deepseek-flash"
-$upstreamModelId = "deepseek-v4.1-flash"
-$unsupportedAccountModelIds = @("deepseek-flash", "deepseek-v4.1-flash-1017")
+$legacyUpstreamModelId = "deepseek-v4.1-flash"
+$upstreamModelId = "deepseek-4.1-flash-1017"
+$unsupportedAccountModelIds = @("deepseek-v4.1-flash-1017")
 
 function Write-Result {
     param(
@@ -183,16 +184,16 @@ foreach ($check in $checks) {
         }
 
         $publicTarget = [string](Get-ConfigValue -Object $mapping -Key $publicModelId)
-        $canonicalTarget = [string](Get-ConfigValue -Object $mapping -Key $upstreamModelId)
+        $routingTarget = [string](Get-ConfigValue -Object $mapping -Key $routingModelId)
 
         Write-Result "  $publicModelId → $publicTarget"
-        Write-Result "  $upstreamModelId → $canonicalTarget"
+        Write-Result "  $routingModelId → $routingTarget"
 
-        if ($publicTarget -ne $upstreamModelId) {
-            $failures.Add("$($details.name) 缺少 $publicModelId → $upstreamModelId")
+        if ($publicTarget -ne $legacyUpstreamModelId) {
+            $failures.Add("$($details.name) 应保留 $publicModelId → $legacyUpstreamModelId")
         }
-        if ($canonicalTarget -ne $upstreamModelId) {
-            $failures.Add("$($details.name) 缺少 $upstreamModelId → $upstreamModelId")
+        if ($routingTarget -ne $upstreamModelId) {
+            $failures.Add("$($details.name) 缺少 $routingModelId → $upstreamModelId")
         }
         foreach ($forbiddenModelId in @($check.ForbiddenMappings)) {
             if ($null -ne (Get-ConfigValue -Object $mapping -Key $forbiddenModelId)) {
@@ -206,6 +207,7 @@ Write-Result ""
 Write-Result "仍需在管理后台确认 CheapBuddy OpenAI 白名单：" "Yellow"
 Write-Result "  $publicModelId"
 Write-Result "  $routingModelId"
+Write-Result "账户 ecophase-ai.com 应映射：$routingModelId → $upstreamModelId" "Yellow"
 Write-Result "账户 ecophase-ai.com 不应映射：$($unsupportedAccountModelIds -join ', ')" "Yellow"
 
 if ($failures.Count -gt 0) {

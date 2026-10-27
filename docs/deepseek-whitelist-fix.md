@@ -1,5 +1,9 @@
 # DeepSeek V4.1 Flash 白名单与账户映射
 
+> 历史记录：2026-10-27 ecophase-ai.com 已上线 `deepseek-4.1-flash-1017`，当前
+> `deepseek-flash` 与该模型均优先命中该账户。下文 2026-10-19 的后备路由结论仅
+> 用于解释旧状态。
+
 ## 正确配置
 
 ```text

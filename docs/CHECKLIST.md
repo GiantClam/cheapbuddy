@@ -1,5 +1,9 @@
 # DeepSeek V4.1 Flash 上线检查清单
 
+> 当前生产配置已于 2026-10-27 更新：ecophase-ai.com 优先承接
+> `deepseek-flash` 和 `deepseek-4.1-flash-1017`，上游模型为
+> `deepseek-4.1-flash-1017`。
+
 ## 历史线上状态（2026-10-15）
 
 - [x] `CheapBuddy OpenAI` 为 Active，倍率 `0.72x`
@@ -8,7 +12,7 @@
 - [x] `ecophase-ai.com` 为 Active、Schedulable、Priority 1
 - [x] 账户保留 `deepseek/deepseek-v4.1-flash` → `deepseek-v4.1-flash`
 - [x] 账户保留 `deepseek-v4.1-flash` → `deepseek-v4.1-flash`
-- [x] 账户不映射 `deepseek-flash` 和 `deepseek-v4.1-flash-1017`
+- [x] 新配置中 `deepseek-flash` → `deepseek-4.1-flash-1017`
 - [x] 真实请求返回 200
 - [x] 历史 Usage 记录曾命中 `ecophase-ai.com`
 - [x] Requested Model 为公开 ID
@@ -18,17 +22,17 @@
 线上验证 Request ID：
 `1fa7d9aab0f6c178a687873c7f4cde3c`。
 
-## 当前账户映射（2026-10-19）
+## 当前账户映射（2026-10-27）
 
 - [x] `ecophase-ai.com` 保留 `deepseek/deepseek-v4.1-flash` 和
   `deepseek-v4.1-flash` → `deepseek-v4.1-flash`
-- [x] `ecophase-ai.com` 不映射 `deepseek-flash`
-- [x] `ecophase-ai.com` 不映射 `deepseek-v4.1-flash-1017`
-- [x] 这两个 ID 的真实请求由 `pptoken-deepseek` 承接并成功返回
+- [x] `ecophase-ai.com` 映射 `deepseek-flash` → `deepseek-4.1-flash-1017`
+- [x] `ecophase-ai.com` 白名单包含 `deepseek-4.1-flash-1017`
+- [x] `pptoken-deepseek` 保留为 Priority 2 后备
 
 ## 每次发布前
 
-- [ ] `src/models.js` 中 DeepSeek 仅声明公开 ID
+- [x] `src/models.js` 中 DeepSeek 仅声明公开 ID
 - [ ] WorkBuddy、Claude Code、OpenCode、Codex 配置均输出公开 ID
 - [ ] `relay/config/model-aliases.json` 映射公开 ID → 内部路由 ID
 - [ ] Relay 部署环境设置 `RELAY_MODEL_ALIASES_FILE`，或提供等价
@@ -53,9 +57,9 @@
 
 2. 在 Usage 记录中核对：
 
-- [ ] Account：支持实际请求模型 ID 的可调度账户；当前内部路由请求预期为 `pptoken-deepseek`
+- [ ] Account：`ecophase-ai.com`
 - [ ] Requested Model：`deepseek/deepseek-v4.1-flash`
-- [ ] Final Upstream Model：`deepseek-v4.1-flash`
+- [ ] Final Upstream Model：`deepseek-4.1-flash-1017`
 - [ ] Inbound：`/v1/chat/completions`
 - [ ] 请求成功且 Cost 非空
 
