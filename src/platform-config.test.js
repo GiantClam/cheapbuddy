@@ -276,6 +276,25 @@ test('keeps the public DeepSeek ID consistent in every generated client configur
   }).body.model, 'deepseek/deepseek-v4.1-flash');
 });
 
+test('publishes DeepSeek 4.1 Flash 1017 in every generated client configuration', () => {
+  const deepseek1017 = modelCatalog.find(({ id }) => id === 'deepseek-4.1-flash-1017');
+  const deepseekOptions = { ...options, models: [deepseek1017] };
+
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', deepseekOptions).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', deepseekOptions).content);
+  const codex = createPlatformArtifact('codex', deepseekOptions).content;
+
+  assert.equal(workbuddy.models[0].id, 'deepseek-4.1-flash-1017');
+  assert.deepEqual(workbuddy.availableModels, ['deepseek-4.1-flash-1017']);
+  assert.equal(opencode.model, 'cheapbuddy/deepseek-4.1-flash-1017');
+  assert.equal(opencode.provider.cheapbuddy.models['deepseek-4.1-flash-1017'].id, 'deepseek-4.1-flash-1017');
+  assert.match(codex, /^model = "deepseek-4\.1-flash-1017"/m);
+  assert.equal(platformHelpers.buildConnectionTestRequest('workbuddy', {
+    baseUrl: options.baseUrl,
+    model: deepseek1017,
+  }).body.model, 'deepseek-4.1-flash-1017');
+});
+
 test('keeps media models selectable with their native endpoints and capabilities', () => {
   const textModel = { ...selectedModels[0] };
   const mediaModels = [

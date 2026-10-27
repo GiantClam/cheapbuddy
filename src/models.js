@@ -95,6 +95,12 @@ export const modelCatalog = [
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
+    id: 'deepseek-4.1-flash-1017', short: 'DeepSeek 4.1 Flash 1017', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: 'EcoPhase AI 路由的百万上下文、多模态理解与 Agent 工具调用', en: 'EcoPhase AI route for million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D417', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    maxInputTokens: 1000000, maxOutputTokens: 384000, temperature: 1,
+    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
+    reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
+  },
+  {
     id: 'qwen3.8-max', short: 'Qwen 3.8 Max', vendor: { zh: '通义千问', en: 'Qwen' }, description: { zh: '旗舰推理、视觉理解与 Agent 工具调用', en: 'Flagship reasoning, vision, and Agent tool use' }, input: '¥12.00', output: '¥36.00', priceStatus: 'verified', priceSourceUrl: 'https://help.aliyun.com/zh/model-studio/qwen3-8-max', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；北京地域缓存命中 ¥1.50，国际地域原价不同', en: 'CNY / MTok; Beijing cached input ¥1.50; international region has different rates' }, accent: 'blue', mark: 'Q38', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 991808, maxOutputTokens: 131072, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,

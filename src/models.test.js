@@ -16,6 +16,7 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(ids.includes('gpt-5.6-sol'));
   assert.ok(ids.includes('gpt-5.6-terra'));
   assert.ok(ids.includes('deepseek/deepseek-v4.1-flash'));
+  assert.ok(ids.includes('deepseek-4.1-flash-1017'));
   assert.ok(ids.includes('gpt-image-2.5'));
   assert.ok(ids.includes('MiniMax-H3'));
   assert.ok(ids.includes('glm-5.3'));
@@ -63,6 +64,7 @@ test('model catalog contains published text and media models', () => {
     'gpt-5.6-sol',
     'gpt-5.6-terra',
     'deepseek/deepseek-v4.1-flash',
+    'deepseek-4.1-flash-1017',
     'qwen3.8-max',
     'gpt-image-2.5',
     'MiniMax-H3',

@@ -102,6 +102,35 @@ func TestReadRouteBodyMapsDeepSeek1017AliasToInternalRouteID(t *testing.T) {
 	}
 }
 
+func TestReadRouteBodyMapsUnversionedDeepSeek1017AliasToInternalRouteID(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-4.1-flash-1017","messages":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	server := &Server{Config: config.Config{
+		TextPaths:    map[string]struct{}{`/v1/chat/completions`: {}},
+		ModelAliases: map[string]string{"deepseek-4.1-flash-1017": "deepseek-flash"},
+		MaxBodyBytes: 1 << 20,
+	}}
+	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.body.Close()
+	body, err := io.ReadAll(prepared.body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["model"] != "deepseek-flash" {
+		t.Fatalf("upstream model = %#v", payload["model"])
+	}
+	if prepared.model != "deepseek-4.1-flash-1017" {
+		t.Fatalf("route model identity = %q", prepared.model)
+	}
+}
+
 func TestReadRouteBodyLeavesOfficialModelIDUnchanged(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-flash"}`))
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -129,13 +158,18 @@ func TestAppendModelAliasesPublishesPublicAndOfficialIDs(t *testing.T) {
 	seen := map[string]bool{"deepseek/deepseek-v4.1-flash": true}
 	rows = appendModelAliases(rows, seen, map[string]string{
 		"deepseek/deepseek-v4.1-flash": "deepseek-flash",
+		"deepseek-4.1-flash-1017":      "deepseek-flash",
 		"deepseek-v4.1-flash-1017":     "deepseek-flash",
 	})
-	if len(rows) != 3 || !seen["deepseek-flash"] || !seen["deepseek-v4.1-flash-1017"] {
+	if len(rows) != 4 || !seen["deepseek-flash"] || !seen["deepseek-v4.1-flash-1017"] || !seen["deepseek-4.1-flash-1017"] {
 		t.Fatalf("model aliases = %#v, seen = %#v", rows, seen)
 	}
-	if rows[2].(map[string]any)["id"] != "deepseek-v4.1-flash-1017" {
-		t.Fatalf("1017 alias row = %#v", rows[2])
+	ids := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		ids[row.(map[string]any)["id"].(string)] = true
+	}
+	if !ids["deepseek-v4.1-flash-1017"] || !ids["deepseek-4.1-flash-1017"] {
+		t.Fatalf("1017 alias rows = %#v", rows)
 	}
 }
 
