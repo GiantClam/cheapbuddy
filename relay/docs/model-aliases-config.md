@@ -31,6 +31,7 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 ```json
 {
   "deepseek/deepseek-v4.1-flash": "deepseek-flash",
+  "deepseek-flash": "deepseek-4.1-flash-1017",
   "deepseek-4.1-flash-1017": "deepseek-flash",
   "deepseek-v4.1-flash": "deepseek-flash",
   "deepseek-v4.1-flash-1017": "deepseek-flash",
@@ -56,7 +57,7 @@ deepseek/deepseek-v4.1-flash
         ↓ Relay alias
 Sub2API 内部路由 ID
 deepseek-flash
-        ↓ account credentials.model_mapping
+        ↓ account credentials.model_mapping / Relay direct alias
 上游实际 ID
 deepseek-4.1-flash-1017
 ```
@@ -64,8 +65,8 @@ deepseek-4.1-flash-1017
 `deepseek-flash` 是内部路由 ID，不是 DeepSeek 官方上游 ID。
 
 `deepseek-4.1-flash-1017` 当前作为可选模型 ID 放行，并映射到同一个
-`deepseek-flash` 内部路由 ID。生产优先账户 `ecophase-ai.com` 再将该内部 ID
-映射到上游 `deepseek-4.1-flash-1017`。
+`deepseek-flash` 内部路由 ID。`deepseek-flash` 请求在 Relay 中直接改写为
+`deepseek-4.1-flash-1017`；生产优先账户 `ecophase-ai.com` 同时保留该精确模型能力。
 
 当前生产账户 `ecophase-ai.com` 为 Priority 1、Active、Schedulable，并优先承接
 `deepseek-flash` 和 `deepseek-4.1-flash-1017`。
