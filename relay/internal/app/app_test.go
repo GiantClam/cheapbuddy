@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -44,123 +45,60 @@ func TestHiddenVerifiedMediaRemainsRoutable(t *testing.T) {
 	}
 }
 
-func TestReadRouteBodyLeavesLegacyDeepSeekIDsOnSupportedModel(t *testing.T) {
-	for _, model := range []string{"deepseek/deepseek-v4.1-flash", "deepseek-v4.1-flash"} {
-		t.Run(model, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"`+model+`","messages":[]}`))
-			request.Header.Set("Content-Type", "application/json")
-			server := &Server{Config: config.Config{
-				TextPaths:    map[string]struct{}{"/v1/chat/completions": {}},
-				ModelAliases: map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"},
-				MaxBodyBytes: 1 << 20,
-			}}
-			prepared, err := server.readRouteBody(request, "/v1/chat/completions")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer prepared.body.Close()
-			body, err := io.ReadAll(prepared.body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var payload map[string]any
-			if err := json.Unmarshal(body, &payload); err != nil {
-				t.Fatal(err)
-			}
-			if payload["model"] != model || prepared.model != model {
-				t.Fatalf("legacy model changed: body=%#v route=%q", payload["model"], prepared.model)
-			}
-		})
-	}
-}
-
-func TestReadRouteBodyResolvesDeepSeek1017LegacyAliasToUpstreamModel(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-v4.1-flash-1017","messages":[]}`))
-	request.Header.Set("Content-Type", "application/json")
-	server := &Server{Config: config.Config{
-		TextPaths: map[string]struct{}{`/v1/chat/completions`: {}},
-		ModelAliases: map[string]string{
-			"deepseek-v4.1-flash-1017": "deepseek-flash",
-			"deepseek-flash":           "deepseek-4.1-flash-1017",
-		},
-		MaxBodyBytes: 1 << 20,
-	}}
-	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
+func TestCheckedInDeepSeekFlashAliasesUseCanonicalUpstream(t *testing.T) {
+	data, err := os.ReadFile("../../config/model-aliases.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer prepared.body.Close()
-	body, err := io.ReadAll(prepared.body)
-	if err != nil {
+	var aliases map[string]string
+	if err := json.Unmarshal(data, &aliases); err != nil {
 		t.Fatal(err)
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatal(err)
+	const canonical = "deepseek-v4.1-flash-1017"
+	models := []string{
+		canonical, "deepseek-flash", "deepseek-4.1-flash-1017",
+		"deepseek-v4-flash", "deepseek-v4-flash-0731", "DeepSeek-V4-Flash-0731",
+		"deepseek-v4-flash-vision-exp", "deepseek-v4.1-flash",
+		"deepseek-v4.1-flash-0910", "deepseek-v4.1-flash-expires-on-0910",
+		"deepseek/deepseek-v4-flash", "deepseek/deepseek-v4.1-flash",
+		"deepseek/deepseek-v4.1-flash-1017", "deepseek-v4-pro", "deepseek/deepseek-v4-pro",
 	}
-	if payload["model"] != "deepseek-4.1-flash-1017" {
-		t.Fatalf("upstream model = %#v", payload["model"])
+	for alias := range aliases {
+		models = append(models, alias)
 	}
-	if prepared.model != "deepseek-v4.1-flash-1017" {
-		t.Fatalf("route model identity = %q", prepared.model)
-	}
-}
-
-func TestReadRouteBodyLeavesPublicDeepSeek1017IDUnchanged(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-4.1-flash-1017","messages":[]}`))
-	request.Header.Set("Content-Type", "application/json")
-	server := &Server{Config: config.Config{
-		TextPaths:    map[string]struct{}{`/v1/chat/completions`: {}},
-		ModelAliases: map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"},
-		MaxBodyBytes: 1 << 20,
-	}}
-	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer prepared.body.Close()
-	body, err := io.ReadAll(prepared.body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload["model"] != "deepseek-4.1-flash-1017" {
-		t.Fatalf("public model was rewritten = %#v", payload["model"])
-	}
-	if prepared.model != "deepseek-4.1-flash-1017" {
-		t.Fatalf("route model identity = %q", prepared.model)
-	}
-}
-
-func TestReadRouteBodyMapsInternalDeepSeekRouteToUpstreamModel(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-flash"}`))
-	request.Header.Set("Content-Type", "application/json; charset=utf-8")
-	server := &Server{Config: config.Config{
-		TextPaths:    map[string]struct{}{"/v1/chat/completions": {}},
-		ModelAliases: map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"},
-		MaxBodyBytes: 1 << 20,
-	}}
-	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer prepared.body.Close()
-	body, err := io.ReadAll(prepared.body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload["model"] != "deepseek-4.1-flash-1017" {
-		t.Fatalf("upstream model = %#v", payload["model"])
-	}
-	if prepared.model != "deepseek-flash" {
-		t.Fatalf("route model identity = %q", prepared.model)
+	for _, endpoint := range []string{"/v1/chat/completions", "/v1/responses"} {
+		for _, model := range models {
+			t.Run(endpoint+"/"+model, func(t *testing.T) {
+				request := httptest.NewRequest(http.MethodPost, endpoint, strings.NewReader(`{"model":"`+model+`","messages":[],"input":"hello","stream":false}`))
+				request.Header.Set("Content-Type", "application/json; charset=utf-8")
+				server := &Server{Config: config.Config{
+					TextPaths: map[string]struct{}{endpoint: {}}, ModelAliases: aliases, MaxBodyBytes: 1 << 20,
+				}}
+				prepared, err := server.readRouteBody(request, endpoint)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer prepared.body.Close()
+				body, err := io.ReadAll(prepared.body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload map[string]any
+				if err := json.Unmarshal(body, &payload); err != nil {
+					t.Fatal(err)
+				}
+				want := canonical
+				if strings.Contains(model, "-pro") {
+					want = model
+				}
+				if payload["model"] != want || prepared.model != model {
+					t.Fatalf("upstream=%#v want=%q audit=%q requested=%q", payload["model"], want, prepared.model, model)
+				}
+				if payload["input"] != "hello" || payload["stream"] != false {
+					t.Fatalf("request fields changed: %#v", payload)
+				}
+			})
+		}
 	}
 }
 
@@ -171,21 +109,28 @@ func TestResolveModelAliasLeavesCyclesUnchanged(t *testing.T) {
 	}
 }
 
+func TestResolveModelAliasResolvesChains(t *testing.T) {
+	aliases := map[string]string{"public": "internal", "internal": "upstream"}
+	if got := resolveModelAlias(aliases, "public"); got != "upstream" {
+		t.Fatalf("alias chain resolved to %q", got)
+	}
+}
+
 func TestAppendModelAliasesPublishesPublicAndOfficialIDs(t *testing.T) {
 	rows := []any{
 		map[string]any{"id": "deepseek/deepseek-v4.1-flash", "type": "text"},
 		map[string]any{"id": "deepseek-flash", "type": "text"},
 	}
 	seen := map[string]bool{"deepseek/deepseek-v4.1-flash": true, "deepseek-flash": true}
-	rows = appendModelAliases(rows, seen, map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"})
-	if len(rows) != 3 || !seen["deepseek/deepseek-v4.1-flash"] || !seen["deepseek-flash"] || !seen["deepseek-4.1-flash-1017"] {
+	rows = appendModelAliases(rows, seen, map[string]string{"deepseek-flash": "deepseek-v4.1-flash-1017"})
+	if len(rows) != 3 || !seen["deepseek/deepseek-v4.1-flash"] || !seen["deepseek-flash"] || !seen["deepseek-v4.1-flash-1017"] {
 		t.Fatalf("model aliases = %#v, seen = %#v", rows, seen)
 	}
 	ids := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		ids[row.(map[string]any)["id"].(string)] = true
 	}
-	if !ids["deepseek/deepseek-v4.1-flash"] || !ids["deepseek-4.1-flash-1017"] {
+	if !ids["deepseek/deepseek-v4.1-flash"] || !ids["deepseek-v4.1-flash-1017"] {
 		t.Fatalf("1017 alias rows = %#v", rows)
 	}
 }

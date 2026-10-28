@@ -276,23 +276,44 @@ test('keeps the public DeepSeek ID consistent in every generated client configur
   }).body.model, 'deepseek/deepseek-v4.1-flash');
 });
 
-test('publishes DeepSeek 4.1 Flash 1017 in every generated client configuration', () => {
-  const deepseek1017 = modelCatalog.find(({ id }) => id === 'deepseek-4.1-flash-1017');
+test('publishes DeepSeek V4.1 Flash 1017 in every generated client configuration', () => {
+  const deepseek1017 = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
+  assert.ok(deepseek1017);
   const deepseekOptions = { ...options, models: [deepseek1017] };
 
   const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', deepseekOptions).content);
   const opencode = JSON.parse(createPlatformArtifact('opencode', deepseekOptions).content);
   const codex = createPlatformArtifact('codex', deepseekOptions).content;
 
-  assert.equal(workbuddy.models[0].id, 'deepseek-4.1-flash-1017');
-  assert.deepEqual(workbuddy.availableModels, ['deepseek-4.1-flash-1017']);
-  assert.equal(opencode.model, 'cheapbuddy/deepseek-4.1-flash-1017');
-  assert.equal(opencode.provider.cheapbuddy.models['deepseek-4.1-flash-1017'].id, 'deepseek-4.1-flash-1017');
-  assert.match(codex, /^model = "deepseek-4\.1-flash-1017"/m);
+  assert.equal(workbuddy.models[0].id, 'deepseek-v4.1-flash-1017');
+  assert.deepEqual(workbuddy.availableModels, ['deepseek-v4.1-flash-1017']);
+  assert.equal(opencode.model, 'cheapbuddy/deepseek-v4.1-flash-1017');
+  assert.equal(opencode.provider.cheapbuddy.models['deepseek-v4.1-flash-1017'].id, 'deepseek-v4.1-flash-1017');
+  assert.throws(() => createPlatformArtifact('claude', deepseekOptions), /Claude Code requires Claude models/i);
+  assert.match(codex, /^model = "deepseek-v4\.1-flash-1017"/m);
   assert.equal(platformHelpers.buildConnectionTestRequest('workbuddy', {
     baseUrl: options.baseUrl,
     model: deepseek1017,
-  }).body.model, 'deepseek-4.1-flash-1017');
+  }).body.model, 'deepseek-v4.1-flash-1017');
+});
+
+test('copy configuration keeps canonical and legacy DeepSeek IDs in both languages', () => {
+  for (const id of ['deepseek-v4.1-flash-1017', 'deepseek/deepseek-v4.1-flash']) {
+    const deepseek = modelCatalog.find((model) => model.id === id);
+    assert.ok(deepseek);
+    for (const platformId of ['workbuddy', 'opencode', 'codex']) {
+      const artifact = createPlatformArtifact(platformId, { ...options, models: [deepseek] });
+      assert.equal(artifact.defaultModelId, id);
+      for (const language of ['zh', 'en']) {
+        const prompt = buildInstallPrompt(artifact, language);
+        assert.ok(prompt.includes(id));
+        assert.doesNotMatch(prompt, /deepseek-4\.1-flash-1017/);
+      }
+      assert.equal(platformHelpers.buildConnectionTestRequest(platformId, {
+        baseUrl: options.baseUrl, model: deepseek,
+      }).body.model, id);
+    }
+  }
 });
 
 test('keeps media models selectable with their native endpoints and capabilities', () => {

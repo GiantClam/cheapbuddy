@@ -16,7 +16,7 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(ids.includes('gpt-5.6-sol'));
   assert.ok(ids.includes('gpt-5.6-terra'));
   assert.ok(ids.includes('deepseek/deepseek-v4.1-flash'));
-  assert.ok(ids.includes('deepseek-4.1-flash-1017'));
+  assert.ok(ids.includes('deepseek-v4.1-flash-1017'));
   assert.ok(ids.includes('gpt-image-2.5'));
   assert.ok(ids.includes('MiniMax-H3'));
   assert.ok(ids.includes('glm-5.3'));
@@ -64,7 +64,7 @@ test('model catalog contains published text and media models', () => {
     'gpt-5.6-sol',
     'gpt-5.6-terra',
     'deepseek/deepseek-v4.1-flash',
-    'deepseek-4.1-flash-1017',
+    'deepseek-v4.1-flash-1017',
     'qwen3.8-max',
     'gpt-image-2.5',
     'MiniMax-H3',
@@ -75,6 +75,21 @@ test('model catalog contains published text and media models', () => {
     'claude-sonnet-5',
     'claude-sonnet-5-5',
   ]));
+});
+
+test('DeepSeek V4.1 Flash 1017 keeps its canonical ID and plain localized descriptions', () => {
+  const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
+  assert.ok(deepseek);
+  assert.equal(deepseek.short, 'DeepSeek V4.1 Flash 1017');
+
+  for (const [language, description] of Object.entries({
+    zh: '百万上下文、多模态理解与 Agent 工具调用',
+    en: 'Million-token context, multimodal understanding, and Agent tool calling',
+  })) {
+    const [localized] = localizeModels([deepseek], language);
+    assert.equal(localized.id, 'deepseek-v4.1-flash-1017');
+    assert.equal(localized.description, description);
+  }
 });
 
 test('verified token rates use official values and unavailable rates stay explicit', () => {

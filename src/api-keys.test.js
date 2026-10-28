@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as api from './api.js';
 import { CLAUDE_API_KEY_GROUP_ID, OPENAI_API_KEY_GROUP_ID } from './key-groups.js';
+import { modelCatalog } from './models.js';
 
 function mockKeyApi(t, keys) {
   const calls = [];
@@ -347,10 +348,36 @@ test('checks the public model IDs exported in client configurations', async (t) 
 });
 
 test('accepts the public DeepSeek 1017 model when Relay publishes its exact ID', async (t) => {
-  const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-4.1-flash-1017'] });
-  const models = [{ id: 'deepseek-4.1-flash-1017', providerModelId: 'deepseek-flash' }];
+  const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-v4.1-flash-1017'] });
+  const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
+  assert.ok(deepseek);
+  const models = [deepseek];
   assert.equal(await api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models, apiKey: 'shared-key' }), 'shared-key');
   assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, `${sharedBaseUrl}/models`);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer shared-key');
+});
+
+test('rejects DeepSeek 1017 aliases when the exact public ID is unavailable', async (t) => {
+  const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
+  assert.ok(deepseek);
+  for (const id of ['deepseek-4.1-flash-1017', 'deepseek/deepseek-v4.1-flash', 'deepseek-flash']) {
+    await t.test(id, async (subtest) => {
+      const calls = mockSharedKeyApi(subtest, { modelIds: [id] });
+      await assert.rejects(
+        api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: [deepseek], apiKey: 'restricted-key' }),
+        (error) => {
+          assert.equal(error.code, 'API_KEY_MODELS_UNAVAILABLE');
+          assert.deepEqual(error.metadata.missingModels, ['deepseek-v4.1-flash-1017']);
+          return true;
+        },
+      );
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].url, `${sharedBaseUrl}/models`);
+      assert.equal(calls[0].options.headers.Authorization, 'Bearer restricted-key');
+      assert.notEqual(calls[0].options.method, 'POST');
+    });
+  }
 });
 
 test('rejects a provider-only catalog entry when the exported public model ID is not visible', async (t) => {
