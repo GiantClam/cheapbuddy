@@ -7,7 +7,7 @@ import './styles.css';
 import './paywall.css';
 import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, sendVerificationCode, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
-import { defaultPricingPlan, getCheckoutRechargePlans, pricingPlans } from './pricing';
+import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, MODEL_CAMPAIGN, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
@@ -244,6 +244,17 @@ function formatCompactNumber(value) {
   if (number >= 1000000) return `${(number / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
   if (number >= 1000) return `${(number / 1000).toFixed(1).replace(/\.0$/, '')}K`;
   return number.toLocaleString('en-US');
+}
+
+function formatCampaignEnd(endsAt, language) {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+    timeZone: 'Asia/Shanghai',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(endsAt));
 }
 
 function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') {
@@ -926,6 +937,7 @@ curl ${baseUrl}/videos/{video_id}/content \\
 
 function HomePage() {
   const [language, setLanguage] = useState(getInitialLanguage);
+  const [campaignNow, setCampaignNow] = useState(() => new Date());
   const [selected, setSelected] = useState(() => models.map((model) => model.id));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -989,6 +1001,8 @@ function HomePage() {
   const [testLatency, setTestLatency] = useState(0);
 
   const t = (key, variables) => translate(language, key, variables);
+  const campaign = getModelCampaignState(campaignNow);
+  const campaignEnd = formatCampaignEnd(MODEL_CAMPAIGN.endAt, language);
   const turnstileSiteKey = publicTurnstile.siteKey || configuredTurnstileSiteKey;
   const turnstileEnabled = publicTurnstile.enabled || Boolean(configuredTurnstileSiteKey);
   const turnstileRequired = turnstileRequiredByEnv || turnstileEnabled;
@@ -1003,8 +1017,27 @@ function HomePage() {
     });
   }, [language]);
 
+  useEffect(() => {
+    const updateCampaignState = () => setCampaignNow(new Date());
+    const boundaryTimers = [MODEL_CAMPAIGN.startAt, MODEL_CAMPAIGN.endAt]
+      .map((value) => Date.parse(value) - Date.now())
+      .filter((delay) => delay > 0)
+      .map((delay) => window.setTimeout(updateCampaignState, delay + 100));
+    const heartbeatTimer = window.setInterval(updateCampaignState, 60_000);
+    return () => {
+      boundaryTimers.forEach((timer) => window.clearTimeout(timer));
+      window.clearInterval(heartbeatTimer);
+    };
+  }, []);
+
   const activePlatform = platformOptions.find(({ id }) => id === platformId) || platformOptions[0];
-  const displayModels = useMemo(() => localizeModels(models, language), [language]);
+  const displayModels = useMemo(
+    () => localizeModels(models, language).map((model) => applyModelCampaign(model, campaignNow)),
+    [language, campaignNow],
+  );
+  const campaignModel = campaign.active
+    ? displayModels.find((model) => model.id === campaign.modelId && model.campaignActive)
+    : null;
   const platformDisplayModels = useMemo(() => getModelsForPlatform(platformId, displayModels), [platformId, displayModels]);
   const selectedModels = useMemo(() => platformDisplayModels.filter((model) => selected.includes(model.id)), [platformDisplayModels, selected]);
   const activeApiKey = session.apiKey;
@@ -1717,6 +1750,15 @@ function HomePage() {
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
           <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: models.length })}</div>
+          {campaignModel && <aside className="campaign-banner" aria-label={t('campaignTitle')}>
+            <div className="campaign-banner-head"><strong>{t('campaignTitle')}</strong><span className="campaign-saving-badge"><small>{t('campaignSavingsLabel')}</small><b>{t('campaignSavings')}</b></span></div>
+            <div className="campaign-rates">
+              <div className="campaign-rate sale"><small>{t('campaignSaleRate')}</small><b>{t('campaignSaleDiscount')}</b><span>{t('campaignSalePrices', { input: campaignModel.campaignInput, output: campaignModel.campaignOutput })}</span></div>
+              <span className="campaign-rate-arrow" aria-hidden="true">←</span>
+              <div className="campaign-rate regular"><small>{t('campaignRegularRate')}</small><b>{t('campaignRegularDiscount')}</b><span>{t('campaignRegularPrices', { input: campaignModel.input, output: campaignModel.output })}</span></div>
+            </div>
+            <p>{t('campaignDuration', { end: campaignEnd })}</p>
+          </aside>}
           <h1>{t('heroTitle')}<br /><em>{t('heroTitleAccent')}</em></h1>
           <p className="hero-lead">{t('heroLead1')}<br className="hero-mobile-break" />{t('heroLead2')}<br className="hero-mobile-break" />{t('heroLead3')}</p>
           <div className="hero-actions"><button className="button button-primary" onClick={openGenerator}>{t('generateConfig')} <Icon name="arrow" /></button><a className="button button-ghost" href="#models">{t('viewModels')} <Icon name="chevron" size={16} /></a></div>
@@ -1734,12 +1776,13 @@ function HomePage() {
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
         <p className="model-protocol-note">{t('claudeProtocolSupport')}</p>
-        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}`} key={model.id}>
-          <div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {t('available')}</span></div>
+        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}${model.campaignActive ? ' model-card-campaign' : ''}`} key={model.id}>
+          <div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {model.campaignActive ? t('campaignModelBadge') : t('available')}</span></div>
           <div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p>
           <div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><strong>{t('officialModelPrice')}</strong><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div>
+          {model.campaignActive && <div className="model-prices model-campaign-prices" title={model.campaignPriceUnit}><strong>{t('campaignCustomerPrice')}</strong><span>{t('input')} <b>{model.campaignInput}</b> / M</span><span>{t('output')} <b>{model.campaignOutput}</b> / M</span></div>}
           {model.retailInput && <div className="model-prices model-retail-prices" title={model.retailPriceUnit}><strong>{t('retailModelPrice')}</strong><span>{t('input')} <b>{model.retailInput}</b> / M</span><span>{t('output')} <b>{model.retailOutput}</b> / M</span></div>}
-          {model.channelId === 'claude' && <div className="model-cache-prices"><span>{t('officialModelPrice')}: {model.priceUnit}</span>{model.retailPriceUnit && <span>{t('retailModelPrice')}: {model.retailPriceUnit}</span>}<a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗ · {model.priceCheckedAt}</a><span>{t('claudePricePolicy')}</span></div>}
+          {model.channelId === 'claude' && <div className="model-cache-prices"><span>{t('officialModelPrice')}: {model.priceUnit}</span>{model.campaignPriceUnit && <span>{t('campaignCustomerPrice')}: {model.campaignPriceUnit}</span>}{model.retailPriceUnit && <span>{t('retailModelPrice')}: {model.retailPriceUnit}</span>}<a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗ · {model.priceCheckedAt}</a><span>{t('claudePricePolicy')}</span></div>}
           <div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span><b>{model.endpointPath}</b></div>
         </article>)}</div>
         <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote')}</span><span className="shelf-line" /></div>

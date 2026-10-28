@@ -1,7 +1,60 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultPricingPlan, pricingPlans, getCheckoutRechargePlans } from './pricing.js';
+import {
+  MODEL_CAMPAIGN,
+  applyModelCampaign,
+  defaultPricingPlan,
+  getCheckoutRechargePlans,
+  getModelCampaignState,
+  pricingPlans,
+} from './pricing.js';
 import * as pricingHelpers from './pricing.js';
+
+test('runs the Claude Opus 5.5 campaign for exactly 15 days', () => {
+  assert.equal(
+    Date.parse(MODEL_CAMPAIGN.endAt) - Date.parse(MODEL_CAMPAIGN.startAt),
+    15 * 24 * 60 * 60 * 1000,
+  );
+  assert.equal(getModelCampaignState(new Date('2026-10-28T14:59:59+08:00')).active, false);
+  assert.equal(getModelCampaignState(new Date(MODEL_CAMPAIGN.startAt)).active, true);
+  assert.equal(getModelCampaignState(new Date('2026-11-12T14:59:59+08:00')).active, true);
+  assert.equal(getModelCampaignState(new Date(MODEL_CAMPAIGN.endAt)).active, false);
+});
+
+test('applies the three-tenths campaign only to Claude Opus 5.5', () => {
+  const activeAt = new Date('2026-10-28T15:00:01+08:00');
+  const opus = {
+    id: 'claude-opus-5-5',
+    input: '$4.00',
+    output: '$20.00',
+    priceUnit: 'USD / MTok; 5m cache write $5.00, 1h cache write $8.00, cache read $0.20',
+  };
+  const promoted = applyModelCampaign(opus, activeAt);
+
+  assert.equal(promoted.campaignActive, true);
+  assert.equal(promoted.campaignMultiplier, 0.3);
+  assert.equal(promoted.campaignInput, '$1.20');
+  assert.equal(promoted.campaignOutput, '$6.00');
+  assert.match(promoted.campaignPriceUnit, /5m cache write \$1.50/);
+  assert.match(promoted.campaignPriceUnit, /1h cache write \$2.40/);
+  assert.match(promoted.campaignPriceUnit, /cache read \$0.06/);
+  assert.deepEqual(applyModelCampaign({ ...opus, id: 'claude-opus-5' }, activeAt), { ...opus, id: 'claude-opus-5' });
+  assert.deepEqual(applyModelCampaign(opus, new Date(MODEL_CAMPAIGN.endAt)), opus);
+  assert.equal(opus.input, '$4.00');
+});
+
+test('campaign pricing preserves localized currency displays', () => {
+  const promoted = applyModelCampaign({
+    id: 'claude-opus-5-5',
+    input: '¥26.00',
+    output: '¥130.00',
+    priceUnit: '人民币 / 百万 Token；缓存读取 ¥1.30',
+  }, new Date(MODEL_CAMPAIGN.startAt));
+
+  assert.equal(promoted.campaignInput, '¥7.80');
+  assert.equal(promoted.campaignOutput, '¥39.00');
+  assert.match(promoted.campaignPriceUnit, /缓存读取 ¥0.39/);
+});
 
 test('exposes public CNY payment examples without inventing an authenticated wallet quote', () => {
   assert.deepEqual(pricingPlans.map(({ id, amount }) => [id, amount]), [

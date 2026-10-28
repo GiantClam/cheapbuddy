@@ -71,3 +71,25 @@ test('model and generator copy explains shared credentials and alternative proto
     assert.match(translate(language, 'openCodeCompatibilityNote'), /provider.*npm.*options/);
   }
 });
+
+test('Claude Opus 5.5 campaign copy is complete in both languages', () => {
+  const keys = [
+    'campaignTitle',
+    'campaignSavingsLabel',
+    'campaignSavings',
+    'campaignSaleRate',
+    'campaignSaleDiscount',
+    'campaignSalePrices',
+    'campaignRegularRate',
+    'campaignRegularDiscount',
+    'campaignRegularPrices',
+    'campaignDuration',
+    'campaignModelBadge',
+    'campaignCustomerPrice',
+  ];
+  for (const language of ['zh', 'en']) {
+    for (const key of keys) assert.notEqual(translate(language, key), key);
+    assert.match(translate(language, 'campaignTitle'), /Opus 5\.5/);
+    assert.match(translate(language, 'campaignSaleDiscount'), /3|30/);
+  }
+});
