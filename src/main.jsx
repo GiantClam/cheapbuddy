@@ -7,7 +7,7 @@ import './styles.css';
 import './paywall.css';
 import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, sendVerificationCode, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
-import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, MODEL_CAMPAIGN, pricingPlans } from './pricing';
+import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, getNextModelCampaignBoundaryDelay, MODEL_CAMPAIGN, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
@@ -1018,14 +1018,18 @@ function HomePage() {
   }, [language]);
 
   useEffect(() => {
-    const updateCampaignState = () => setCampaignNow(new Date());
-    const boundaryTimers = [MODEL_CAMPAIGN.startAt, MODEL_CAMPAIGN.endAt]
-      .map((value) => Date.parse(value) - Date.now())
-      .filter((delay) => delay > 0)
-      .map((delay) => window.setTimeout(updateCampaignState, delay + 100));
-    const heartbeatTimer = window.setInterval(updateCampaignState, 60_000);
+    let boundaryTimer;
+    const syncAndScheduleCampaign = () => {
+      if (boundaryTimer !== undefined) window.clearTimeout(boundaryTimer);
+      const now = new Date();
+      setCampaignNow(now);
+      const nextDelay = getNextModelCampaignBoundaryDelay(now);
+      if (nextDelay !== null) boundaryTimer = window.setTimeout(syncAndScheduleCampaign, nextDelay);
+    };
+    syncAndScheduleCampaign();
+    const heartbeatTimer = window.setInterval(syncAndScheduleCampaign, 60_000);
     return () => {
-      boundaryTimers.forEach((timer) => window.clearTimeout(timer));
+      if (boundaryTimer !== undefined) window.clearTimeout(boundaryTimer);
       window.clearInterval(heartbeatTimer);
     };
   }, []);

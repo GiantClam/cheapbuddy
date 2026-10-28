@@ -6,6 +6,7 @@ import {
   defaultPricingPlan,
   getCheckoutRechargePlans,
   getModelCampaignState,
+  getNextModelCampaignBoundaryDelay,
   pricingPlans,
 } from './pricing.js';
 import * as pricingHelpers from './pricing.js';
@@ -19,6 +20,17 @@ test('runs the Claude Opus 5.5 campaign for exactly 15 days', () => {
   assert.equal(getModelCampaignState(new Date(MODEL_CAMPAIGN.startAt)).active, true);
   assert.equal(getModelCampaignState(new Date('2026-11-12T14:59:59+08:00')).active, true);
   assert.equal(getModelCampaignState(new Date(MODEL_CAMPAIGN.endAt)).active, false);
+});
+
+test('schedules each campaign boundary without a stale render window', () => {
+  assert.equal(getNextModelCampaignBoundaryDelay(new Date('2026-10-28T14:59:59.999+08:00')), 1);
+  assert.equal(
+    getNextModelCampaignBoundaryDelay(new Date(MODEL_CAMPAIGN.startAt)),
+    15 * 24 * 60 * 60 * 1000,
+  );
+  assert.equal(getNextModelCampaignBoundaryDelay(new Date('2026-11-12T14:59:59.999+08:00')), 1);
+  assert.equal(getNextModelCampaignBoundaryDelay(new Date(MODEL_CAMPAIGN.endAt)), null);
+  assert.equal(getNextModelCampaignBoundaryDelay(new Date('invalid')), null);
 });
 
 test('applies the three-tenths campaign only to Claude Opus 5.5', () => {

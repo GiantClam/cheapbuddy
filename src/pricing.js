@@ -19,6 +19,16 @@ export function getModelCampaignState(now = new Date()) {
   };
 }
 
+export function getNextModelCampaignBoundaryDelay(now = new Date()) {
+  const timestamp = now instanceof Date ? now.getTime() : Date.parse(now);
+  if (!Number.isFinite(timestamp)) return null;
+  const nextDelay = [MODEL_CAMPAIGN.startAt, MODEL_CAMPAIGN.endAt]
+    .map((value) => Date.parse(value) - timestamp)
+    .filter((delay) => delay > 0)
+    .sort((left, right) => left - right)[0];
+  return nextDelay ?? null;
+}
+
 function scaleMoneyText(value, multiplier) {
   if (typeof value !== 'string' || !Number.isFinite(multiplier) || multiplier <= 0) return value;
   return value.replace(/([$¥])\s*(\d+(?:\.\d+)?)/g, (_match, currency, amount) => {

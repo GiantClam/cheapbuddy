@@ -73,23 +73,37 @@ test('model and generator copy explains shared credentials and alternative proto
 });
 
 test('Claude Opus 5.5 campaign copy is complete in both languages', () => {
-  const keys = [
-    'campaignTitle',
-    'campaignSavingsLabel',
-    'campaignSavings',
-    'campaignSaleRate',
-    'campaignSaleDiscount',
-    'campaignSalePrices',
-    'campaignRegularRate',
-    'campaignRegularDiscount',
-    'campaignRegularPrices',
-    'campaignDuration',
-    'campaignModelBadge',
-    'campaignCustomerPrice',
-  ];
-  for (const language of ['zh', 'en']) {
-    for (const key of keys) assert.notEqual(translate(language, key), key);
-    assert.match(translate(language, 'campaignTitle'), /Opus 5\.5/);
-    assert.match(translate(language, 'campaignSaleDiscount'), /3|30/);
+  const expected = {
+    zh: {
+      campaignTitle: 'Claude Opus 5.5 · 限时 15 天',
+      campaignSavingsLabel: '立省',
+      campaignSavings: '70%',
+      campaignSaleRate: '活动价',
+      campaignSaleDiscount: '3 折',
+      campaignSalePrices: '输入 {input}/M · 输出 {output}/M',
+      campaignRegularRate: '官网价',
+      campaignRegularDiscount: '原价',
+      campaignRegularPrices: '输入 {input}/M · 输出 {output}/M',
+      campaignDuration: '仅 claude-opus-5-5 享受活动价 · 至 {end}（北京时间）',
+      campaignModelBadge: '限时 3 折',
+      campaignCustomerPrice: '活动价（官网 3 折）',
+    },
+    en: {
+      campaignTitle: 'Claude Opus 5.5 · 15 days only',
+      campaignSavingsLabel: 'SAVE',
+      campaignSavings: '70%',
+      campaignSaleRate: 'Campaign rate',
+      campaignSaleDiscount: '30%',
+      campaignSalePrices: 'Input {input}/M · output {output}/M',
+      campaignRegularRate: 'Official rate',
+      campaignRegularDiscount: 'List',
+      campaignRegularPrices: 'Input {input}/M · output {output}/M',
+      campaignDuration: 'Only claude-opus-5-5 receives this rate · Ends {end} China Standard Time',
+      campaignModelBadge: '30% for 15 days',
+      campaignCustomerPrice: 'Campaign rate (30% of official)',
+    },
+  };
+  for (const [language, messages] of Object.entries(expected)) {
+    for (const [key, value] of Object.entries(messages)) assert.equal(translate(language, key), value);
   }
 });
