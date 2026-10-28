@@ -10,6 +10,12 @@ The 2026-10-28 configuration covers 21 names: 20 relay aliases plus the canonica
 
 Confirm the deployed `RELAY_MODEL_ALIASES_FILE` loads this file. A nonempty `RELAY_MODEL_ALIASES` replaces the file configuration rather than merging with it. A local file audit alone cannot prove what production loaded.
 
+## Publishing the public model catalog
+
+`cheapbuddy.cc` and `www.cheapbuddy.cc` serve Cloudflare Pages project `cheapbuddy`. The Railway `cheapbuddy` service is a separate frontend origin; deploying it alone does not publish the homepage used by these domains. Build the intended source snapshot with `npm run build`, then publish its `dist` directory with `wrangler pages deploy dist --project-name cheapbuddy --branch main`. Record the source commit when publishing.
+
+Deploy the relay configuration separately to Railway service `relay-prod` in `production`. Verify the public domains render the correct model ID and that the authenticated `/v1/models` catalog authorizes it. Deployment success or a healthy alternate origin alone does not establish that the public model selector was updated.
+
 ## Account order and cost
 
 | Account | Global Priority | Canonical request evidence on 2026-10-28 |
