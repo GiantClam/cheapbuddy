@@ -15,7 +15,7 @@ import { localizedAnnouncementContent, localizedAnnouncementTitle } from './anno
 import { mergeUsageModels } from './usage';
 import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
 
-import { localizeModels, modelCatalog as models } from './models';
+import { getHomepageFeaturedModels, getHomepageModels, localizeModels, modelCatalog as models } from './models';
 
 const baseUrl = String(import.meta.env.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc/v1').replace(/\/+$/, '');
 // The public API host can duplicate CORS headers. Browser access checks use
@@ -1047,8 +1047,9 @@ function HomePage() {
   const activeApiKey = session.apiKey;
   const accessProtocol = platformId === 'claude' ? 'anthropic' : platformId === 'opencode' && selectedModels.some(({ id }) => id.startsWith('claude-')) ? openCodeProtocol : 'openai-compatible';
   const configDisplayModels = [...platformDisplayModels.filter((model) => model.featured), ...platformDisplayModels.filter((model) => !model.featured)];
-  const heroModels = [...displayModels.filter((model) => model.featured), ...displayModels.filter((model) => !model.featured)].slice(0, 4);
-  const usageExampleModels = [...displayModels.filter((model) => model.showInUsageExample), ...displayModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
+  const homepageModels = getHomepageModels(displayModels);
+  const heroModels = getHomepageFeaturedModels(displayModels);
+  const usageExampleModels = [...homepageModels.filter((model) => model.showInUsageExample), ...homepageModels.filter((model) => !model.showInUsageExample)].slice(0, 7);
   useEffect(() => {
     connectionTestVersion.current += 1;
     setTesting(false);
@@ -1780,7 +1781,7 @@ function HomePage() {
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
         <p className="model-protocol-note">{t('claudeProtocolSupport')}</p>
-        <div className="model-grid">{displayModels.map((model) => <article className={`model-card model-card-${model.modality}${model.campaignActive ? ' model-card-campaign' : ''}`} key={model.id}>
+        <div className="model-grid">{homepageModels.map((model) => <article className={`model-card model-card-${model.modality}${model.campaignActive ? ' model-card-campaign' : ''}`} key={model.id}>
           <div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {model.campaignActive ? t('campaignModelBadge') : t('available')}</span></div>
           <div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.id}</h3></div><p>{model.description}</p>
           <div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><strong>{t('officialModelPrice')}</strong><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div>

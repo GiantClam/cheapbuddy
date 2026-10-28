@@ -47,7 +47,7 @@ export const modelCatalog = [
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
   },
   {
-    id: 'grok-4.7', short: 'Grok 4.7', vendor: { zh: 'xAI', en: 'xAI' }, description: { zh: '代码、Agent 与知识工作', en: 'Coding, Agent workflows, and knowledge work' }, input: '$2.00–$4.00', output: '$6.00–$12.00', priceStatus: 'verified', priceSourceUrl: 'https://docs.x.ai/developers/models/grok-4.7', priceCheckedAt: '2026-09-26', priceUnit: { zh: '美元 / 百万 Token；缓存输入 $0.50 / 百万，超过 200K 上下文费率更高', en: 'USD / MTok; cached input $0.50 / MTok; higher rates above 200K context' }, accent: 'blue', mark: 'GX', featured: true, showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'grok-4.7', short: 'Grok 4.7', vendor: { zh: 'xAI', en: 'xAI' }, description: { zh: '代码、Agent 与知识工作', en: 'Coding, Agent workflows, and knowledge work' }, input: '$2.00–$4.00', output: '$6.00–$12.00', priceStatus: 'verified', priceSourceUrl: 'https://docs.x.ai/developers/models/grok-4.7', priceCheckedAt: '2026-09-26', priceUnit: { zh: '美元 / 百万 Token；缓存输入 $0.50 / 百万，超过 200K 上下文费率更高', en: 'USD / MTok; cached input $0.50 / MTok; higher rates above 200K context' }, accent: 'blue', mark: 'GX', featured: true, showOnHomepage: false, showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 500000, maxOutputTokens: 8192, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'medium', defaultEffort: 'medium', supportedEfforts: ['low', 'medium', 'high', 'xhigh'], summary: 'auto', canDisableThinking: true },
@@ -95,7 +95,7 @@ export const modelCatalog = [
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
-    id: 'deepseek-v4.1-flash-1017', short: 'DeepSeek V4.1 Flash 1017', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D417', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'deepseek-v4.1-flash-1017', short: 'DeepSeek V4.1 Flash 1017', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D417', homepageFeatured: true, showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 384000, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
@@ -169,6 +169,17 @@ function localizePriceUnit(value, locale, fromCurrency, toCurrency) {
     ? `Reference conversion: 1 USD = ${USD_TO_CNY_RATE} CNY`
     : `参考汇率：1 USD = ${USD_TO_CNY_RATE} CNY`;
   return `${localized}${locale === 'en' ? '; ' : '；'}${note}`;
+}
+
+export function getHomepageModels(models = modelCatalog) {
+  return models.filter((model) => model.showOnHomepage !== false);
+}
+
+export function getHomepageFeaturedModels(models = modelCatalog, limit = 4) {
+  const visibleModels = getHomepageModels(models);
+  const featuredModels = visibleModels.filter((model) => model.homepageFeatured || model.featured);
+  const otherModels = visibleModels.filter((model) => !model.homepageFeatured && !model.featured);
+  return [...featuredModels, ...otherModels].slice(0, limit);
 }
 
 export function localizeModel(model, language = 'zh') {

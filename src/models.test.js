@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { localizeModels, modelCatalog } from './models.js';
+import { getHomepageFeaturedModels, getHomepageModels, localizeModels, modelCatalog } from './models.js';
 import { CLAUDE_API_KEY_GROUP_ID, getModelApiKeyGroupId } from './key-groups.js';
 
 test('model catalog contains unique ids and generator metadata', () => {
@@ -99,6 +99,18 @@ test('DeepSeek Flash uses its stable public name in both languages', () => {
     assert.ok(deepseek);
     assert.equal(deepseek.short, 'DeepSeek Flash');
   }
+});
+
+test('homepage replaces Grok 4.7 with DeepSeek V4.1 Flash 1017 without removing Grok from client selection', () => {
+  const homepageModels = getHomepageModels(modelCatalog);
+  const homepageIds = homepageModels.map(({ id }) => id);
+  const heroIds = getHomepageFeaturedModels(modelCatalog).map(({ id }) => id);
+
+  assert.ok(homepageIds.includes('deepseek-v4.1-flash-1017'));
+  assert.ok(!homepageIds.includes('grok-4.7'));
+  assert.ok(heroIds.includes('deepseek-v4.1-flash-1017'));
+  assert.ok(!heroIds.includes('grok-4.7'));
+  assert.ok(modelCatalog.some(({ id }) => id === 'grok-4.7'));
 });
 
 test('verified token rates use official values and unavailable rates stay explicit', () => {
