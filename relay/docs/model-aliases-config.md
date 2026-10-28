@@ -26,13 +26,12 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 
 ## DeepSeek V4.1 Flash
 
-`relay/config/model-aliases.json` 将受支持的公开/兼容别名统一到内部路由 ID：
+`relay/config/model-aliases.json` 保留历史公开别名，并把内部路由 ID 转发到当前上游模型：
 
 ```json
 {
   "deepseek/deepseek-v4.1-flash": "deepseek-flash",
   "deepseek-flash": "deepseek-4.1-flash-1017",
-  "deepseek-4.1-flash-1017": "deepseek-flash",
   "deepseek-v4.1-flash": "deepseek-flash",
   "deepseek-v4.1-flash-1017": "deepseek-flash",
   "deepseek-v4.1-flash-0910": "deepseek-flash",
@@ -43,7 +42,7 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 }
 ```
 
-标准客户端请求始终使用：
+历史客户端请求使用：
 
 ```text
 deepseek/deepseek-v4.1-flash
@@ -64,8 +63,8 @@ deepseek-4.1-flash-1017
 
 `deepseek-flash` 是内部路由 ID，不是 DeepSeek 官方上游 ID。
 
-`deepseek-4.1-flash-1017` 当前作为可选模型 ID 放行，并映射到同一个
-`deepseek-flash` 内部路由 ID。`deepseek-flash` 请求在 Relay 中直接改写为
+`deepseek-4.1-flash-1017` 当前作为可选模型 ID 放行，并直接作为上游模型 ID
+转发。`deepseek-flash` 是兼容旧客户端的内部路由 ID，在 Relay 中改写为
 `deepseek-4.1-flash-1017`；生产优先账户 `ecophase-ai.com` 同时保留该精确模型能力。
 
 当前生产账户 `ecophase-ai.com` 为 Priority 1、Active、Schedulable，并优先承接

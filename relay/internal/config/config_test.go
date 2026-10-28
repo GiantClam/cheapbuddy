@@ -84,7 +84,7 @@ func TestLoadReadsCatalogModelAllowlist(t *testing.T) {
 
 func TestLoadReadsModelAliasesFromFile(t *testing.T) {
 	file := t.TempDir() + "/model-aliases.json"
-	if err := os.WriteFile(file, []byte(`{"deepseek/deepseek-v4.1-flash":"deepseek-flash","deepseek-4.1-flash-1017":"deepseek-flash","deepseek-v4.1-flash-1017":"deepseek-flash"}`), 0o600); err != nil {
+	if err := os.WriteFile(file, []byte(`{"deepseek/deepseek-v4.1-flash":"deepseek-flash","deepseek-flash":"deepseek-4.1-flash-1017","deepseek-v4.1-flash-1017":"deepseek-flash"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(testEnv(map[string]string{"RELAY_MODEL_ALIASES_FILE": file}))
@@ -97,11 +97,11 @@ func TestLoadReadsModelAliasesFromFile(t *testing.T) {
 	if got := cfg.ModelAliases["deepseek-v4.1-flash-1017"]; got != "deepseek-flash" {
 		t.Fatalf("1017 DeepSeek alias = %q", got)
 	}
-	if got := cfg.ModelAliases["deepseek-4.1-flash-1017"]; got != "deepseek-flash" {
-		t.Fatalf("unversioned 1017 DeepSeek alias = %q", got)
+	if got := cfg.ModelAliases["deepseek-flash"]; got != "deepseek-4.1-flash-1017" {
+		t.Fatalf("internal DeepSeek route alias = %q", got)
 	}
-	if got := cfg.ModelAliases["deepseek-flash"]; got != "" {
-		t.Fatalf("official DeepSeek ID should remain unchanged, got alias %q", got)
+	if got := cfg.ModelAliases["deepseek-4.1-flash-1017"]; got != "" {
+		t.Fatalf("public 1017 DeepSeek ID should remain unchanged, got alias %q", got)
 	}
 }
 

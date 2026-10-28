@@ -346,6 +346,13 @@ test('checks the public model IDs exported in client configurations', async (t) 
   assert.equal(calls.length, 1);
 });
 
+test('accepts the public DeepSeek 1017 model when Relay publishes its exact ID', async (t) => {
+  const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-4.1-flash-1017'] });
+  const models = [{ id: 'deepseek-4.1-flash-1017', providerModelId: 'deepseek-flash' }];
+  assert.equal(await api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models, apiKey: 'shared-key' }), 'shared-key');
+  assert.equal(calls.length, 1);
+});
+
 test('rejects a provider-only catalog entry when the exported public model ID is not visible', async (t) => {
   const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-flash', 'claude-sonnet-5-5'] });
   const models = [

@@ -102,12 +102,12 @@ func TestReadRouteBodyMapsDeepSeek1017AliasToInternalRouteID(t *testing.T) {
 	}
 }
 
-func TestReadRouteBodyMapsUnversionedDeepSeek1017AliasToInternalRouteID(t *testing.T) {
+func TestReadRouteBodyLeavesPublicDeepSeek1017IDUnchanged(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-4.1-flash-1017","messages":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	server := &Server{Config: config.Config{
 		TextPaths:    map[string]struct{}{`/v1/chat/completions`: {}},
-		ModelAliases: map[string]string{"deepseek-4.1-flash-1017": "deepseek-flash"},
+		ModelAliases: map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"},
 		MaxBodyBytes: 1 << 20,
 	}}
 	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
@@ -123,8 +123,8 @@ func TestReadRouteBodyMapsUnversionedDeepSeek1017AliasToInternalRouteID(t *testi
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["model"] != "deepseek-flash" {
-		t.Fatalf("upstream model = %#v", payload["model"])
+	if payload["model"] != "deepseek-4.1-flash-1017" {
+		t.Fatalf("public model was rewritten = %#v", payload["model"])
 	}
 	if prepared.model != "deepseek-4.1-flash-1017" {
 		t.Fatalf("route model identity = %q", prepared.model)
@@ -166,7 +166,6 @@ func TestAppendModelAliasesPublishesPublicAndOfficialIDs(t *testing.T) {
 	rows = appendModelAliases(rows, seen, map[string]string{
 		"deepseek/deepseek-v4.1-flash": "deepseek-flash",
 		"deepseek-flash":               "deepseek-4.1-flash-1017",
-		"deepseek-4.1-flash-1017":      "deepseek-flash",
 		"deepseek-v4.1-flash-1017":     "deepseek-flash",
 	})
 	if len(rows) != 4 || !seen["deepseek-flash"] || !seen["deepseek-v4.1-flash-1017"] || !seen["deepseek-4.1-flash-1017"] {
