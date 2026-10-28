@@ -1,17 +1,14 @@
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [string]$SubApiBaseUrl = $env:SUB2API_BASE_URL,
-    [string]$AdminApiKey = $env:SUB2API_ADMIN_API_KEY
+    [string]$AdminApiKey = $env:SUB2API_ADMIN_API_KEY,
+    [string]$AliasFile = (Join-Path $PSScriptRoot "../relay/config/model-aliases.json")
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-
-$publicModelId = "deepseek/deepseek-v4.1-flash"
-$routingModelId = "deepseek-flash"
-$legacyUpstreamModelId = "deepseek-v4.1-flash"
-$upstreamModelId = "deepseek-4.1-flash-1017"
-$unsupportedAccountModelIds = @("deepseek-v4.1-flash-1017")
+$canonicalModelId = "deepseek-v4.1-flash-1017"
 
 function Write-Result {
     param(
@@ -25,201 +22,174 @@ function Write-Result {
 function Invoke-SubApiRequest {
     param([string]$Endpoint)
 
-    $headers = @{
-        "x-api-key" = $AdminApiKey
-        Accept = "application/json"
-    }
     $request = @{
         Uri = "$($SubApiBaseUrl.TrimEnd('/'))$Endpoint"
         Method = "Get"
-        Headers = $headers
+        Headers = @{ "x-api-key" = $AdminApiKey; Accept = "application/json" }
         TimeoutSec = 30
     }
-    Invoke-RestMethod @request
-}
-
-function Find-Account {
-    param([string]$SearchKeyword)
-
-    $encoded = [Uri]::EscapeDataString($SearchKeyword)
-    $response = Invoke-SubApiRequest -Endpoint "/api/v1/admin/accounts?search=$encoded&page_size=100"
-    $items = @($response.data.items)
-    if ($items.Count -eq 0) {
-        return $null
-    }
-
-    $exact = @($items | Where-Object { $_.name -eq $SearchKeyword })
-    if ($exact.Count -eq 1) {
-        return $exact[0]
-    }
-    if ($items.Count -eq 1) {
-        return $items[0]
-    }
-
-    throw "搜索 '$SearchKeyword' 返回多个账户，请使用更精确的名称。"
+    # Preserve case-distinct model aliases in JSON objects.
+    $response = Invoke-WebRequest @request
+    return ($response.Content | ConvertFrom-Json -AsHashtable)
 }
 
 function Convert-ToConfigObject {
     param([object]$Value)
 
-    if ($null -eq $Value) {
-        return $null
-    }
     if ($Value -is [string]) {
-        if ([string]::IsNullOrWhiteSpace($Value)) {
-            return $null
-        }
-        try {
-            return $Value | ConvertFrom-Json
-        } catch {
-            return $null
-        }
+        if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+        try { return ($Value | ConvertFrom-Json -AsHashtable) }
+        catch { return $null }
     }
     return $Value
 }
 
 function Get-ConfigValue {
-    param(
-        [object]$Object,
-        [string]$Key
-    )
+    param([object]$Object, [string]$Key)
 
-    if ($null -eq $Object) {
-        return $null
-    }
-    if ($Object -is [System.Collections.IDictionary]) {
-        return $Object[$Key]
-    }
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [System.Collections.IDictionary]) { return $Object[$Key] }
     $property = $Object.PSObject.Properties[$Key]
-    if ($property) {
-        return $property.Value
-    }
+    if ($property) { return $property.Value }
     return $null
 }
 
-if ([string]::IsNullOrWhiteSpace($SubApiBaseUrl)) {
-    Write-Error "缺少 SUB2API_BASE_URL，例如 https://admin.cheapbuddy.cc。"
-    exit 1
+$relayAliases = Convert-ToConfigObject (Get-Content -LiteralPath $AliasFile -Raw -Encoding utf8)
+if ($relayAliases -isnot [System.Collections.IDictionary] -or $relayAliases.Count -eq 0) {
+    throw "The relay alias file must contain a nonempty JSON object."
 }
-if ([string]::IsNullOrWhiteSpace($AdminApiKey)) {
-    Write-Error "缺少 SUB2API_ADMIN_API_KEY。不要把管理员 Key 写入仓库。"
-    exit 1
-}
-
-Write-Result "DeepSeek 路由配置只读审计" "Cyan"
-Write-Result "该脚本不会向账户发送 PUT/PATCH 请求。" "Yellow"
-
-$checks = @(
-    @{
-        Name = "ecophase-ai.com"
-        Search = "ecophase"
-        Priority = 1
-        RequireMapping = $true
-        ForbiddenMappings = $unsupportedAccountModelIds
-    },
-    @{
-        Name = "pptoken-deepseek"
-        Search = "pptoken-deepseek"
-        Priority = 2
-        RequireMapping = $false
+$flashModelIds = [System.Collections.Generic.List[string]]::new()
+$flashModelIds.Add($canonicalModelId)
+foreach ($alias in $relayAliases.Keys) {
+    if ($alias -notmatch "(?i)deepseek.*flash") { continue }
+    if ([string]$relayAliases[$alias] -cne $canonicalModelId) {
+        throw "Relay alias '$alias' must resolve directly to $canonicalModelId."
     }
-)
+    if (-not $flashModelIds.Contains($alias)) { $flashModelIds.Add($alias) }
+}
+foreach ($alias in @("deepseek-flash", "deepseek/deepseek-v4.1-flash", "deepseek-4.1-flash-1017")) {
+    if (-not $flashModelIds.Contains($alias)) { throw "Missing compatibility alias: $alias" }
+}
 
+if ([string]::IsNullOrWhiteSpace($SubApiBaseUrl) -or [string]::IsNullOrWhiteSpace($AdminApiKey)) {
+    throw "Set SUB2API_BASE_URL and SUB2API_ADMIN_API_KEY through protected environment variables."
+}
+
+Write-Result "DeepSeek configuration audit: GET requests only; no configuration changes." "Cyan"
+Write-Result "Checking $($flashModelIds.Count - 1) relay aliases plus canonical $canonicalModelId."
+$checks = @(
+    @{ Id = 8; Name = "pptoken"; Priority = 1 },
+    @{ Id = 12; Name = "EcoPhase"; Priority = 2 },
+    @{ Id = 3; Name = "aiberm"; Priority = 3 }
+)
 $failures = [System.Collections.Generic.List[string]]::new()
+$groupIds = [System.Collections.Generic.HashSet[int]]::new()
 
 foreach ($check in $checks) {
-    Write-Result ""
-    Write-Result "检查 $($check.Name)" "Cyan"
-
     try {
-        $account = Find-Account -SearchKeyword $check.Search
+        $response = Invoke-SubApiRequest "/api/v1/admin/accounts/$($check.Id)"
+        $details = Get-ConfigValue $response "data"
+        if ($null -eq $details -or (Get-ConfigValue $details "id") -ne $check.Id) {
+            throw "Missing account details."
+        }
+        $priority = Get-ConfigValue $details "priority"
+        Write-Result "$($check.Name) account $($check.Id): global priority $priority (expected $($check.Priority))."
+        if ($priority -ne $check.Priority) { $failures.Add("Account $($check.Id): incorrect global priority.") }
+        if ((Get-ConfigValue $details "status") -ne "active" -or (Get-ConfigValue $details "schedulable") -ne $true) {
+            $failures.Add("Account $($check.Id): must be active and schedulable.")
+        }
+
+        # Binding priorities describe DB ordering, not the ordinary scheduler tier.
+        foreach ($binding in @(Get-ConfigValue $details "account_groups")) {
+            $groupId = Get-ConfigValue $binding "group_id"
+            if ($null -eq $groupId) { continue }
+            Write-Result "  Binding group $($groupId): priority $(Get-ConfigValue $binding 'priority') (information only)."
+            [void]$groupIds.Add([int]$groupId)
+        }
+        foreach ($groupId in @(Get-ConfigValue $details "group_ids")) {
+            if ($null -ne $groupId) { [void]$groupIds.Add([int]$groupId) }
+        }
+
+        $credentials = Convert-ToConfigObject (Get-ConfigValue $details "credentials")
+        $mapping = Convert-ToConfigObject (Get-ConfigValue $credentials "model_mapping")
+        if ($mapping -isnot [System.Collections.IDictionary]) {
+            $failures.Add("Account $($check.Id): model_mapping is not readable.")
+        } else {
+            foreach ($modelId in $flashModelIds) {
+                if ([string](Get-ConfigValue $mapping $modelId) -cne $canonicalModelId) {
+                    $failures.Add("Account $($check.Id): $modelId must map to $canonicalModelId.")
+                }
+            }
+        }
+
+        if ($check.Id -eq 12) {
+            $costMultiplier = Get-ConfigValue $details "rate_multiplier"
+            if ($null -eq $costMultiplier -or [decimal]$costMultiplier -ne [decimal]0.8) {
+                $failures.Add("EcoPhase account cost rate_multiplier must be 0.8; customer group pricing is separate.")
+            }
+            $extra = Convert-ToConfigObject (Get-ConfigValue $details "extra")
+            if ((Get-ConfigValue $extra "upstream_billing_rate_sync_enabled") -eq $true) {
+                $failures.Add("EcoPhase upstream_billing_rate_sync_enabled must remain false.")
+            }
+        }
     } catch {
-        $failures.Add($_.Exception.Message)
-        Write-Result "  失败：$($_.Exception.Message)" "Red"
-        continue
+        $failures.Add("Could not read or validate account $($check.Id); inspect it through the protected admin UI.")
     }
+}
 
-    if ($null -eq $account) {
-        $message = "未找到账户 $($check.Name)"
-        $failures.Add($message)
-        Write-Result "  失败：$message" "Red"
-        continue
-    }
-
-    $detailsResponse = Invoke-SubApiRequest -Endpoint "/api/v1/admin/accounts/$($account.id)"
-    $details = $detailsResponse.data
-    if ($null -eq $details) {
-        $message = "账户 $($account.name) 的详情为空"
-        $failures.Add($message)
-        Write-Result "  失败：$message" "Red"
-        continue
-    }
-
-    Write-Result "  ID: $($details.id)"
-    Write-Result "  Name: $($details.name)"
-    Write-Result "  Priority: $($details.priority)"
-    Write-Result "  Status: $($details.status)"
-    Write-Result "  Schedulable: $($details.schedulable)"
-
-    if ([int]$details.priority -ne [int]$check.Priority) {
-        $failures.Add("$($details.name) Priority 应为 $($check.Priority)")
-    }
-    if ([string]$details.status -notmatch "^(?i:active)$") {
-        $failures.Add("$($details.name) 不是 Active")
-    }
-    if (-not [bool]$details.schedulable) {
-        $failures.Add("$($details.name) 不可调度")
-    }
-
-    if ($check.RequireMapping) {
-        $credentials = Convert-ToConfigObject -Value $details.credentials
-        $mappingValue = Get-ConfigValue -Object $credentials -Key "model_mapping"
-        $mapping = Convert-ToConfigObject -Value $mappingValue
-
-        if ($null -eq $mapping) {
-            $failures.Add("$($details.name) 无法读取 credentials.model_mapping")
-            Write-Result "  无法读取 credentials.model_mapping。" "Red"
-            Write-Result "  请在管理后台检查完整账户配置；脚本不会猜测更新 payload。" "Yellow"
-            continue
+# Inspect existing group permissions without changing rates, allowlists or memberships.
+foreach ($groupId in $groupIds) {
+    try {
+        $response = Invoke-SubApiRequest "/api/v1/admin/groups/$groupId"
+        $group = Get-ConfigValue $response "data"
+        $allowlist = Convert-ToConfigObject (Get-ConfigValue $group "model_allowlist")
+        if ($null -eq $allowlist) { throw "Missing group allowlist." }
+        $allowlistEnabled = Get-ConfigValue $allowlist "enabled"
+        if ($allowlistEnabled -isnot [bool]) { throw "Unreadable group allowlist state." }
+        if ($allowlistEnabled) {
+            $allowedModels = @(Get-ConfigValue $allowlist "models")
+            foreach ($modelId in $flashModelIds) {
+                if ($allowedModels -cnotcontains $modelId) {
+                    $failures.Add("Group $($groupId): enabled allowlist is missing $modelId.")
+                }
+            }
         }
+        Write-Result "Group $($groupId): existing model allowlist inspected; retail pricing untouched."
+    } catch {
+        $failures.Add("Could not audit group $($groupId); verify its model permissions in the protected admin UI.")
+    }
+}
 
-        $publicTarget = [string](Get-ConfigValue -Object $mapping -Key $publicModelId)
-        $routingTarget = [string](Get-ConfigValue -Object $mapping -Key $routingModelId)
-
-        Write-Result "  $publicModelId → $publicTarget"
-        Write-Result "  $routingModelId → $routingTarget"
-
-        if ($publicTarget -ne $legacyUpstreamModelId) {
-            $failures.Add("$($details.name) 应保留 $publicModelId → $legacyUpstreamModelId")
-        }
-        if ($routingTarget -ne $upstreamModelId) {
-            $failures.Add("$($details.name) 缺少 $routingModelId → $upstreamModelId")
-        }
-        foreach ($forbiddenModelId in @($check.ForbiddenMappings)) {
-            if ($null -ne (Get-ConfigValue -Object $mapping -Key $forbiddenModelId)) {
-                $failures.Add("$($details.name) 不应配置 $forbiddenModelId 的映射")
+try {
+    $response = Invoke-SubApiRequest "/api/v1/admin/accounts/2"
+    $backup = Get-ConfigValue $response "data"
+    if ($null -eq $backup -or (Get-ConfigValue $backup "id") -ne 2) { throw "Missing account 2." }
+    $credentials = Convert-ToConfigObject (Get-ConfigValue $backup "credentials")
+    $mapping = Convert-ToConfigObject (Get-ConfigValue $credentials "model_mapping")
+    $extra = Convert-ToConfigObject (Get-ConfigValue $backup "extra")
+    $passthrough = Get-ConfigValue $extra "openai_passthrough"
+    if ($passthrough -isnot [bool]) { $passthrough = Get-ConfigValue $extra "openai_oauth_passthrough" }
+    if ($mapping -isnot [System.Collections.IDictionary] -or $mapping.Count -eq 0 -or $passthrough -eq $true) {
+        $failures.Add("Account 2 Paid Backup: unrestricted or passthrough access could add a Flash competitor.")
+    } else {
+        foreach ($pattern in $mapping.Keys) {
+            $matchesFlash = @($flashModelIds | Where-Object {
+                $_ -ceq $pattern -or ($pattern.EndsWith("*") -and $_.StartsWith($pattern.Substring(0, $pattern.Length - 1), [StringComparison]::Ordinal))
+            })
+            if ($matchesFlash.Count -gt 0 -or $pattern -match "(?i)deepseek.*flash") {
+                $failures.Add("Account 2 Paid Backup: remove Flash capability '$pattern' without disturbing other models.")
             }
         }
     }
+} catch {
+    $failures.Add("Could not audit account 2 Paid Backup for competing Flash capability.")
 }
 
-Write-Result ""
-Write-Result "仍需在管理后台确认 CheapBuddy OpenAI 白名单：" "Yellow"
-Write-Result "  $publicModelId"
-Write-Result "  $routingModelId"
-Write-Result "账户 ecophase-ai.com 应映射：$routingModelId → $upstreamModelId" "Yellow"
-Write-Result "账户 ecophase-ai.com 不应映射：$($unsupportedAccountModelIds -join ', ')" "Yellow"
-
+Write-Result "File aliases do not prove deployment: check RELAY_MODEL_ALIASES_FILE and any RELAY_MODEL_ALIASES override." "Yellow"
+Write-Result "2026-10-28 evidence: pptoken and EcoPhase canonical probes returned content; aiberm returned 503 and remains pending provider enablement." "Yellow"
 if ($failures.Count -gt 0) {
-    Write-Result ""
-    Write-Result "审计失败：" "Red"
-    foreach ($failure in $failures) {
-        Write-Result "  - $failure" "Red"
-    }
-    Write-Result "请在管理后台编辑并保存完整账户配置，然后重新运行本脚本。" "Yellow"
+    foreach ($failure in $failures) { Write-Result "FAIL: $failure" "Red" }
     exit 2
 }
-
-Write-Result ""
-Write-Result "账户优先级、状态和必需的 Model Mapping 均通过审计。" "Green"
-Write-Result "下一步运行 scripts/verify-deepseek-routing.ps1 做真实请求验收。" "Cyan"
+Write-Result "Configuration checks passed. Provider availability and actual chosen account still require request/Usage evidence." "Green"
+Write-Result "Run verify-deepseek-routing.ps1 only when a minimal billed probe is intended."

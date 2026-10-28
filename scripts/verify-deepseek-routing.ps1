@@ -1,79 +1,75 @@
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [string]$ApiKey = $env:CHEAPBUDDY_API_KEY,
-    [string]$BaseUrl = "https://api.cheapbuddy.cc"
+    [string]$BaseUrl = "https://api.cheapbuddy.cc",
+    [string]$ModelId = "deepseek-v4.1-flash-1017",
+    [string]$AliasFile = (Join-Path $PSScriptRoot "../relay/config/model-aliases.json")
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-
-$publicModelId = "deepseek/deepseek-v4.1-flash"
-$expectedUpstreamModelId = "deepseek-v4.1-flash"
-
+$canonicalModelId = "deepseek-v4.1-flash-1017"
+$aliases = Get-Content -LiteralPath $AliasFile -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+if ($ModelId -cne $canonicalModelId -and (
+    $aliases -isnot [System.Collections.IDictionary] -or
+    $ModelId -notmatch "(?i)deepseek.*flash" -or
+    [string]$aliases[$ModelId] -cne $canonicalModelId
+)) {
+    throw "Select the canonical Flash model or an alias from relay/config/model-aliases.json."
+}
 if ([string]::IsNullOrWhiteSpace($ApiKey)) {
-    Write-Error "缺少用户 API Key。请设置 CHEAPBUDDY_API_KEY，或使用 -ApiKey 传入。"
-    exit 1
+    throw "Set CHEAPBUDDY_API_KEY through a protected environment variable."
 }
 
-$endpoint = "$($BaseUrl.TrimEnd('/'))/v1/chat/completions"
-$headers = @{
-    Authorization = "Bearer $ApiKey"
-    "Content-Type" = "application/json"
+$apiBase = $BaseUrl.TrimEnd("/")
+if ($apiBase -notmatch "/v1$") { $apiBase += "/v1" }
+$endpoint = "$apiBase/chat/completions"
+$request = @{
+    Uri = $endpoint
+    Method = "Post"
+    Headers = @{ Authorization = "Bearer $ApiKey"; "Content-Type" = "application/json" }
+    Body = (@{
+        model = $ModelId
+        messages = @(@{ role = "user"; content = "Reply with OK only." })
+        max_tokens = 32
+        stream = $false
+    } | ConvertTo-Json -Depth 6 -Compress)
+    TimeoutSec = 60
 }
-$body = @{
-    model = $publicModelId
-    messages = @(
-        @{
-            role = "user"
-            content = "Reply with OK"
-        }
-    )
-    max_tokens = 1
-    stream = $false
-} | ConvertTo-Json -Depth 6 -Compress
 
-Write-Host "DeepSeek 路由验收" -ForegroundColor Cyan
-Write-Host "Endpoint: $endpoint"
-Write-Host "Requested Model: $publicModelId"
-Write-Host "max_tokens: 1"
-
+Write-Host "DeepSeek probe: one request, max_tokens=32, nonstreaming." -ForegroundColor Cyan
+Write-Host "Requested model: $ModelId; expected final upstream model: $canonicalModelId"
 try {
-    $request = @{
-        Uri = $endpoint
-        Method = "Post"
-        Headers = $headers
-        Body = $body
-        TimeoutSec = 60
-    }
     $response = Invoke-RestMethod @request
 } catch {
     $statusCode = $null
-    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+    if ($_.Exception.PSObject.Properties["Response"] -and $_.Exception.Response) {
         $statusCode = [int]$_.Exception.Response.StatusCode
+    } elseif ($_.Exception.PSObject.Properties["StatusCode"] -and $_.Exception.StatusCode) {
+        $statusCode = [int]$_.Exception.StatusCode
     }
-    if ($statusCode) {
-        Write-Error "请求失败，HTTP $statusCode：$($_.Exception.Message)"
-    } else {
-        Write-Error "请求失败：$($_.Exception.Message)"
-    }
+    # Avoid dumping exception payloads, request headers or credentials.
+    Write-Host "Probe failed (HTTP $statusCode). Check protected request logs; no retry was sent." -ForegroundColor Red
     exit 1
 }
 
-$responseModel = if ($response.model) { [string]$response.model } else { "<not returned>" }
 $content = $null
-if ($response.choices -and $response.choices.Count -gt 0) {
-    $content = $response.choices[0].message.content
+if ($null -ne $response -and -not ($response.PSObject.Properties["error"] -and $response.error)) {
+    $choices = @()
+    if ($response.PSObject.Properties["choices"]) { $choices = @($response.choices) }
+    if ($choices.Count -gt 0 -and $null -ne $choices[0] -and $choices[0].PSObject.Properties["message"]) {
+        $message = $choices[0].message
+        if ($null -ne $message -and $message.PSObject.Properties["content"]) { $content = $message.content }
+    }
+}
+if ($content -isnot [string] -or [string]::IsNullOrWhiteSpace($content)) {
+    Write-Host "Probe failed: 2xx without nonempty message content is not a successful model response." -ForegroundColor Red
+    exit 1
 }
 
-Write-Host "请求成功（2xx）" -ForegroundColor Green
-Write-Host "Response Model: $responseModel"
-if (-not [string]::IsNullOrWhiteSpace([string]$content)) {
-    Write-Host "Response: $content"
-}
-
-Write-Host ""
-Write-Host "请在管理后台 Usage 中核对：" -ForegroundColor Yellow
-Write-Host "  Account: ecophase-ai.com"
-Write-Host "  Requested Model: $publicModelId"
-Write-Host "  Final Upstream Model: $expectedUpstreamModelId"
-Write-Host "  用户 Cost 和账户成本均已记录"
+Write-Host "Probe passed: 2xx and nonempty message content." -ForegroundColor Green
+Write-Host "Check Usage for the requested alias, final upstream $canonicalModelId, actual account and recorded usage/cost."
+Write-Host "Expected global order: pptoken account 8 priority 1, EcoPhase account 12 priority 2, aiberm account 3 priority 3."
+Write-Host "This gateway request does not prove every tier is healthy or exercise failover."
+Write-Host "2026-10-28: aiberm canonical probe returned 503 (no available channel); third tier pending provider enablement." -ForegroundColor Yellow
