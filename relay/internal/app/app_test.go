@@ -44,12 +44,15 @@ func TestHiddenVerifiedMediaRemainsRoutable(t *testing.T) {
 	}
 }
 
-func TestReadRouteBodyMapsDeepSeekPublicSlugToOfficialProviderID(t *testing.T) {
+func TestReadRouteBodyResolvesDeepSeekPublicSlugToUpstreamProviderID(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek/deepseek-v4.1-flash","messages":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	server := &Server{Config: config.Config{
-		TextPaths:    map[string]struct{}{"/v1/chat/completions": {}},
-		ModelAliases: map[string]string{"deepseek/deepseek-v4.1-flash": "deepseek-flash"},
+		TextPaths: map[string]struct{}{"/v1/chat/completions": {}},
+		ModelAliases: map[string]string{
+			"deepseek/deepseek-v4.1-flash": "deepseek-flash",
+			"deepseek-flash":               "deepseek-4.1-flash-1017",
+		},
 		MaxBodyBytes: 1 << 20,
 	}}
 	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
@@ -65,7 +68,7 @@ func TestReadRouteBodyMapsDeepSeekPublicSlugToOfficialProviderID(t *testing.T) {
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["model"] != "deepseek-flash" {
+	if payload["model"] != "deepseek-4.1-flash-1017" {
 		t.Fatalf("upstream model = %#v", payload["model"])
 	}
 	if prepared.model != "deepseek/deepseek-v4.1-flash" {
@@ -73,12 +76,15 @@ func TestReadRouteBodyMapsDeepSeekPublicSlugToOfficialProviderID(t *testing.T) {
 	}
 }
 
-func TestReadRouteBodyMapsDeepSeek1017AliasToInternalRouteID(t *testing.T) {
+func TestReadRouteBodyResolvesDeepSeek1017LegacyAliasToUpstreamModel(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-v4.1-flash-1017","messages":[]}`))
 	request.Header.Set("Content-Type", "application/json")
 	server := &Server{Config: config.Config{
-		TextPaths:    map[string]struct{}{`/v1/chat/completions`: {}},
-		ModelAliases: map[string]string{"deepseek-v4.1-flash-1017": "deepseek-flash"},
+		TextPaths: map[string]struct{}{`/v1/chat/completions`: {}},
+		ModelAliases: map[string]string{
+			"deepseek-v4.1-flash-1017": "deepseek-flash",
+			"deepseek-flash":           "deepseek-4.1-flash-1017",
+		},
 		MaxBodyBytes: 1 << 20,
 	}}
 	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
@@ -94,7 +100,7 @@ func TestReadRouteBodyMapsDeepSeek1017AliasToInternalRouteID(t *testing.T) {
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["model"] != "deepseek-flash" {
+	if payload["model"] != "deepseek-4.1-flash-1017" {
 		t.Fatalf("upstream model = %#v", payload["model"])
 	}
 	if prepared.model != "deepseek-v4.1-flash-1017" {
@@ -157,6 +163,13 @@ func TestReadRouteBodyMapsInternalDeepSeekRouteToUpstreamModel(t *testing.T) {
 	}
 	if prepared.model != "deepseek-flash" {
 		t.Fatalf("route model identity = %q", prepared.model)
+	}
+}
+
+func TestResolveModelAliasLeavesCyclesUnchanged(t *testing.T) {
+	aliases := map[string]string{"first": "second", "second": "first"}
+	if got := resolveModelAlias(aliases, "first"); got != "first" {
+		t.Fatalf("cyclic alias resolved to %q", got)
 	}
 }
 

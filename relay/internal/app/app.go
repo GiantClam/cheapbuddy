@@ -2064,10 +2064,20 @@ func resolveModelAlias(aliases map[string]string, model string) string {
 	if model == "" || aliases == nil {
 		return model
 	}
-	if target := strings.TrimSpace(aliases[model]); target != "" {
-		return target
+	seen := map[string]struct{}{model: {}}
+	current := model
+	for range aliases {
+		target := strings.TrimSpace(aliases[current])
+		if target == "" || target == current {
+			return current
+		}
+		if _, exists := seen[target]; exists {
+			return model
+		}
+		seen[target] = struct{}{}
+		current = target
 	}
-	return model
+	return current
 }
 
 func rewriteJSONModelAlias(body []byte, contentType string, aliases map[string]string) []byte {

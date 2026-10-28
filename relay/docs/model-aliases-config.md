@@ -1,7 +1,7 @@
 # Relay 模型别名配置
 
-Relay 可以在转发 JSON 请求前重写 `model` 字段。别名目标是下游路由器用于精确
-调度的 ID；它不一定是提供商官方模型 ID。
+Relay 可以在转发 JSON 请求前重写 `model` 字段。别名可以组成有向链，Relay 会
+解析到最终目标；循环别名会保持原始模型 ID，避免请求被错误改写。
 
 ## 配置来源与优先级
 
@@ -56,7 +56,7 @@ deepseek/deepseek-v4.1-flash
         ↓ Relay alias
 Sub2API 内部路由 ID
 deepseek-flash
-        ↓ account credentials.model_mapping / Relay direct alias
+        ↓ Relay alias
 上游实际 ID
 deepseek-4.1-flash-1017
 ```
@@ -65,7 +65,8 @@ deepseek-4.1-flash-1017
 
 `deepseek-4.1-flash-1017` 当前作为可选模型 ID 放行，并直接作为上游模型 ID
 转发。`deepseek-flash` 是兼容旧客户端的内部路由 ID，在 Relay 中改写为
-`deepseek-4.1-flash-1017`；生产优先账户 `ecophase-ai.com` 同时保留该精确模型能力。
+`deepseek-4.1-flash-1017`。旧公开 ID会通过同一条别名链自动到达该上游模型，
+生产优先账户 `ecophase-ai.com` 同时保留该精确模型能力。
 
 当前生产账户 `ecophase-ai.com` 为 Priority 1、Active、Schedulable，并优先承接
 `deepseek-flash` 和 `deepseek-4.1-flash-1017`。
