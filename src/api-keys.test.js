@@ -358,6 +358,15 @@ test('accepts the public DeepSeek 1017 model when Relay publishes its exact ID',
   assert.equal(calls[0].options.headers.Authorization, 'Bearer shared-key');
 });
 
+test('accepts deepseek-flash from the catalog when copying its generated configuration', async (t) => {
+  const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-flash'] });
+  const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-flash');
+  assert.ok(deepseek);
+  assert.equal(await api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: [deepseek], apiKey: 'shared-key' }), 'shared-key');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, `${sharedBaseUrl}/models`);
+});
+
 test('rejects DeepSeek 1017 aliases when the exact public ID is unavailable', async (t) => {
   const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
   assert.ok(deepseek);
@@ -381,16 +390,16 @@ test('rejects DeepSeek 1017 aliases when the exact public ID is unavailable', as
 });
 
 test('rejects a provider-only catalog entry when the exported public model ID is not visible', async (t) => {
-  const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-flash', 'claude-sonnet-5-5'] });
+  const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-v4.1-flash-1017', 'claude-sonnet-5-5'] });
   const models = [
-    { id: 'deepseek/deepseek-v4.1-flash', providerModelId: 'deepseek-flash' },
+    { id: 'deepseek-flash', providerModelId: 'deepseek-v4.1-flash-1017' },
     sharedModels[1],
   ];
   await assert.rejects(
     api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models, apiKey: 'shared-key' }),
     (error) => {
       assert.equal(error.code, 'API_KEY_MODELS_UNAVAILABLE');
-      assert.deepEqual(error.metadata.missingModels, ['deepseek/deepseek-v4.1-flash']);
+      assert.deepEqual(error.metadata.missingModels, ['deepseek-flash']);
       return true;
     },
   );

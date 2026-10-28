@@ -15,7 +15,8 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(ids.includes('gpt-6-luna'));
   assert.ok(ids.includes('gpt-5.6-sol'));
   assert.ok(ids.includes('gpt-5.6-terra'));
-  assert.ok(ids.includes('deepseek/deepseek-v4.1-flash'));
+  assert.ok(ids.includes('deepseek-flash'));
+  assert.ok(!ids.includes('deepseek/deepseek-v4.1-flash'));
   assert.ok(ids.includes('deepseek-v4.1-flash-1017'));
   assert.ok(ids.includes('gpt-image-2.5'));
   assert.ok(ids.includes('MiniMax-H3'));
@@ -63,7 +64,7 @@ test('model catalog contains published text and media models', () => {
     'gpt-6-luna',
     'gpt-5.6-sol',
     'gpt-5.6-terra',
-    'deepseek/deepseek-v4.1-flash',
+    'deepseek-flash',
     'deepseek-v4.1-flash-1017',
     'qwen3.8-max',
     'gpt-image-2.5',
@@ -89,6 +90,14 @@ test('DeepSeek V4.1 Flash 1017 keeps its canonical ID and plain localized descri
     const [localized] = localizeModels([deepseek], language);
     assert.equal(localized.id, 'deepseek-v4.1-flash-1017');
     assert.equal(localized.description, description);
+  }
+});
+
+test('DeepSeek Flash uses its stable public name in both languages', () => {
+  for (const language of ['zh', 'en']) {
+    const deepseek = localizeModels(modelCatalog, language).find(({ id }) => id === 'deepseek-flash');
+    assert.ok(deepseek);
+    assert.equal(deepseek.short, 'DeepSeek Flash');
   }
 });
 
@@ -157,7 +166,7 @@ test('converts verified USD prices to CNY in Chinese without mutating the catalo
 
 test('converts CNY prices and small price ranges to USD in English', () => {
   const qwen = modelCatalog.find((model) => model.id === 'qwen3.8-max');
-  const deepseek = modelCatalog.find((model) => model.id === 'deepseek/deepseek-v4.1-flash');
+  const deepseek = modelCatalog.find((model) => model.id === 'deepseek-flash');
   assert.equal(deepseek.providerModelId, undefined);
   const [qwenEn, deepseekEn] = localizeModels([qwen, deepseek], 'en');
 

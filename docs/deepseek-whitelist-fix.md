@@ -2,4 +2,4 @@
 
 The authoritative procedure is [the DeepSeek routing runbook](../scripts/configure-deepseek-routing.md#permissions), updated 2026-10-28.
 
-It covers the canonical ID, compatible aliases, group allowlists, shared routes and account mappings. Preserve existing API key permissions and memberships. Earlier instructions in this document that forbade the correct 1017 ID or routed Flash to an older model are superseded.
+Authorize public ID `deepseek-flash` (DeepSeek Flash), the separate selectable canonical ID `deepseek-v4.1-flash-1017` and compatibility aliases, including `deepseek/deepseek-v4.1-flash`. Generate new configs for the renamed public entry with `deepseek-flash`. Only accounts 8/12 supply Flash; accounts 3/2 stay excluded. Preserve unrelated models, credentials, API key permissions and memberships.

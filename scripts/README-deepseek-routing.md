@@ -1,6 +1,6 @@
 # DeepSeek routing scripts
 
-Use [the routing runbook](configure-deepseek-routing.md) for the canonical model, account tiers, permissions, cost settings, dated provider evidence and commands. It is the single source for this procedure.
+Use [the routing runbook](configure-deepseek-routing.md) for public ID `deepseek-flash` (DeepSeek Flash), the selectable canonical 1017 model, compatibility aliases, suppliers 8/12, exclusions 3/2, permissions, cost settings and commands. It is the single source for this procedure.
 
 | Script | Behavior |
 | --- | --- |

@@ -79,8 +79,7 @@ Write-Result "DeepSeek configuration audit: GET requests only; no configuration 
 Write-Result "Checking $($flashModelIds.Count - 1) relay aliases plus canonical $canonicalModelId."
 $checks = @(
     @{ Id = 8; Name = "pptoken"; Priority = 1 },
-    @{ Id = 12; Name = "EcoPhase"; Priority = 2 },
-    @{ Id = 3; Name = "aiberm"; Priority = 3 }
+    @{ Id = 12; Name = "EcoPhase"; Priority = 2 }
 )
 $failures = [System.Collections.Generic.List[string]]::new()
 $groupIds = [System.Collections.Generic.HashSet[int]]::new()
@@ -160,33 +159,43 @@ foreach ($groupId in $groupIds) {
     }
 }
 
-try {
-    $response = Invoke-SubApiRequest "/api/v1/admin/accounts/2"
-    $backup = Get-ConfigValue $response "data"
-    if ($null -eq $backup -or (Get-ConfigValue $backup "id") -ne 2) { throw "Missing account 2." }
-    $credentials = Convert-ToConfigObject (Get-ConfigValue $backup "credentials")
-    $mapping = Convert-ToConfigObject (Get-ConfigValue $credentials "model_mapping")
-    $extra = Convert-ToConfigObject (Get-ConfigValue $backup "extra")
-    $passthrough = Get-ConfigValue $extra "openai_passthrough"
-    if ($passthrough -isnot [bool]) { $passthrough = Get-ConfigValue $extra "openai_oauth_passthrough" }
-    if ($mapping -isnot [System.Collections.IDictionary] -or $mapping.Count -eq 0 -or $passthrough -eq $true) {
-        $failures.Add("Account 2 Paid Backup: unrestricted or passthrough access could add a Flash competitor.")
-    } else {
-        foreach ($pattern in $mapping.Keys) {
-            $matchesFlash = @($flashModelIds | Where-Object {
-                $_ -ceq $pattern -or ($pattern.EndsWith("*") -and $_.StartsWith($pattern.Substring(0, $pattern.Length - 1), [StringComparison]::Ordinal))
-            })
-            if ($matchesFlash.Count -gt 0 -or $pattern -match "(?i)deepseek.*flash") {
-                $failures.Add("Account 2 Paid Backup: remove Flash capability '$pattern' without disturbing other models.")
+# Exclusion must preserve unrelated models and credentials on both accounts.
+$excludedAccounts = @(
+    @{ Id = 3; Name = "aiberm"; Reason = "1017 unsupported" },
+    @{ Id = 2; Name = "Paid Backup"; Reason = "nonparticipating" }
+)
+foreach ($excludedAccount in $excludedAccounts) {
+    $label = "Account $($excludedAccount.Id) $($excludedAccount.Name)"
+    Write-Result "$($label): auditing Flash exclusion ($($excludedAccount.Reason))."
+    try {
+        $response = Invoke-SubApiRequest "/api/v1/admin/accounts/$($excludedAccount.Id)"
+        $details = Get-ConfigValue $response "data"
+        if ($null -eq $details -or (Get-ConfigValue $details "id") -ne $excludedAccount.Id) { throw "Missing account details." }
+        $credentials = Convert-ToConfigObject (Get-ConfigValue $details "credentials")
+        $mapping = Convert-ToConfigObject (Get-ConfigValue $credentials "model_mapping")
+        $extra = Convert-ToConfigObject (Get-ConfigValue $details "extra")
+        $passthrough = (Get-ConfigValue $extra "openai_passthrough") -eq $true -or
+            (Get-ConfigValue $extra "openai_oauth_passthrough") -eq $true
+        if ($mapping -isnot [System.Collections.IDictionary] -or $mapping.Count -eq 0 -or $passthrough) {
+            $failures.Add("$($label): unrestricted or passthrough access could add a Flash competitor.")
+        } else {
+            foreach ($pattern in $mapping.Keys) {
+                $matchesFlash = @($flashModelIds | Where-Object {
+                    $_ -ceq $pattern -or ($pattern.EndsWith("*") -and $_.StartsWith($pattern.Substring(0, $pattern.Length - 1), [StringComparison]::Ordinal))
+                })
+                if ($matchesFlash.Count -gt 0 -or $pattern -match "(?i)deepseek.*flash" -or
+                    [string]$mapping[$pattern] -match "(?i)deepseek.*flash") {
+                    $failures.Add("$($label): remove Flash capability '$pattern' without disturbing other models or credentials.")
+                }
             }
         }
+    } catch {
+        $failures.Add("Could not audit $label for competing Flash capability.")
     }
-} catch {
-    $failures.Add("Could not audit account 2 Paid Backup for competing Flash capability.")
 }
 
 Write-Result "File aliases do not prove deployment: check RELAY_MODEL_ALIASES_FILE and any RELAY_MODEL_ALIASES override." "Yellow"
-Write-Result "2026-10-28 evidence: pptoken and EcoPhase canonical probes returned content; aiberm returned 503 and remains pending provider enablement." "Yellow"
+Write-Result "2026-10-28 recorded evidence: pptoken and EcoPhase canonical probes returned content; aiberm has no 1017 support and must remain excluded." "Yellow"
 if ($failures.Count -gt 0) {
     foreach ($failure in $failures) { Write-Result "FAIL: $failure" "Red" }
     exit 2

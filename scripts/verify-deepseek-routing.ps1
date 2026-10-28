@@ -3,7 +3,7 @@
 param(
     [string]$ApiKey = $env:CHEAPBUDDY_API_KEY,
     [string]$BaseUrl = "https://api.cheapbuddy.cc",
-    [string]$ModelId = "deepseek-v4.1-flash-1017",
+    [string]$ModelId = "deepseek-flash",
     [string]$AliasFile = (Join-Path $PSScriptRoot "../relay/config/model-aliases.json")
 )
 
@@ -39,7 +39,7 @@ $request = @{
 }
 
 Write-Host "DeepSeek probe: one request, max_tokens=32, nonstreaming." -ForegroundColor Cyan
-Write-Host "Requested model: $ModelId; expected final upstream model: $canonicalModelId"
+Write-Host "Requested model: $ModelId; expected upstream in Usage: $canonicalModelId (the response may echo the public alias)."
 try {
     $response = Invoke-RestMethod @request
 } catch {
@@ -70,6 +70,6 @@ if ($content -isnot [string] -or [string]::IsNullOrWhiteSpace($content)) {
 
 Write-Host "Probe passed: 2xx and nonempty message content." -ForegroundColor Green
 Write-Host "Check Usage for the requested alias, final upstream $canonicalModelId, actual account and recorded usage/cost."
-Write-Host "Expected global order: pptoken account 8 priority 1, EcoPhase account 12 priority 2, aiberm account 3 priority 3."
+Write-Host "Expected global order: pptoken account 8 priority 1, EcoPhase account 12 priority 2."
 Write-Host "This gateway request does not prove every tier is healthy or exercise failover."
-Write-Host "2026-10-28: aiberm canonical probe returned 503 (no available channel); third tier pending provider enablement." -ForegroundColor Yellow
+Write-Host "Accounts 3 (aiberm, 1017 unsupported) and 2 (Paid Backup, nonparticipating) must remain excluded from Flash." -ForegroundColor Yellow
