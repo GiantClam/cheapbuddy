@@ -44,35 +44,33 @@ func TestHiddenVerifiedMediaRemainsRoutable(t *testing.T) {
 	}
 }
 
-func TestReadRouteBodyResolvesDeepSeekPublicSlugToUpstreamProviderID(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek/deepseek-v4.1-flash","messages":[]}`))
-	request.Header.Set("Content-Type", "application/json")
-	server := &Server{Config: config.Config{
-		TextPaths: map[string]struct{}{"/v1/chat/completions": {}},
-		ModelAliases: map[string]string{
-			"deepseek/deepseek-v4.1-flash": "deepseek-flash",
-			"deepseek-flash":               "deepseek-4.1-flash-1017",
-		},
-		MaxBodyBytes: 1 << 20,
-	}}
-	prepared, err := server.readRouteBody(request, "/v1/chat/completions")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer prepared.body.Close()
-	body, err := io.ReadAll(prepared.body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload["model"] != "deepseek-4.1-flash-1017" {
-		t.Fatalf("upstream model = %#v", payload["model"])
-	}
-	if prepared.model != "deepseek/deepseek-v4.1-flash" {
-		t.Fatalf("route model identity = %q", prepared.model)
+func TestReadRouteBodyLeavesLegacyDeepSeekIDsOnSupportedModel(t *testing.T) {
+	for _, model := range []string{"deepseek/deepseek-v4.1-flash", "deepseek-v4.1-flash"} {
+		t.Run(model, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"`+model+`","messages":[]}`))
+			request.Header.Set("Content-Type", "application/json")
+			server := &Server{Config: config.Config{
+				TextPaths:    map[string]struct{}{"/v1/chat/completions": {}},
+				ModelAliases: map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"},
+				MaxBodyBytes: 1 << 20,
+			}}
+			prepared, err := server.readRouteBody(request, "/v1/chat/completions")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer prepared.body.Close()
+			body, err := io.ReadAll(prepared.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(body, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["model"] != model || prepared.model != model {
+				t.Fatalf("legacy model changed: body=%#v route=%q", payload["model"], prepared.model)
+			}
+		})
 	}
 }
 
@@ -174,21 +172,20 @@ func TestResolveModelAliasLeavesCyclesUnchanged(t *testing.T) {
 }
 
 func TestAppendModelAliasesPublishesPublicAndOfficialIDs(t *testing.T) {
-	rows := []any{map[string]any{"id": "deepseek/deepseek-v4.1-flash", "type": "text"}}
-	seen := map[string]bool{"deepseek/deepseek-v4.1-flash": true}
-	rows = appendModelAliases(rows, seen, map[string]string{
-		"deepseek/deepseek-v4.1-flash": "deepseek-flash",
-		"deepseek-flash":               "deepseek-4.1-flash-1017",
-		"deepseek-v4.1-flash-1017":     "deepseek-flash",
-	})
-	if len(rows) != 4 || !seen["deepseek-flash"] || !seen["deepseek-v4.1-flash-1017"] || !seen["deepseek-4.1-flash-1017"] {
+	rows := []any{
+		map[string]any{"id": "deepseek/deepseek-v4.1-flash", "type": "text"},
+		map[string]any{"id": "deepseek-flash", "type": "text"},
+	}
+	seen := map[string]bool{"deepseek/deepseek-v4.1-flash": true, "deepseek-flash": true}
+	rows = appendModelAliases(rows, seen, map[string]string{"deepseek-flash": "deepseek-4.1-flash-1017"})
+	if len(rows) != 3 || !seen["deepseek/deepseek-v4.1-flash"] || !seen["deepseek-flash"] || !seen["deepseek-4.1-flash-1017"] {
 		t.Fatalf("model aliases = %#v, seen = %#v", rows, seen)
 	}
 	ids := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		ids[row.(map[string]any)["id"].(string)] = true
 	}
-	if !ids["deepseek-v4.1-flash-1017"] || !ids["deepseek-4.1-flash-1017"] {
+	if !ids["deepseek/deepseek-v4.1-flash"] || !ids["deepseek-4.1-flash-1017"] {
 		t.Fatalf("1017 alias rows = %#v", rows)
 	}
 }

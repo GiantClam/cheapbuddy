@@ -26,13 +26,11 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 
 ## DeepSeek V4.1 Flash
 
-`relay/config/model-aliases.json` 保留历史公开别名，并把内部路由 ID 转发到当前上游模型：
+`relay/config/model-aliases.json` 保留旧模型直通，并将内部路由 ID 转发到新上游模型：
 
 ```json
 {
-  "deepseek/deepseek-v4.1-flash": "deepseek-flash",
   "deepseek-flash": "deepseek-4.1-flash-1017",
-  "deepseek-v4.1-flash": "deepseek-flash",
   "deepseek-v4.1-flash-1017": "deepseek-flash",
   "deepseek-v4.1-flash-0910": "deepseek-flash",
   "deepseek-v4.1-flash-expires-on-0910": "deepseek-flash",
@@ -48,28 +46,24 @@ RELAY_MODEL_ALIASES_FILE=/etc/cheapbuddy/config/model-aliases.json
 deepseek/deepseek-v4.1-flash
 ```
 
-完整链路：
+旧模型链路：
 
 ```text
-客户端公开 ID
+旧客户端公开 ID（Relay 保持不变）
 deepseek/deepseek-v4.1-flash
-        ↓ Relay alias
-Sub2API 内部路由 ID
-deepseek-flash
-        ↓ Relay alias
+        ↓ Sub2API account model_mapping
 上游实际 ID
-deepseek-4.1-flash-1017
+deepseek-v4.1-flash
 ```
 
 `deepseek-flash` 是内部路由 ID，不是 DeepSeek 官方上游 ID。
 
-`deepseek-4.1-flash-1017` 当前作为可选模型 ID 放行，并直接作为上游模型 ID
-转发。`deepseek-flash` 是兼容旧客户端的内部路由 ID，在 Relay 中改写为
-`deepseek-4.1-flash-1017`。旧公开 ID会通过同一条别名链自动到达该上游模型，
-生产优先账户 `ecophase-ai.com` 同时保留该精确模型能力。
+`deepseek-4.1-flash-1017` 当前作为独立模型 ID 直通，`deepseek-flash` 内部路由 ID
+在 Relay 中改写到它。旧公开 ID 不会进入这条新模型路由。
 
-当前生产账户 `ecophase-ai.com` 为 Priority 1、Active、Schedulable，并优先承接
-`deepseek-flash` 和 `deepseek-4.1-flash-1017`。
+`ecophase-ai.com` 当前 `/v1/models` 只公布 `deepseek-v4.1-flash` 和
+`deepseek/deepseek-v4.1-flash`，不公布 `deepseek-4.1-flash-1017`。因此旧公开模型可走
+已公布的旧上游 ID；1017 请求仍需该渠道商在对应上游组中开放模型后才能成功。
 
 ## 与 Sub2API 的配合
 
@@ -83,7 +77,7 @@ deepseek-4.1-flash-1017
 
 ### 账户配置
 
-优先账户需要能匹配内部路由 ID，并将其转换为上游实际 ID：
+`ecophase-ai.com` 保留以下映射：
 
 ```text
 deepseek-flash → deepseek-4.1-flash-1017
@@ -95,14 +89,14 @@ deepseek-flash → deepseek-4.1-flash-1017
 deepseek/deepseek-v4.1-flash → deepseek-v4.1-flash
 ```
 
-账户映射必须按上游实际能力配置。`ecophase-ai.com` 当前使用
-`deepseek-flash → deepseek-4.1-flash-1017`；其他账户仍按自身实际能力配置。
+账户映射必须按上游实时模型目录配置。当前 `ecophase-ai.com` 的目录不包含 1017，
+不要把它描述为已验证可用。
 
 ## 行为边界
 
 - 仅处理 `Content-Type: application/json` 且顶层 `model` 为字符串的请求。
 - 未命中的模型保持不变。
-- Relay 仍保留原始请求模型用于请求上下文和审计；转发 body 使用映射后的值。
+- Relay 仍保留原始请求模型用于请求上下文和审计；仅命中内部路由别名时才改写 body。
 - 环境变量配置会完整覆盖文件配置，不会与文件合并。
 
 ## 验证
@@ -118,4 +112,4 @@ go build ./cmd/relay
 
 - Requested Model：`deepseek/deepseek-v4.1-flash`
 - Account：`ecophase-ai.com`
-- Final Upstream Model：`deepseek-4.1-flash-1017`
+- Final Upstream Model：`deepseek-v4.1-flash`

@@ -1,8 +1,7 @@
 # DeepSeek V4.1 Flash 上线检查清单
 
-> 当前生产配置已于 2026-10-27 更新：ecophase-ai.com 优先承接
-> `deepseek-flash` 和 `deepseek-4.1-flash-1017`，上游模型为
-> `deepseek-4.1-flash-1017`。
+> 2026-10-28 检查发现：EcoPhase 实时模型目录不含 `deepseek-4.1-flash-1017`。
+> 旧公开模型恢复直通 `deepseek-v4.1-flash`；1017 仍需渠道商开放对应上游组权限。
 
 ## 历史线上状态（2026-10-15）
 
@@ -29,6 +28,15 @@
 - [x] `ecophase-ai.com` 映射 `deepseek-flash` → `deepseek-4.1-flash-1017`
 - [x] `ecophase-ai.com` 白名单包含 `deepseek-4.1-flash-1017`
 - [x] `pptoken-deepseek` 保留为 Priority 2 后备
+
+## 2026-10-28 线上复核
+
+- [x] `CheapBuddy OpenAI` 与 `CheapBuddy Shared` 白名单包含 1017 ID
+- [x] `CheapBuddy Shared` composite route 包含 1017 ID
+- [x] EcoPhase 实时目录包含旧模型 ID
+- [ ] EcoPhase 实时目录包含 `deepseek-4.1-flash-1017`
+- [ ] 使用 EcoPhase 请求 1017 成功
+- [x] Relay 旧公开 ID保持不变，避免被重写到当前未开放的 1017
 
 ## 每次发布前
 

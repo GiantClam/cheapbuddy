@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $publicModelId = "deepseek/deepseek-v4.1-flash"
+$expectedUpstreamModelId = "deepseek-v4.1-flash"
 
 if ([string]::IsNullOrWhiteSpace($ApiKey)) {
     Write-Error "缺少用户 API Key。请设置 CHEAPBUDDY_API_KEY，或使用 -ApiKey 传入。"
@@ -74,5 +75,5 @@ Write-Host ""
 Write-Host "请在管理后台 Usage 中核对：" -ForegroundColor Yellow
 Write-Host "  Account: ecophase-ai.com"
 Write-Host "  Requested Model: $publicModelId"
-Write-Host "  Final Upstream Model: deepseek-4.1-flash-1017"
+Write-Host "  Final Upstream Model: $expectedUpstreamModelId"
 Write-Host "  用户 Cost 和账户成本均已记录"

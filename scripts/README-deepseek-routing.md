@@ -12,7 +12,8 @@
 ```text
 公开 ID：     deepseek/deepseek-v4.1-flash
 内部路由 ID： deepseek-flash
-上游实际 ID： deepseek-4.1-flash-1017
+旧模型上游 ID： deepseek-v4.1-flash
+新模型上游 ID： deepseek-4.1-flash-1017（需渠道商开放后才能使用）
 ```
 
 不要把内部路由 ID 写入 WorkBuddy、Claude Code、OpenCode 或 Codex 的生成配置。
@@ -60,7 +61,8 @@ $env:CHEAPBUDDY_API_KEY = "<user-api-key>"
 
 - Account 应为 Priority 1 的 `ecophase-ai.com`
 - Requested Model 为公开 ID
-- Final Upstream Model 为 `deepseek-4.1-flash-1017`
+- 旧公开模型的 Final Upstream Model 为 `deepseek-v4.1-flash`
+- 1017 模型只有在渠道商目录和对应上游组权限均开放后才可验收
 - 有实际 Cost
 
 详细步骤见 `scripts/VERIFICATION-GUIDE.md`。

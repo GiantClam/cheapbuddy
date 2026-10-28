@@ -84,15 +84,17 @@ func TestLoadReadsCatalogModelAllowlist(t *testing.T) {
 
 func TestLoadReadsModelAliasesFromFile(t *testing.T) {
 	file := t.TempDir() + "/model-aliases.json"
-	if err := os.WriteFile(file, []byte(`{"deepseek/deepseek-v4.1-flash":"deepseek-flash","deepseek-flash":"deepseek-4.1-flash-1017","deepseek-v4.1-flash-1017":"deepseek-flash"}`), 0o600); err != nil {
+	if err := os.WriteFile(file, []byte(`{"deepseek-flash":"deepseek-4.1-flash-1017","deepseek-v4.1-flash-1017":"deepseek-flash"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(testEnv(map[string]string{"RELAY_MODEL_ALIASES_FILE": file}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.ModelAliases["deepseek/deepseek-v4.1-flash"]; got != "deepseek-flash" {
-		t.Fatalf("canonical DeepSeek alias = %q", got)
+	for _, model := range []string{"deepseek/deepseek-v4.1-flash", "deepseek-v4.1-flash"} {
+		if got := cfg.ModelAliases[model]; got != "" {
+			t.Fatalf("supported legacy DeepSeek model %q should pass through, got alias %q", model, got)
+		}
 	}
 	if got := cfg.ModelAliases["deepseek-v4.1-flash-1017"]; got != "deepseek-flash" {
 		t.Fatalf("1017 DeepSeek alias = %q", got)
