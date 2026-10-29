@@ -284,7 +284,7 @@ Object.assign(messages.zh, {
   campaignRegularPrices: '输入 {input}/M · 输出 {output}/M',
   campaignDuration: '仅 claude-opus-5-5 享受活动价 · 至 {end}（北京时间）',
   campaignModelBadge: '限时 3 折',
-  campaignCustomerPrice: '活动价（官网 3 折）',
+  campaignCustomerPrice: '活动价（官网价 3 折）',
 });
 
 Object.assign(messages.en, {

@@ -1,0 +1,56 @@
+:root { color-scheme: dark; --bg: #07111f; --panel: #0b1b2a; --line: rgba(144,199,215,.17); --ink: #d7e7e5; --muted: #91a9b1; --green: #50e3a4; --orange: #ffad72; font-family: Inter, "Noto Sans SC", system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); line-height: 1.75; }
+a { color: var(--green); }
+.site-header, footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; max-width: 1120px; margin: auto; padding: 22px 28px; border-bottom: 1px solid var(--line); }
+.brand { color: var(--ink); font-size: 18px; font-weight: 750; letter-spacing: 0; text-decoration: none; }
+.brand span { margin-left: 8px; color: var(--muted); font: 10px monospace; letter-spacing: 0; }
+.site-header nav { display: flex; gap: 22px; flex-wrap: wrap; }
+.site-header nav a, footer a { color: var(--green); text-decoration: none; }
+.hero { max-width: 1120px; margin: auto; padding: 82px 28px 58px; }
+.eyebrow, .hero-meta, .section-number { color: var(--green); font: 11px monospace; letter-spacing: 0; }
+.hero h1 { max-width: 850px; margin: 15px 0 18px; font-size: 64px; line-height: 1.11; letter-spacing: 0; overflow-wrap: anywhere; }
+.lede { max-width: 780px; color: #b1c5c8; font-size: 18px; overflow-wrap: anywhere; }
+.hero-meta, .hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.hero-actions { margin-top: 25px; }
+.button { display: inline-block; padding: 11px 15px; border: 1px solid var(--line); border-radius: 6px; text-decoration: none; }
+.button.primary { background: var(--green); border-color: var(--green); color: #062219; font-weight: 700; }
+.button.secondary { color: var(--ink); }
+.article-layout { display: grid; grid-template-columns: 230px minmax(0,720px); gap: 52px; max-width: 1120px; margin: auto; padding: 16px 28px 90px; }
+.toc { position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 10px; padding: 17px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.toc strong { color: var(--green); }
+.toc a { color: var(--muted); font-size: 13px; text-decoration: none; }
+.toc a:hover, .source-link { color: var(--green); }
+.content .source-link { color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+.guide-section { display: grid; grid-template-columns: 35px minmax(0, 1fr); gap: 15px; padding: 28px 0 40px; border-bottom: 1px solid var(--line); scroll-margin-top: 28px; }
+.guide-section h2, .faq h2 { margin: 0 0 13px; font-size: 24px; letter-spacing: 0; }
+.guide-section p, .faq-item p { margin: 0 0 13px; color: #aebfc4; line-height: 1.9; }
+.guide-section pre { overflow: auto; padding: 17px; border: 1px solid var(--line); border-radius: 7px; background: #04101b; color: #b8e4d4; font: 12px/1.75 ui-monospace, monospace; }
+.faq { padding: 34px 0; border-bottom: 1px solid var(--line); }
+.faq-item { padding: 14px 0; border-top: 1px solid var(--line); }
+.faq-item summary { cursor: pointer; font-weight: 650; }
+.faq-item p { margin-bottom: 0; }
+.disclosure { padding: 18px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 13px; }
+.home-link { display: inline-block; margin-top: 15px; color: var(--green); }
+footer { border-top: 1px solid var(--line); border-bottom: 0; color: var(--muted); font-size: 12px; }
+.campaign-box { margin: 16px 0; padding: 18px; border: 1px solid rgba(255,173,114,.55); border-radius: 8px; background: rgba(255,173,114,.08); }
+.campaign-box > strong { color: var(--orange); }
+.campaign-box p { margin: 8px 0; }
+.campaign-box small { color: var(--muted); }
+.campaign-prices { color: var(--orange) !important; font-weight: 700; }
+@media (max-width: 760px) {
+  .site-header { align-items: flex-start; flex-wrap: wrap; }
+  .site-header nav { width: 100%; justify-content: flex-start; gap: 12px; font-size: 12px; }
+  .article-layout { grid-template-columns: 1fr; gap: 22px; }
+  .content { min-width: 0; }
+  .toc { position: static; }
+  .hero { padding-top: 55px; }
+  .hero h1 { font-size: 42px; }
+  .guide-section { grid-template-columns: 28px minmax(0, 1fr); }
+  .guide-section > div { min-width: 0; }
+  .brand span { display: none; }
+  footer { align-items: flex-start; flex-wrap: wrap; }
+}
+@media (max-width: 460px) {
+  .hero h1 { font-size: 34px; }
+}

@@ -10,6 +10,7 @@ const claudeStableModels = [
   ['claude-sonnet-5-5', 'Claude Sonnet 5.5', 'sonnet', [2, 10, 2.5, 4, 0.1]],
 ].map(([id, short, family, rates]) => ({
   id, short, family, vendor: { zh: 'Anthropic', en: 'Anthropic' },
+  ...(id === 'claude-opus-5-5' ? { seoPath: '/model/claude-opus-5-5/', seoPathEn: '/en/model/claude-opus-5-5/' } : {}),
   description: { zh: '编程、推理与 Agent；与 OpenAI 共用统一 Key，任选 Anthropic 或 OpenAI-compatible', en: 'Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible' },
   input: `$${rates[0].toFixed(2)}`, output: `$${rates[1].toFixed(2)}`,
   officialPricing: { input: rates[0], output: rates[1], cacheWrite5m: rates[2], cacheWrite1h: rates[3], cacheRead: rates[4] },
@@ -89,13 +90,13 @@ export const modelCatalog = [
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
-    id: 'deepseek-flash', short: 'DeepSeek Flash', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D41', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'deepseek-flash', short: 'DeepSeek Flash', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '$0.003–$0.006 cached · $0.15–$0.30 uncached', output: '$0.60–$1.20', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/quick_start/pricing/', priceCheckedAt: '2026-10-29', priceUnit: { zh: '美元 / 百万 Token；缓存命中输入非高峰/高峰 $0.003/$0.006，缓存未命中输入 $0.15/$0.30，输出 $0.60/$1.20；每周工作日（不含中国法定节假日）09:00–12:00 和 14:00–18:00（北京时间）为高峰，非高峰为高峰一半；核对于 2026-10-29', en: 'USD / MTok; cache-hit input off-peak/peak $0.003/$0.006, cache-miss input $0.15/$0.30, output $0.60/$1.20; weekdays excluding mainland China public holidays, 09:00–12:00 and 14:00–18:00 Beijing time are peak, off-peak is half-price; checked 2026-10-29' }, accent: 'mint', mark: 'D41', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 384000, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
-    id: 'deepseek-v4.1-flash-1017', short: 'DeepSeek V4.1 Flash 1017', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存', output: '¥4–¥8', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/', priceCheckedAt: '2026-09-26', priceUnit: { zh: '人民币 / 百万 Token；输入输出均按高峰/闲时变化，具体时段见官网', en: 'CNY / MTok; peak/off-peak rates apply to input and output; see provider schedule' }, accent: 'mint', mark: 'D417', homepageFeatured: true, showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'deepseek-v4.1-flash-1017', short: 'DeepSeek V4.1 Flash 1017', vendor: { zh: 'DeepSeek', en: 'DeepSeek' }, description: { zh: '百万上下文、多模态理解与 Agent 工具调用', en: 'Million-token context, multimodal understanding, and Agent tool calling' }, input: '$0.003–$0.006 cached · $0.15–$0.30 uncached', output: '$0.60–$1.20', priceStatus: 'verified', priceSourceUrl: 'https://api-docs.deepseek.com/quick_start/pricing/', priceCheckedAt: '2026-10-29', priceUnit: { zh: '美元 / 百万 Token；缓存命中输入非高峰/高峰 $0.003/$0.006，缓存未命中输入 $0.15/$0.30，输出 $0.60/$1.20；每周工作日（不含中国法定节假日）09:00–12:00 和 14:00–18:00（北京时间）为高峰，非高峰为高峰一半；核对于 2026-10-29', en: 'USD / MTok; cache-hit input off-peak/peak $0.003/$0.006, cache-miss input $0.15/$0.30, output $0.60/$1.20; weekdays excluding mainland China public holidays, 09:00–12:00 and 14:00–18:00 Beijing time are peak, off-peak is half-price; checked 2026-10-29' }, seoPath: '/model/deepseek-v4-1-flash-1017/', seoPathEn: '/en/model/deepseek-v4-1-flash-1017/', accent: 'mint', mark: 'D417', homepageFeatured: true, showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 384000, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: true },
@@ -190,9 +191,17 @@ export function localizeModel(model, language = 'zh') {
   const sourcePriceUnit = typeof model.priceUnit === 'object' ? model.priceUnit[locale] || model.priceUnit.zh : model.priceUnit;
   const fromCurrency = getPriceCurrency(model);
   const toCurrency = locale === 'en' ? 'USD' : 'CNY';
-  const input = localizePriceText(convertMoneyText(model.input, fromCurrency, toCurrency), locale);
-  const output = localizePriceText(convertMoneyText(model.output, fromCurrency, toCurrency), locale);
-  const priceUnit = localizePriceUnit(sourcePriceUnit, locale, fromCurrency, toCurrency);
+  const deepseekFlashChinese = locale === 'zh'
+    && (model.id === 'deepseek-flash' || model.id === 'deepseek-v4.1-flash-1017');
+  const input = deepseekFlashChinese
+    ? '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存'
+    : localizePriceText(convertMoneyText(model.input, fromCurrency, toCurrency), locale);
+  const output = deepseekFlashChinese
+    ? '¥4–¥8'
+    : localizePriceText(convertMoneyText(model.output, fromCurrency, toCurrency), locale);
+  const priceUnit = deepseekFlashChinese
+    ? '人民币 / 百万 Token；缓存命中输入非高峰/高峰 ¥0.02/¥0.04，缓存未命中输入 ¥1/¥2，输出 ¥4/¥8；每周工作日（不含中国法定节假日）09:00–12:00 和 14:00–18:00（北京时间）为高峰，非高峰为高峰一半；核对于 2026-10-29'
+    : localizePriceUnit(sourcePriceUnit, locale, fromCurrency, toCurrency);
   const localized = { ...model, vendor, description, billingUnit, input, output, priceUnit };
   const retail = getModelRetailPricing(localized);
   return { ...localized, ...(retail ? { retailInput: retail.input, retailOutput: retail.output, retailPriceUnit: retail.priceUnit } : {}) };

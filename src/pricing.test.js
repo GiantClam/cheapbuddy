@@ -45,6 +45,7 @@ test('applies the three-tenths campaign only to Claude Opus 5.5', () => {
 
   assert.equal(promoted.campaignActive, true);
   assert.equal(promoted.campaignMultiplier, 0.3);
+  assert.equal(promoted.campaignSavingsPercent, 70);
   assert.equal(promoted.campaignInput, '$1.20');
   assert.equal(promoted.campaignOutput, '$6.00');
   assert.match(promoted.campaignPriceUnit, /5m cache write \$1.50/);

@@ -27,6 +27,9 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.equal(glm53.short, 'GLM 5.3');
   assert.equal(glm53.supportsToolCall, true);
   assert.equal(glm53.maxInputTokens, 1000000);
+  const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
+  assert.deepEqual([deepseek.input, deepseek.output], ['$0.003–$0.006 cached · $0.15–$0.30 uncached', '$0.60–$1.20']);
+  assert.equal(deepseek.priceCheckedAt, '2026-10-29');
   assert.deepEqual(
     Object.fromEntries(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-terra'].map((id) => {
       const model = modelCatalog.find((item) => item.id === id);
@@ -82,7 +85,8 @@ test('DeepSeek V4.1 Flash 1017 keeps its canonical ID and plain localized descri
   const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
   assert.ok(deepseek);
   assert.equal(deepseek.short, 'DeepSeek V4.1 Flash 1017');
-
+  assert.equal(deepseek.seoPath, '/model/deepseek-v4-1-flash-1017/');
+  assert.equal(deepseek.seoPathEn, '/en/model/deepseek-v4-1-flash-1017/');
   for (const [language, description] of Object.entries({
     zh: '百万上下文、多模态理解与 Agent 工具调用',
     en: 'Million-token context, multimodal understanding, and Agent tool calling',
@@ -111,6 +115,16 @@ test('homepage replaces Grok 4.7 with DeepSeek V4.1 Flash 1017 without removing 
   assert.ok(heroIds.includes('deepseek-v4.1-flash-1017'));
   assert.ok(!heroIds.includes('grok-4.7'));
   assert.ok(modelCatalog.some(({ id }) => id === 'grok-4.7'));
+});
+
+test('model SEO page links have localized alternates', () => {
+  const opus = modelCatalog.find(({ id }) => id === 'claude-opus-5-5');
+  const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-v4.1-flash-1017');
+  assert.equal(opus.seoPath, '/model/claude-opus-5-5/');
+  assert.equal(opus.seoPathEn, '/en/model/claude-opus-5-5/');
+  assert.equal(deepseek.seoPath, '/model/deepseek-v4-1-flash-1017/');
+  assert.equal(deepseek.seoPathEn, '/en/model/deepseek-v4-1-flash-1017/');
+  assert.equal(modelCatalog.filter((model) => model.seoPath).length, 2);
 });
 
 test('verified token rates use official values and unavailable rates stay explicit', () => {
@@ -176,7 +190,7 @@ test('converts verified USD prices to CNY in Chinese without mutating the catalo
   assert.equal(grok.input, '$2.00–$4.00');
 });
 
-test('converts CNY prices and small price ranges to USD in English', () => {
+test('formats official USD prices and small price ranges in English', () => {
   const qwen = modelCatalog.find((model) => model.id === 'qwen3.8-max');
   const deepseek = modelCatalog.find((model) => model.id === 'deepseek-flash');
   assert.equal(deepseek.providerModelId, undefined);
@@ -187,9 +201,22 @@ test('converts CNY prices and small price ranges to USD in English', () => {
   assert.match(qwenEn.priceUnit, /USD \/ MTok/);
   assert.match(qwenEn.priceUnit, /\$0.2308/);
   assert.match(qwenEn.priceUnit, /1 USD = 6.5 CNY/);
-  assert.equal(deepseekEn.input, '$0.0031–$0.0062 cached · $0.1538–$0.3077 uncached');
-  assert.equal(deepseekEn.output, '$0.6154–$1.2308');
-  assert.equal(deepseek.input, '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存');
+  assert.equal(deepseekEn.input, '$0.003–$0.006 cached · $0.15–$0.30 uncached');
+  assert.equal(deepseekEn.output, '$0.60–$1.20');
+  assert.equal(deepseek.input, '$0.003–$0.006 cached · $0.15–$0.30 uncached');
+});
+
+test('uses the official Chinese DeepSeek rates for both public Flash IDs', () => {
+  const models = modelCatalog.filter(({ id }) => id === 'deepseek-flash' || id === 'deepseek-v4.1-flash-1017');
+  const localizedModels = localizeModels(models, 'zh');
+  assert.equal(localizedModels.length, 2);
+  for (const localized of localizedModels) {
+    assert.equal(localized.input, '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存');
+    assert.equal(localized.output, '¥4–¥8');
+    assert.match(localized.priceUnit, /人民币/);
+    assert.match(localized.priceUnit, /¥0\.02\/¥0\.04/);
+    assert.doesNotMatch(localized.priceUnit, /参考汇率/);
+  }
 });
 
 test('keeps unverified and non-priced models unchanged', () => {

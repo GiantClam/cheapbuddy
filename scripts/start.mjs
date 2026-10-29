@@ -50,7 +50,25 @@ const server = createServer(async (request, response) => {
   }
 
   const isBlogPath = requestedPath === '/blog' || requestedPath.startsWith('/blog/');
-  if (!servedPath && (appPaths.has(requestedPath) || isBlogPath)) {
+  const isModelLandingPath = requestedPath.startsWith('/model/') || requestedPath.startsWith('/en/model/');
+  const isAppRoute = appPaths.has(requestedPath) || requestedPath === '/en' || requestedPath.startsWith('/en/');
+  if (!servedPath && isModelLandingPath) {
+    response.writeHead(404, {
+      'Cache-Control': 'no-store',
+      'Content-Type': mimeTypes['.html'],
+    });
+    createReadStream(resolve(root, '404.html')).on('error', () => response.destroy()).pipe(response);
+    return;
+  }
+  if (!servedPath && isBlogPath) {
+    response.writeHead(404, {
+      'Cache-Control': 'no-store',
+      'Content-Type': mimeTypes['.html'],
+    });
+    createReadStream(resolve(root, '404.html')).on('error', () => response.destroy()).pipe(response);
+    return;
+  }
+  if (!servedPath && isAppRoute) {
     servedPath = resolve(root, 'index.html');
   }
 

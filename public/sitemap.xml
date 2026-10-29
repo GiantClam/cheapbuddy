@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://cheapbuddy.cc/</loc>
   </url>
@@ -13,15 +13,27 @@
     <loc>https://cheapbuddy.cc/hypit</loc>
   </url>
   <url>
-    <loc>https://cheapbuddy.cc/blog</loc>
+    <loc>https://cheapbuddy.cc/model/deepseek-v4-1-flash-1017/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://cheapbuddy.cc/model/deepseek-v4-1-flash-1017/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://cheapbuddy.cc/en/model/deepseek-v4-1-flash-1017/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cheapbuddy.cc/model/deepseek-v4-1-flash-1017/" />
   </url>
   <url>
-    <loc>https://cheapbuddy.cc/blog/one-balance-model-routing</loc>
+    <loc>https://cheapbuddy.cc/en/model/deepseek-v4-1-flash-1017/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://cheapbuddy.cc/model/deepseek-v4-1-flash-1017/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://cheapbuddy.cc/en/model/deepseek-v4-1-flash-1017/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cheapbuddy.cc/model/deepseek-v4-1-flash-1017/" />
   </url>
   <url>
-    <loc>https://cheapbuddy.cc/blog/cheapbuddy-media-api-guide</loc>
+    <loc>https://cheapbuddy.cc/model/claude-opus-5-5/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://cheapbuddy.cc/model/claude-opus-5-5/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://cheapbuddy.cc/en/model/claude-opus-5-5/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cheapbuddy.cc/model/claude-opus-5-5/" />
   </url>
   <url>
-    <loc>https://cheapbuddy.cc/blog/comfyui-cheapbuddy-workflows</loc>
+    <loc>https://cheapbuddy.cc/en/model/claude-opus-5-5/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://cheapbuddy.cc/model/claude-opus-5-5/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://cheapbuddy.cc/en/model/claude-opus-5-5/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cheapbuddy.cc/model/claude-opus-5-5/" />
   </url>
 </urlset>
