@@ -48,6 +48,19 @@ export const modelCatalog = [
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
   },
   {
+    id: 'kimi-k3.1-pro', short: 'Kimi K3.1 Pro', vendor: { zh: 'Kimi', en: 'Kimi' },
+    description: { zh: '百万上下文、视觉理解、深度推理与 Agent 工具调用', en: 'Million-token context, vision understanding, deep reasoning, and Agent tool use' },
+    input: '$2.00', output: '$10.00', priceStatus: 'verified', priceSourceUrl: 'https://platform.kimi.ai/docs/pricing/chat', priceCheckedAt: '2026-10-29',
+    priceUnit: {
+      zh: '美元 / 百万 Token；缓存写入 $2.00，缓存读取 $0.20',
+      en: 'USD / MTok; cache write $2.00, cache read $0.20',
+    },
+    priceMultiplier: 0.625, accent: 'pink', mark: 'K31', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    maxInputTokens: 1000000, maxOutputTokens: 131072, temperature: 1,
+    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: true,
+    reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
+  },
+  {
     id: 'grok-4.7', short: 'Grok 4.7', vendor: { zh: 'xAI', en: 'xAI' }, description: { zh: '代码、Agent 与知识工作', en: 'Coding, Agent workflows, and knowledge work' }, input: '$2.00–$4.00', output: '$6.00–$12.00', priceStatus: 'verified', priceSourceUrl: 'https://docs.x.ai/developers/models/grok-4.7', priceCheckedAt: '2026-09-26', priceUnit: { zh: '美元 / 百万 Token；缓存输入 $0.50 / 百万，超过 200K 上下文费率更高', en: 'USD / MTok; cached input $0.50 / MTok; higher rates above 200K context' }, accent: 'blue', mark: 'GX', featured: true, showOnHomepage: false, showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 500000, maxOutputTokens: 8192, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
@@ -70,6 +83,19 @@ export const modelCatalog = [
     maxInputTokens: 922000, maxOutputTokens: 128000, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'high', defaultEffort: 'high', supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: false },
+  },
+  {
+    id: 'gpt-6.1-terra', short: 'GPT-6.1 Terra', vendor: { zh: 'OpenAI', en: 'OpenAI' },
+    description: { zh: '编程、视觉理解、电脑操作与 Agent 工作流', en: 'Coding, vision, computer use, and Agent workflows' },
+    input: '$1.00', output: '$5.00', priceStatus: 'verified', priceSourceUrl: 'https://developers.openai.com/api/docs/models/gpt-6.1-terra', priceCheckedAt: '2026-10-29',
+    priceUnit: {
+      zh: '美元 / 百万 Token；缓存读取 $0.05，30m 缓存写入 $1.25，12h 缓存写入 $2.50；超过 272K 输入 Token：输入及缓存价格 2 倍，输出价格 1.5 倍',
+      en: 'USD / MTok; cache read $0.05, 30m cache write $1.25, 12h cache write $2.50; above 272K input tokens: input/cache 2x, output 1.5x',
+    },
+    accent: 'yellow', mark: 'T61', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    maxInputTokens: 1050000, maxOutputTokens: 128000, temperature: 1,
+    supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
+    reasoning: { effort: 'medium', defaultEffort: 'medium', supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], summary: 'auto', canDisableThinking: true },
   },
   {
     id: 'gpt-6-luna', short: 'GPT-6 Luna', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '高性价比日常任务与高频调用', en: 'Efficient everyday tasks and high-volume workloads' }, input: '$0.10', output: '$0.50', priceStatus: 'verified', priceSourceUrl: 'https://developers.openai.com/api/docs/pricing', priceCheckedAt: '2026-09-26', priceUnit: { zh: '美元 / 百万 Token；缓存 $0.01，缓存写入 $0.125；超过 272K 输入的长上下文加价', en: 'USD / MTok; cached $0.01, cache write $0.125; higher rates above 272K input tokens' }, accent: 'yellow', mark: 'L6', modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },

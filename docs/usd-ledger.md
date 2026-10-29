@@ -541,3 +541,192 @@ Existing balances and historical usage were not rewritten. Operational plans,
 sanitized snapshots, receipts, rollback SQL and runtime reconciliation are in
 `.omx/logs/deepseek-usd-72-*` and `.omx/tmp/deepseek-usd-72-*`. No application
 source or dependency changes were required for this configuration rollout.
+
+## GPT-6.1 Terra launch and website-price parity — 2026-10-29
+
+`gpt-6.1-terra` is enabled on the existing PPToken GPT account 6 and Aiberm
+OpenAI-compatible account 3, for OpenAI group 2 and shared group 4. The shared
+group has an exact OpenAI route, and the public Relay catalog allowlist includes
+the same model ID. Account priorities, credentials, account cost multipliers,
+group factors, and all pre-existing model cards were preserved.
+
+The website and effective production retail use the existing 0.72 factor against
+the [official model rates](https://developers.openai.com/api/docs/models/gpt-6.1-terra):
+
+| USD per million tokens | Official reference | Customer price |
+| --- | ---: | ---: |
+| Uncached input | 1.00 | 0.72 |
+| Output | 5.00 | 3.60 |
+| Cache read | 0.05 | 0.036 |
+| 30-minute cache write | 1.25 | 0.90 |
+| 12-hour cache write | 2.50 | 1.80 |
+
+Channel 1 uses the official bases before group 2's 0.72 factor. Channel 3
+compensates for group 4's 1.1 factor, rounding its per-token bases downward to
+twelve decimal places; effective prices differ from the website by less than
+USD 0.0000011 per million tokens and never exceed the displayed prices.
+An explicit interval above 272,000 input tokens applies 2x input/cache rates and
+1.5x output rates. Fast uses 2x retail. The supplier's Flex discount has not been
+verified, so this new model's Flex multiplier is explicitly 1 rather than 0.5.
+
+PPToken's authenticated billing factor is 0.288. A real Terra response with
+1,411 input and five output tokens reconciled to 0.000413568 nominal supplier
+credits. Use the established CNY 1 per credit and CNY 6.5 per USD conversion once.
+Its standard input/output cash-cost bases are USD 0.0443076923 / 0.2215384615
+per million tokens. Cache-read and write estimates retain the official ratios;
+they have not been separately reconciled to Terra supplier invoices.
+
+Aiberm's published tariff at `aiberm.org/api/pricing` uses model ratio 0.35325,
+completion ratio 5 and default-group factor 0.23. Its USD input/output tariff
+bases are 0.162495 / 0.812475 per million tokens. A successful streamed probe's
+213-quota debit agrees with its reported input/output/cache usage at cache-read
+cost 0.0162495 per million tokens, using 500,000 quota per USD. This is tariff
+and quota evidence, not a cash-funding invoice. Its write costs conservatively
+retain the official write-to-input ratios pending separate invoice evidence.
+
+These bases leave about 77.43% input/output margin and 54.86% cache-read margin
+on the more expensive configured route, above the 20% model-margin floor.
+This excludes payment fees, promotions, tax, operations and future supplier
+changes. Aiberm cost-statistics cards divide by the unchanged account factor 0.1
+before storage, so that factor is applied only once. PPToken's factor remains 1,
+with funding FX already included in its cost cards. Ten-decimal cost fields
+round upward; exact bases remain in the operational plan. The existing custom
+cost-statistics path does not fully account for service-tier and long-context
+modifiers; its displayed special-tier margin is not an audited supplier margin.
+
+Production transaction `cb-gpt61-terra-launch-20261029-v1`, audit 21782, committed
+two retail cards, their long-context intervals, four cost cards, two model
+mappings, two allowlist additions and the exact shared route. The transaction
+first passed rollback rehearsal, and apply verified the identical plan hash and
+live routing/pricing preconditions. It refreshed authentication caches for 169
+keys and emitted four scheduler events. Read-back comparisons verified all
+pre-existing account, group, route, retail and cost-card settings were preserved.
+
+Relay deployment `a8adc71a-4766-47a6-918d-815e60ad2b4c` succeeded with only the
+catalog environment variable changed. Cloudflare Pages deployment `2924d0dc`
+published the catalog to both `cheapbuddy.cc` and `www.cheapbuddy.cc`; both domains
+served the verified build asset with SHA-256
+`4ab1db938a9014a1ef8fa38b6ae94ce612d0ab8ffb7cb9f974c31e90777bf34b`.
+
+Acceptance: 194 frontend tests and the production build passed. Both public
+groups expose the list and detail entry. Four real public calls covered Chat
+Completions and Responses in both groups, all with nonempty content and usage;
+persisted customer charges matched the website rates, totalling USD 0.0011612132.
+Those gateway calls selected PPToken account 6. Direct supplier probes confirmed
+both providers; a production failover drill and large-context/explicit-write
+inference were not performed. No historical usage or wallet balances were
+rewritten; the bounded probes incurred ordinary new usage charges.
+
+Sanitized snapshots, exact plan, transaction receipt, supplier probes, preservation
+checks, runtime billing reconciliation and public-domain build hashes are in
+`.omx/logs/gpt61-terra-20261029-*.json`. The local catalog and client-export tests
+preserve all existing model entries and prices; no dependencies were added.
+
+## Terra browser acceptance and Aiberm protocol isolation — 2026-10-29
+
+This section supersedes the Aiberm account-3 routing described in the launch
+record above. Customer prices, group multipliers, the public model ID and the
+website deployment remain unchanged.
+
+Live browser acceptance verified all requested surfaces: the homepage's model
+shelf renders `gpt-6.1-terra`; the configuration center offers and selects it;
+WorkBuddy, OpenCode and Codex render native configuration previews with that
+exact model ID. A real WorkBuddy download, `models (4).json` (865 bytes), contains
+only Terra in `models` and `availableModels`, the public Relay endpoint and
+1,050,000/128,000 context/output limits. No credential values are included in
+the acceptance reports. WorkBuddy and Codex page connection checks passed at
+3,966 ms and 5,090 ms respectively. An initial browser fetch failed before the
+first download; subsequent connection checking and the actual download passed.
+
+Authenticated model-list reads through both public website domains and the API
+domain returned 200 and included Terra. The Relay environment allowlist and the
+shared group's exact OpenAI route were also read back and verified.
+
+Stricter shared-key probes exposed a protocol problem hidden by the first
+launch's PPToken-only gateway acceptance. Aiberm account 3 inherited
+`openai_responses_mode=force_chat_completions` from its Opus setup. That override
+wins over `openai_responses_supported=true`. Aiberm's nonstreaming Chat endpoint
+returned usage-only SSE with no output; an incoming Responses request routed
+through it returned 502. Direct native Responses requests succeeded with both
+JSON and SSE. Ops error 82876 confirms the failing Responses request used
+account 3's `/v1/chat/completions` upstream endpoint.
+
+Operation `cb-gpt61-terra-native-aiberm-20261029-v1`, audit 21785, created dedicated
+Aiberm account 16, limited to Terra, bound to groups 2 and 4, using
+`openai_responses_mode=force_responses` and explicit disabled passthrough.
+It reuses the existing provider credential internally and retains cost factor
+0.1. Account 3 now contains only its original Opus mapping; its protocol mode,
+priority, credential and other settings were preserved. Existing Terra-only
+cost rules 115/116 now also match account 16, without changing their price fields.
+The transaction asserted that the entire retail-card collection was unchanged.
+
+Three real shared-key gateway probes were run with account 16 temporarily at
+priority 0. Nonstreaming Chat produced valid JSON with nonempty output, native
+nonstreaming Responses produced valid JSON, and streaming Responses completed
+with nonempty output and usage. All three persisted usage rows identify account
+16, so fallback did not conceal a failing provider. These calls charged USD
+0.00013824 in total and matched the website rates.
+
+Operation `cb-gpt61-terra-native-aiberm-finalize-20261029-v1`, audit 21786,
+then set account 16 to priority 2 behind PPToken account 6 at priority 1. Two
+further three-call shared-key acceptance runs passed after finalization,
+including fresh session headers; their persisted rows still selected account
+16 and were reconciled against retail pricing. A separate streamed Chat call
+also returned 200, `OK`, usage and `[DONE]`. Thus ten post-fix gateway calls
+passed across the stream/nonstream Chat and Responses surfaces. This does not
+claim a post-fix PPToken failover drill, tool/image acceptance or large-context
+inference. The earlier PPToken gateway evidence remains recorded separately.
+
+Keep Terra separate from the Opus account's forced-Chat configuration. Combining
+their model mappings without checking protocol compatibility would reintroduce
+the empty-response/502 failure. No backend code, dependencies, historical usage
+or historical wallet balances were changed for this fix.
+
+Sanitized reproduction and acceptance evidence uses the existing
+`.omx/logs/gpt61-terra-20261029-` prefix: `provider-protocol`, `diagnosis-errors`,
+`split-plan`, `split-applied`, `split-finalized`, `downloaded-config-acceptance-aiberm`,
+`downloaded-config-acceptance-final`, `downloaded-config-acceptance-final-fresh`,
+and `chat-stream-acceptance` JSON files. The ignored operational scripts retain
+the failing and passing verification path without adding project dependencies.
+
+## Kimi K3.1 Pro launch — 2026-10-29
+
+`kimi-k3.1-pro` is now public in CheapBuddy. The model catalog uses the official
+Kimi reference basis of USD 2.00 input and USD 10.00 output per million tokens,
+with cache write USD 2.00 and cache read USD 0.20. The public customer card uses
+the existing 0.625 model multiplier, displaying USD 1.25 input and USD 6.25
+output per million tokens. Chinese display values use the existing USD/CNY 6.5
+reference conversion.
+
+The supplier verification was asymmetric. PPToken Kimi account 5 exposed
+`kimi-k3.1-pro` in its model catalog and returned HTTP 200 with nonempty `OK`
+output and usage. Aiberm account 3 returned `model_not_found` for the same model
+and CheapBuddy returned HTTP 503 because no eligible upstream channel existed.
+Only account 5 was therefore added to the production mapping; Aiberm was kept
+out of the new route and its existing Opus mapping was preserved.
+
+Operation `cb-kimi-k31-pro-launch-20261029-v1`, audit 21794, added the PPToken
+mapping, OpenAI and Shared allowlist entries, two retail cards, two PPToken
+procurement cards, and one exact Shared composite route. The supplier cost cards
+use the observed PPToken factor 0.5 against the official basis. Existing account,
+group, channel, route, price and credential fields were guarded by transaction
+preconditions; authentication and channel caches were refreshed for 170 keys.
+
+Production acceptance used one key from each customer group. Both `/v1/models`
+catalogs returned `kimi-k3.1-pro`; both Chat Completions calls returned HTTP 200,
+the requested model, nonempty `OK`, and usage. The durable usage rows identify
+PPToken account 5 for both calls, with group 2 customer cost USD 0.000345 and
+Shared group 4 customer cost USD 0.000270. This verifies the primary route, not
+an Aiberm failover route.
+
+Relay catalog deployment `705e3e98-9b57-418b-8759-c8881947ede6` succeeded after
+adding the model to `RELAY_MODEL_CATALOG_ALLOWLIST`. The website build was
+published to Cloudflare Pages and both `cheapbuddy.cc` and `www.cheapbuddy.cc`
+served the verified asset containing `kimi-k3.1-pro` with SHA-256
+`1965e5e0f72bdaabfa23ffb9c06be0ec62b42f75a9de7545d14d8cb46a4d4dfe`.
+
+Sanitized evidence is stored in `.omx/logs/kimi-k31-supplier-probe-20261029.json`,
+`.omx/logs/kimi-k31-public-verify-20261029.json`,
+`.omx/logs/kimi-k31-website-verify-20261029.json`, and the Kimi launch receipts
+with the `kimi-k31` prefix. No historical usage, wallet balance, dependencies or
+unrelated provider mappings were changed.

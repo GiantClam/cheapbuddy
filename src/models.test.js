@@ -12,7 +12,9 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(ids.includes('gpt-6-astra'));
   assert.ok(ids.includes('gpt-6-sol'));
   assert.ok(ids.includes('gpt-6.1-sol'));
+  assert.ok(ids.includes('gpt-6.1-terra'));
   assert.ok(ids.includes('gpt-6-luna'));
+  assert.ok(ids.includes('kimi-k3.1-pro'));
   assert.ok(ids.includes('gpt-5.6-sol'));
   assert.ok(ids.includes('gpt-5.6-terra'));
   assert.ok(ids.includes('deepseek-flash'));
@@ -64,7 +66,9 @@ test('model catalog contains published text and media models', () => {
     'gpt-6-astra',
     'gpt-6-sol',
     'gpt-6.1-sol',
+    'gpt-6.1-terra',
     'gpt-6-luna',
+    'kimi-k3.1-pro',
     'gpt-5.6-sol',
     'gpt-5.6-terra',
     'deepseek-flash',
@@ -131,7 +135,9 @@ test('verified token rates use official values and unavailable rates stay explic
   const expected = {
     'gpt-6-sol': ['$2.00', '$10.00'],
     'gpt-6.1-sol': ['$2.00', '$10.00'],
+    'gpt-6.1-terra': ['$1.00', '$5.00'],
     'gpt-6-luna': ['$0.10', '$0.50'],
+    'kimi-k3.1-pro': ['$2.00', '$10.00'],
     'qwen3.8-max': ['¥12.00', '¥36.00'],
   };
 
@@ -150,6 +156,91 @@ test('verified token rates use official values and unavailable rates stay explic
     assert.equal(model.output, '待核验');
     assert.ok(model.priceSourceUrl);
   }
+});
+
+test('Kimi K3.1 Pro publishes verified official pricing and capability metadata', () => {
+  const kimi = modelCatalog.find(({ id }) => id === 'kimi-k3.1-pro');
+  assert.ok(kimi, 'Kimi K3.1 Pro must be selectable from the public catalog');
+  assert.equal(kimi.short, 'Kimi K3.1 Pro');
+  assert.deepEqual(kimi.vendor, { zh: 'Kimi', en: 'Kimi' });
+  assert.equal(kimi.priceStatus, 'verified');
+  assert.equal(kimi.priceSourceUrl, 'https://platform.kimi.ai/docs/pricing/chat');
+  assert.equal(kimi.priceCheckedAt, '2026-10-29');
+  assert.equal(kimi.priceMultiplier, 0.625);
+  assert.equal(kimi.endpointPath, '/chat/completions');
+  assert.deepEqual([kimi.maxInputTokens, kimi.maxOutputTokens], [1000000, 131072]);
+  assert.deepEqual(
+    [kimi.supportsToolCall, kimi.supportsImages, kimi.supportsReasoning, kimi.onlyReasoning],
+    [true, true, true, true],
+  );
+  assert.match(kimi.description.en, /vision/i);
+  assert.match(kimi.description.en, /agent/i);
+  assert.match(kimi.description.zh, /视觉/);
+  assert.match(kimi.priceUnit.en, /cache write \$2\.00/);
+  assert.match(kimi.priceUnit.en, /cache read \$0\.20/);
+  assert.match(kimi.priceUnit.zh, /缓存写入 \$2\.00/);
+  assert.match(kimi.priceUnit.zh, /缓存读取 \$0\.20/);
+  assert.ok(getHomepageModels().some(({ id }) => id === kimi.id));
+});
+
+test('Kimi K3.1 Pro localizes official and calculated customer rates separately', () => {
+  const kimi = modelCatalog.find(({ id }) => id === 'kimi-k3.1-pro');
+  const [en] = localizeModels([kimi], 'en');
+  const [zh] = localizeModels([kimi], 'zh');
+
+  assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$2.00', '$10.00', '$1.25', '$6.25']);
+  assert.match(en.priceUnit, /cache write \$2\.00/);
+  assert.match(en.retailPriceUnit, /cache write \$1\.25/);
+  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['¥13.00', '¥65.00', '¥8.125', '¥40.625']);
+  assert.match(zh.priceUnit, /缓存写入 ¥13\.00/);
+  assert.match(zh.retailPriceUnit, /缓存写入 ¥8\.125/);
+});
+
+test('GPT-6.1 Terra publishes verified pricing, vision and reasoning metadata', () => {
+  const terra = modelCatalog.find(({ id }) => id === 'gpt-6.1-terra');
+  assert.ok(terra, 'GPT-6.1 Terra must be selectable from the public catalog');
+  assert.equal(terra.short, 'GPT-6.1 Terra');
+  assert.equal(terra.priceSourceUrl, 'https://developers.openai.com/api/docs/models/gpt-6.1-terra');
+  assert.equal(terra.priceCheckedAt, '2026-10-29');
+  assert.equal(terra.priceMultiplier, 0.72);
+  assert.deepEqual([terra.maxInputTokens, terra.maxOutputTokens], [1050000, 128000]);
+  assert.deepEqual(
+    [terra.supportsToolCall, terra.supportsImages, terra.supportsReasoning, terra.onlyReasoning],
+    [true, true, true, false],
+  );
+  assert.deepEqual(terra.reasoning, {
+    effort: 'medium', defaultEffort: 'medium',
+    supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+    summary: 'auto', canDisableThinking: true,
+  });
+  assert.match(terra.description.en, /vision/i);
+  assert.match(terra.description.en, /computer use/i);
+  assert.match(terra.description.zh, /视觉/);
+  assert.match(terra.description.zh, /电脑操作/);
+  assert.match(terra.priceUnit.en, /cache read \$0\.05/);
+  assert.match(terra.priceUnit.en, /30m cache write \$1\.25/);
+  assert.match(terra.priceUnit.en, /12h cache write \$2\.50/);
+  assert.match(terra.priceUnit.en, /above 272K input tokens: input\/cache 2x, output 1\.5x/);
+  assert.match(terra.priceUnit.zh, /缓存读取 \$0\.05/);
+  assert.match(terra.priceUnit.zh, /30m 缓存写入 \$1\.25/);
+  assert.match(terra.priceUnit.zh, /12h 缓存写入 \$2\.50/);
+  assert.match(terra.priceUnit.zh, /超过 272K 输入 Token：输入及缓存价格 2 倍，输出价格 1\.5 倍/);
+  assert.ok(getHomepageModels().some(({ id }) => id === terra.id));
+});
+
+test('GPT-6.1 Terra localizes official and inherited customer rates separately', () => {
+  const terra = modelCatalog.find(({ id }) => id === 'gpt-6.1-terra');
+  const [en] = localizeModels([terra], 'en');
+  const [zh] = localizeModels([terra], 'zh');
+
+  assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$1.00', '$5.00', '$0.72', '$3.60']);
+  assert.match(en.priceUnit, /cache read \$0\.05, 30m cache write \$1\.25, 12h cache write \$2\.50/);
+  assert.match(en.retailPriceUnit, /cache read \$0\.036, 30m cache write \$0\.90, 12h cache write \$1\.80/);
+  assert.match(en.retailPriceUnit, /above 272K input tokens: input\/cache 2x, output 1\.5x/);
+  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['¥6.50', '¥32.50', '¥4.68', '¥23.40']);
+  assert.match(zh.priceUnit, /缓存读取 ¥0\.325，30m 缓存写入 ¥8\.125，12h 缓存写入 ¥16\.25/);
+  assert.match(zh.retailPriceUnit, /缓存读取 ¥0\.234，30m 缓存写入 ¥5\.85，12h 缓存写入 ¥11\.70/);
+  assert.deepEqual([terra.input, terra.output], ['$1.00', '$5.00']);
 });
 
 test('media models expose their native protocol and endpoint metadata', () => {

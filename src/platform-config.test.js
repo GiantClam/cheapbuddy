@@ -256,6 +256,66 @@ test('keeps GPT-6.1 Sol in every generated platform configuration', () => {
   assert.match(codex, /^model = "gpt-6\.1-sol"/m);
 });
 
+test('GPT-6.1 Terra exports its public ID, limits and capabilities to supported clients', () => {
+  const terra = modelCatalog.find(({ id }) => id === 'gpt-6.1-terra');
+  assert.ok(terra, 'the generator must use the real public catalog entry');
+  const terraOptions = { ...options, models: [terra] };
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', terraOptions).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', terraOptions).content);
+  const codex = createPlatformArtifact('codex', terraOptions).content;
+
+  assert.deepEqual(workbuddy.availableModels, ['gpt-6.1-terra']);
+  assert.equal(workbuddy.models[0].id, 'gpt-6.1-terra');
+  assert.equal(workbuddy.models[0].url, 'https://api.cheapbuddy.cc/v1/chat/completions');
+  assert.deepEqual([workbuddy.models[0].maxInputTokens, workbuddy.models[0].maxOutputTokens], [1050000, 128000]);
+  assert.equal(workbuddy.models[0].supportsImages, true);
+  assert.equal(workbuddy.models[0].supportsToolCall, true);
+  assert.equal(workbuddy.models[0].reasoning.defaultEffort, 'medium');
+  assert.deepEqual(workbuddy.models[0].reasoning.supportedEfforts, ['none', 'low', 'medium', 'high', 'xhigh', 'max']);
+  assert.equal(opencode.model, 'cheapbuddy/gpt-6.1-terra');
+  const openCodeModel = opencode.provider.cheapbuddy.models['gpt-6.1-terra'];
+  assert.equal(openCodeModel.id, 'gpt-6.1-terra');
+  assert.deepEqual(openCodeModel.limit, { context: 1050000, output: 128000 });
+  assert.deepEqual(openCodeModel.modalities, { input: ['text', 'image'], output: ['text'] });
+  assert.equal(openCodeModel.tool_call, true);
+  assert.equal(openCodeModel.reasoning, true);
+  assert.match(codex, /^model = "gpt-6\.1-terra"/m);
+  assert.match(codex, /^model_context_window = 1050000/m);
+  assert.match(codex, /^wire_api = "responses"/m);
+
+  for (const platformId of ['workbuddy', 'opencode', 'codex']) {
+    assert.ok(platformHelpers.getModelsForPlatform(platformId, modelCatalog).some(({ id }) => id === terra.id));
+    const request = platformHelpers.buildConnectionTestRequest(platformId, { baseUrl: options.baseUrl, model: terra });
+    assert.equal(request.body.model, 'gpt-6.1-terra');
+    assert.equal(request.url, `https://api.cheapbuddy.cc/v1/${platformId === 'codex' ? 'responses' : 'chat/completions'}`);
+  }
+  assert.ok(!platformHelpers.getModelsForPlatform('claude', modelCatalog).some(({ id }) => id === terra.id));
+  assert.throws(() => createPlatformArtifact('claude', terraOptions), /Claude Code requires Claude models/i);
+});
+
+test('Kimi K3.1 Pro exports its public ID and native capability limits', () => {
+  const kimi = modelCatalog.find(({ id }) => id === 'kimi-k3.1-pro');
+  assert.ok(kimi);
+  const kimiOptions = { ...options, models: [kimi] };
+  const workbuddy = JSON.parse(createPlatformArtifact('workbuddy', kimiOptions).content);
+  const opencode = JSON.parse(createPlatformArtifact('opencode', kimiOptions).content);
+  const codex = createPlatformArtifact('codex', kimiOptions).content;
+
+  assert.deepEqual(workbuddy.availableModels, ['kimi-k3.1-pro']);
+  assert.equal(workbuddy.models[0].id, 'kimi-k3.1-pro');
+  assert.deepEqual([workbuddy.models[0].maxInputTokens, workbuddy.models[0].maxOutputTokens], [1000000, 131072]);
+  assert.equal(workbuddy.models[0].supportsImages, true);
+  assert.equal(workbuddy.models[0].supportsToolCall, true);
+  assert.equal(opencode.model, 'cheapbuddy/kimi-k3.1-pro');
+  assert.deepEqual(opencode.provider.cheapbuddy.models['kimi-k3.1-pro'].limit, { context: 1000000, output: 131072 });
+  assert.deepEqual(opencode.provider.cheapbuddy.models['kimi-k3.1-pro'].modalities, { input: ['text', 'image'], output: ['text'] });
+  assert.match(codex, /^model = "kimi-k3\.1-pro"/m);
+  for (const platformId of ['workbuddy', 'opencode', 'codex']) {
+    const request = platformHelpers.buildConnectionTestRequest(platformId, { baseUrl: options.baseUrl, model: kimi });
+    assert.equal(request.body.model, 'kimi-k3.1-pro');
+  }
+});
+
 test('uses deepseek-flash in every generated client configuration and connection probe', () => {
   const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-flash');
   assert.ok(deepseek);
