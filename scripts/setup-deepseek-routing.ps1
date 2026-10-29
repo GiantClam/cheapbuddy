@@ -78,8 +78,8 @@ if ([string]::IsNullOrWhiteSpace($SubApiBaseUrl) -or [string]::IsNullOrWhiteSpac
 Write-Result "DeepSeek configuration audit: GET requests only; no configuration changes." "Cyan"
 Write-Result "Checking $($flashModelIds.Count - 1) relay aliases plus canonical $canonicalModelId."
 $checks = @(
-    @{ Id = 8; Name = "pptoken"; Priority = 1 },
-    @{ Id = 12; Name = "EcoPhase"; Priority = 2 }
+    @{ Id = 8; Name = "pptoken"; Priority = 2 },
+    @{ Id = 12; Name = "EcoPhase"; Priority = 1 }
 )
 $failures = [System.Collections.Generic.List[string]]::new()
 $groupIds = [System.Collections.Generic.HashSet[int]]::new()

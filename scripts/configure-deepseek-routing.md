@@ -1,6 +1,6 @@
 # DeepSeek Flash routing runbook
 
-This is the single configuration and verification runbook, updated 2026-10-28. Earlier instructions in the linked DeepSeek documents are superseded.
+This is the single configuration and verification runbook, updated 2026-10-29. Earlier instructions in the linked DeepSeek documents are superseded.
 
 ## Model contract
 
@@ -22,12 +22,12 @@ Deploy the relay configuration separately to Railway service `relay-prod` in `pr
 
 | Account | Global Priority | Canonical request evidence on 2026-10-28 |
 | --- | --- | --- |
-| 8 — pptoken | 1 | Success with nonempty response content |
-| 12 — EcoPhase | 2 | Success with nonempty response content |
+| 12 — EcoPhase | 1 | Success with nonempty response content |
+| 8 — pptoken | 2 | Success with nonempty response content |
 
 These are the only configured/verified Flash suppliers. Advanced scheduler is `false` in the recorded live state. The ordinary scheduler uses global account `Priority`; lower values win among eligible accounts. Binding priorities affect initial DB ordering and do not override these tiers. Inspect them only as information. Do not reorder or rewrite `group_ids` or memberships to enforce tiers: account PUT processing resets binding priorities to index + 1.
 
-`previous_response_id` and sticky sessions can preserve an established account. Fresh calls without session affinity selected account 8 in 3/3 recorded trials on 2026-10-28.
+`previous_response_id` and sticky sessions can preserve an established account. The 2026-10-28 trials predate the 2026-10-29 priority change and selected account 8; fresh calls after the change should select account 12 when it is healthy, with account 8 as fallback.
 
 Account 3 (`aiberm`) does not support 1017, as confirmed by the operator on 2026-10-28. Remove all its Flash mappings, preserving its unrelated Claude mappings and credentials. Account 2 (`PPToken · Paid Backup`) remains nonparticipating and must also have no Flash mappings. An empty/unrestricted mapping, a matching wildcard, a mapping target containing Flash, or OpenAI passthrough can still admit Flash requests; the audit rejects these on both excluded accounts. Preserve their unrelated models and credentials.
 

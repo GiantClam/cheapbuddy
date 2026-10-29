@@ -70,6 +70,6 @@ if ($content -isnot [string] -or [string]::IsNullOrWhiteSpace($content)) {
 
 Write-Host "Probe passed: 2xx and nonempty message content." -ForegroundColor Green
 Write-Host "Check Usage for the requested alias, final upstream $canonicalModelId, actual account and recorded usage/cost."
-Write-Host "Expected global order: pptoken account 8 priority 1, EcoPhase account 12 priority 2."
+Write-Host "Expected global order: EcoPhase account 12 priority 1, pptoken account 8 priority 2."
 Write-Host "This gateway request does not prove every tier is healthy or exercise failover."
 Write-Host "Accounts 3 (aiberm, 1017 unsupported) and 2 (Paid Backup, nonparticipating) must remain excluded from Flash." -ForegroundColor Yellow
