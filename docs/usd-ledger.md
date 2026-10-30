@@ -730,3 +730,29 @@ Sanitized evidence is stored in `.omx/logs/kimi-k31-supplier-probe-20261029.json
 `.omx/logs/kimi-k31-website-verify-20261029.json`, and the Kimi launch receipts
 with the `kimi-k31` prefix. No historical usage, wallet balance, dependencies or
 unrelated provider mappings were changed.
+
+## Claude Opus 5.5 MAX comparison route — 2026-10-30
+
+`claude-opus-5-5-MAX` was added as a public comparison model during the active
+Claude Opus 5.5 campaign. It uses the existing Shared composite channel's
+separate retail and procurement cards, while its exact route preserves the MAX
+selector until account mapping. PPToken Claude accounts 9, 10, and 11 map the
+selector to upstream `claude-opus-5-5`; Aiberm accounts have no MAX mapping and
+are therefore excluded from this route. The existing `claude-opus-5-5` route
+continues to target Aiberm.
+
+Operation `cb-opus-max-pptoken-launch-20261030-v1`, audit 21847, added the
+account mappings, Shared allowlist entry, campaign retail card, PPToken cost
+card, exact route, scheduler outbox events, and audit record. Operation
+`cb-opus-max-route-correction-20261030-v1`, audit 21848, corrected the route's
+internal upstream selector so account eligibility is evaluated before the
+PPToken account mapping. Shared auth and channel caches were refreshed.
+
+Production acceptance returned HTTP 200 with `OK` through both Anthropic
+Messages and OpenAI-compatible Chat Completions. The durable usage rows
+recorded group 4, channel 3, PPToken account 9, requested model
+`claude-opus-5-5-MAX`, upstream model `claude-opus-5-5`, and upstream
+`/v1/messages`; the Chat Completions request was translated to that same
+upstream endpoint. The supplier preflight independently verified that PPToken
+accounts 9, 10, and 11 expose the model and accept native Anthropic Messages
+requests.

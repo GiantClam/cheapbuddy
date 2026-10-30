@@ -23,6 +23,12 @@ Claude 稳定通道提供以下六个模型 ID。调用时按原样填写，不�
 | Claude Sonnet 5 | `claude-sonnet-5` |
 | Claude Sonnet 5.5 | `claude-sonnet-5-5` |
 
+对比通道另提供 `claude-opus-5-5-MAX`。它保持 Claude Opus 5.5 的上游模型语义，
+仅通过 PPToken 的 Claude 账号池提供服务，用于与活动期间的 `claude-opus-5-5`
+（Aiberm 路由）进行对比。活动期内该模型沿用 Claude Opus 5.5 的 3 折价格；
+请求会在 usage 中保留公开模型名，并记录实际的 PPToken 账号和上游
+`claude-opus-5-5`。
+
 公开 API 根地址为 `https://api.cheapbuddy.cc`。将具备 OpenAI 与 Claude 权限的 **CheapBuddy Shared Key** 保存在本地环境变量 `CHEAPBUDDY_API_KEY`，再按所选协议读取该 Key 可访问的模型。下面使用原生 Anthropic 认证与版本头：
 
 ```bash

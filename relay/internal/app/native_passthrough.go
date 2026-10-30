@@ -17,6 +17,8 @@ func canonicalPublicTextPath(name string) string {
 		return "/v1/chat/completions"
 	case "/responses", "/v1/v1/responses":
 		return "/v1/responses"
+	case "/systemone", "/v1/v1/systemone":
+		return "/v1/systemone"
 	case "/models", "/v1/v1/models":
 		return "/v1/models"
 	}
@@ -35,10 +37,18 @@ func isNativeMessagePath(name string) bool {
 	return name == "/v1/messages" || name == "/v1/messages/count_tokens"
 }
 
+func isNativeSystemOnePath(name string) bool {
+	return name == "/v1/systemone"
+}
+
+func isNativeProtocolPath(name string) bool {
+	return isNativeMessagePath(name) || isNativeSystemOnePath(name)
+}
+
 // Only HTTP metadata selects a native catalog. No model content is interpreted.
 // Codex discovery has its own Sub2API envelope and must also stay unmodified.
 func isOpaqueSub2APIRequest(r *http.Request, name string) bool {
-	if isNativeMessagePath(name) {
+	if isNativeProtocolPath(name) {
 		return true
 	}
 	if name != "/v1/models" && !modelDetailPath.MatchString(name) {
@@ -48,11 +58,11 @@ func isOpaqueSub2APIRequest(r *http.Request, name string) bool {
 }
 
 func (s *Server) proxyOpaqueSub2API(w http.ResponseWriter, r *http.Request, key, requestID string) {
-	if isNativeMessagePath(r.URL.Path) && r.Method != http.MethodPost {
+	if isNativeProtocolPath(r.URL.Path) && r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
 		return
 	}
-	if !isNativeMessagePath(r.URL.Path) && r.Method != http.MethodGet {
+	if !isNativeProtocolPath(r.URL.Path) && r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method is not available")
 		return
 	}

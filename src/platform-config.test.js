@@ -91,6 +91,14 @@ test('publishes the four Media MCP host targets with their user-level config pat
   assert.equal(mediaMcpPlatformOptions.find(({ id }) => id === 'codex').configPath, '~/.codex/config.toml');
 });
 
+test('does not offer native System One models to chat client config generators', () => {
+  const jev = modelCatalog.find(({ id }) => id === 'jev-latest');
+  assert.ok(jev);
+  for (const platformId of ['workbuddy', 'claude', 'opencode', 'codex']) {
+    assert.equal(platformHelpers.getModelsForPlatform(platformId, [jev]).length, 0);
+  }
+});
+
 test('builds secret-free Media MCP install prompts with host-specific schemas', () => {
   const prompts = Object.fromEntries(['claude-desktop', 'claude', 'opencode', 'codex'].map((id) => [id, buildMediaMcpInstallPrompt(id, 'en')]));
 
@@ -620,9 +628,9 @@ test('connection probe validators accept only the corresponding model response s
   assert.throws(() => platformHelpers.buildConnectionTestRequest('claude', {}), /model/i);
 });
 
-test('each of the exact six Claude IDs is preserved by all four generators', () => {
+test('each Claude public ID is preserved by all four generators', () => {
   const claude = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
-  assert.equal(claude.length, 6);
+  assert.equal(claude.length, 7);
   for (const model of claude) {
     for (const { id } of platformOptions) {
       const artifact = createPlatformArtifact(id, { ...claudeOptions, models: [model] });

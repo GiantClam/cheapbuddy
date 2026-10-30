@@ -28,6 +28,22 @@ const claudeStableModels = [
   supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: family !== 'sonnet',
 }));
 
+const claudeOpusMaxModel = {
+  ...claudeStableModels.find(({ id }) => id === 'claude-opus-5-5'),
+  id: 'claude-opus-5-5-MAX',
+  short: 'Claude Opus 5.5 MAX',
+  description: {
+    zh: 'Claude Opus 5.5 对比通道；固定使用 PPToken 的多个 Anthropic 账号',
+    en: 'Claude Opus 5.5 comparison route; uses multiple PPToken Anthropic accounts',
+  },
+  seoPath: undefined,
+  seoPathEn: undefined,
+  apiKeyGroupId: 4,
+  featured: false,
+  showInUsageExample: false,
+  mark: 'CO+',
+};
+
 export const modelCatalog = [
   {
     id: 'glm-5.3', short: 'GLM 5.3', vendor: { zh: '智谱', en: 'Zhipu' }, description: { zh: '编程、推理与 Agent 工作流', en: 'Coding, reasoning, and Agent workflows' }, input: '待核验', output: '待核验', priceStatus: 'unverified', priceSourceUrl: 'https://open.bigmodel.cn/pricing', priceCheckedAt: '2026-09-26', priceUnit: { zh: '官网价格暂不可核验', en: 'Official rate not verified' }, accent: 'blue', mark: 'G53', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
@@ -134,6 +150,16 @@ export const modelCatalog = [
     reasoning: { effort: 'medium', defaultEffort: 'medium', supportedEfforts: ['low', 'medium', 'high'], summary: 'auto', canDisableThinking: true },
   },
   {
+    id: 'jev-latest', short: 'Jev Latest', vendor: { zh: 'TypeSafe', en: 'TypeSafe' },
+    description: { zh: '结构化决策、分类与评分；使用原生 System One 接口', en: 'Structured decisions, classification, and scoring through the native System One API' },
+    input: '$0.042', output: '$0.00', priceStatus: 'verified', priceSourceUrl: 'https://api.typesafe.ai/docs', priceCheckedAt: '2026-10-30',
+    priceUnit: { zh: '美元 / 百万输入 Token；输出免费；不生成自由文本', en: 'USD / MTok input; output is free; does not generate free-form text' },
+    accent: 'violet', mark: 'JEV', showInUsageExample: false, modality: 'text', endpointPath: '/systemone', protocols: ['typesafe'],
+    apiKeyGroupId: 4, supportedPlatforms: [], billingUnit: { zh: '输入 Token 计费', en: 'Input-token billing' },
+    maxInputTokens: 64000, maxOutputTokens: 1, temperature: 1,
+    supportsToolCall: false, supportsImages: false, supportsReasoning: false, onlyReasoning: false,
+  },
+  {
     id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, input: '按任务', output: '按图片', accent: 'violet', mark: 'IMG', featured: true, modality: 'image', endpointPath: '/images/generations', billingUnit: { zh: '媒体用量计费', en: 'Media usage billing' },
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
@@ -144,6 +170,7 @@ export const modelCatalog = [
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
   ...claudeStableModels,
+  claudeOpusMaxModel,
 ].map((model) => ({
   ...model,
   ...(model.modality === 'text' && model.pricingScope !== 'sub2api-group'

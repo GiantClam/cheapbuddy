@@ -114,7 +114,8 @@ function supportsAnthropicMessages(model) {
 export function getModelsForPlatform(platformId, models) {
   if (!platformOptions.some(({ id }) => id === platformId)) throw new Error('Unsupported platform');
   if (!Array.isArray(models)) return [];
-  return platformId === 'claude' ? models.filter(supportsAnthropicMessages) : models;
+  const supported = models.filter((model) => !Array.isArray(model.supportedPlatforms) || model.supportedPlatforms.includes(platformId));
+  return platformId === 'claude' ? supported.filter(supportsAnthropicMessages) : supported;
 }
 
 // Generated client configs use the public catalog ID. Provider-specific model

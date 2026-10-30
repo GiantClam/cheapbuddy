@@ -1989,7 +1989,7 @@ func classifyRoute(pathName, model string, cfg config.Config) routeClass {
 }
 
 func isAllowedPath(pathName string, cfg config.Config) bool {
-	if isNativeMessagePath(pathName) {
+	if isNativeProtocolPath(pathName) {
 		_, allowed := cfg.TextPaths[pathName]
 		return allowed
 	}

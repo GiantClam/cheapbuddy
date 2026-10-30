@@ -41,6 +41,7 @@ func TestNativeAnthropicAliasesAreOpaqueSub2APIRequests(t *testing.T) {
 			}))
 			defer upstream.Close()
 			cfg := claudeTextTestConfig(upstream.URL)
+			cfg.TextPaths["/v1/systemone"] = struct{}{}
 			req := httptest.NewRequest(http.MethodPost, tc.path+"?beta=1", strings.NewReader(payload))
 			req.Header.Set("X-Api-Key", "same-key")
 			req.Header.Set("Content-Type", "application/json")
@@ -49,6 +50,38 @@ func TestNativeAnthropicAliasesAreOpaqueSub2APIRequests(t *testing.T) {
 			rr := httptest.NewRecorder()
 			(&Server{Config: cfg}).Router().ServeHTTP(rr, req)
 			if rr.Code != http.StatusCreated || rr.Body.String() != responseBody || calls != 1 {
+				t.Fatalf("status=%d calls=%d body=%s", rr.Code, calls, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeSystemOneAliasesAreOpaqueSub2APIRequests(t *testing.T) {
+	for _, tc := range []struct{ path, canonical string }{
+		{"/v1/systemone", "/v1/systemone"}, {"/systemone", "/v1/systemone"}, {"/v1/v1/systemone", "/v1/systemone"},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			payload := `{"model":"jev-latest","state":"sample","questions":{"safe":{"type":"noul"}}}`
+			responseBody := `{"model":"jev-latest","answers":{"safe":{"type":"noul","noul":0.98}},"usage":{"input_tokens":12,"output_tokens":0}}`
+			calls := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				body, _ := io.ReadAll(r.Body)
+				if string(body) != payload || r.URL.Path != tc.canonical || r.Header.Get("Authorization") != "Bearer same-key" {
+					t.Error("native System One request was changed")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, responseBody)
+			}))
+			defer upstream.Close()
+			cfg := claudeTextTestConfig(upstream.URL)
+			cfg.TextPaths["/v1/systemone"] = struct{}{}
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(payload))
+			req.Header.Set("Authorization", "Bearer same-key")
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+			(&Server{Config: cfg}).Router().ServeHTTP(rr, req)
+			if rr.Code != http.StatusOK || rr.Body.String() != responseBody || calls != 1 {
 				t.Fatalf("status=%d calls=%d body=%s", rr.Code, calls, rr.Body.String())
 			}
 		})

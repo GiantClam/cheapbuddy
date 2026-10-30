@@ -33,7 +33,7 @@ test('schedules each campaign boundary without a stale render window', () => {
   assert.equal(getNextModelCampaignBoundaryDelay(new Date('invalid')), null);
 });
 
-test('applies the three-tenths campaign only to Claude Opus 5.5', () => {
+test('applies the three-tenths campaign to both Claude Opus 5.5 comparison IDs', () => {
   const activeAt = new Date('2026-10-28T15:00:01+08:00');
   const opus = {
     id: 'claude-opus-5-5',
@@ -52,6 +52,9 @@ test('applies the three-tenths campaign only to Claude Opus 5.5', () => {
   assert.match(promoted.campaignPriceUnit, /1h cache write \$2.40/);
   assert.match(promoted.campaignPriceUnit, /cache read \$0.06/);
   assert.deepEqual(applyModelCampaign({ ...opus, id: 'claude-opus-5' }, activeAt), { ...opus, id: 'claude-opus-5' });
+  const max = applyModelCampaign({ ...opus, id: 'claude-opus-5-5-MAX' }, activeAt);
+  assert.equal(max.campaignActive, true);
+  assert.equal(max.campaignInput, '$1.20');
   assert.deepEqual(applyModelCampaign(opus, new Date(MODEL_CAMPAIGN.endAt)), opus);
   assert.equal(opus.input, '$4.00');
 });

@@ -25,6 +25,7 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(ids.includes('glm-5.3'));
   assert.ok(ids.includes('glm-5.3-flash'));
   assert.ok(ids.includes('qwen3.8-max'));
+  assert.ok(ids.includes('jev-latest'));
   const glm53 = modelCatalog.find((model) => model.id === 'glm-5.3');
   assert.equal(glm53.short, 'GLM 5.3');
   assert.equal(glm53.supportsToolCall, true);
@@ -74,6 +75,7 @@ test('model catalog contains published text and media models', () => {
     'deepseek-flash',
     'deepseek-v4.1-flash-1017',
     'qwen3.8-max',
+    'jev-latest',
     'gpt-image-2.5',
     'MiniMax-H3',
     'claude-fable-5',
@@ -82,6 +84,7 @@ test('model catalog contains published text and media models', () => {
     'claude-opus-5-5',
     'claude-sonnet-5',
     'claude-sonnet-5-5',
+    'claude-opus-5-5-MAX',
   ]));
 });
 
@@ -255,6 +258,20 @@ test('media models expose their native protocol and endpoint metadata', () => {
   assert.equal(video.supportsToolCall, false);
 });
 
+test('Jev is cataloged as a native System One model and not as chat', () => {
+  const jev = modelCatalog.find(({ id }) => id === 'jev-latest');
+  assert.ok(jev);
+  assert.equal(jev.modality, 'text');
+  assert.equal(jev.endpointPath, '/systemone');
+  assert.deepEqual(jev.protocols, ['typesafe']);
+  assert.equal(jev.apiKeyGroupId, 4);
+  assert.equal(jev.input, '$0.042');
+  assert.equal(jev.output, '$0.00');
+  assert.equal(jev.supportsToolCall, false);
+  assert.equal(jev.supportsReasoning, false);
+  assert.equal(jev.supportedPlatforms.length, 0);
+});
+
 test('localization is derived from the catalog without translation-key edits', () => {
   const zh = localizeModels(modelCatalog, 'zh');
   const en = localizeModels(modelCatalog, 'en');
@@ -335,7 +352,7 @@ test('localizes native currency and time units for media pricing', () => {
   assert.match(videoEn.priceUnit, /2K is \$0.13\/sec/);
 });
 
-test('publishes exactly the six production Claude stable models with official cache rates', () => {
+test('publishes Claude stable models and the PPToken comparison route with official cache rates', () => {
   const expected = {
     'claude-fable-5': [10, 50, 12.5, 20, 1],
     'claude-fable-5-1': [10, 50, 12.5, 20, 0.25],
@@ -343,6 +360,7 @@ test('publishes exactly the six production Claude stable models with official ca
     'claude-opus-5-5': [4, 20, 5, 8, 0.2],
     'claude-sonnet-5': [2, 10, 2.5, 4, 0.2],
     'claude-sonnet-5-5': [2, 10, 2.5, 4, 0.1],
+    'claude-opus-5-5-MAX': [4, 20, 5, 8, 0.2],
   };
   const claudeModels = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
   assert.deepEqual(claudeModels.map(({ id }) => id), Object.keys(expected));
@@ -360,13 +378,18 @@ test('publishes exactly the six production Claude stable models with official ca
   }
 });
 
-test('Claude models advertise two alternative protocols and resolve to the Claude key group', () => {
+test('Claude models advertise two alternative protocols and resolve to their configured key groups', () => {
   const claude = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
-  assert.equal(claude.length, 6);
+  assert.equal(claude.length, 7);
   for (const model of claude) {
     assert.deepEqual(model.protocols, ['anthropic', 'openai-compatible']);
-    assert.equal(model.apiKeyGroupId, undefined);
-    assert.equal(getModelApiKeyGroupId(model), CLAUDE_API_KEY_GROUP_ID);
+    if (model.id === 'claude-opus-5-5-MAX') {
+      assert.equal(model.apiKeyGroupId, 4);
+      assert.equal(getModelApiKeyGroupId(model), 4);
+    } else {
+      assert.equal(model.apiKeyGroupId, undefined);
+      assert.equal(getModelApiKeyGroupId(model), CLAUDE_API_KEY_GROUP_ID);
+    }
   }
   const openai = modelCatalog.find(({ id }) => id === 'gpt-6-sol');
   assert.equal(openai.priceMultiplier, 0.72);

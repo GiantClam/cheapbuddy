@@ -3,6 +3,7 @@ import { selectPaymentType } from './payment.js';
 export const MODEL_CAMPAIGN = Object.freeze({
   id: 'claude-opus-5-5-three-tenths-2026-10',
   modelId: 'claude-opus-5-5',
+  modelIds: Object.freeze(['claude-opus-5-5', 'claude-opus-5-5-MAX']),
   startAt: '2026-10-28T15:00:00+08:00',
   endAt: '2026-11-12T15:00:00+08:00',
   multiplier: 0.3,
@@ -40,7 +41,8 @@ function scaleMoneyText(value, multiplier) {
 
 export function applyModelCampaign(model, now = new Date()) {
   const campaign = getModelCampaignState(now);
-  if (!campaign.active || model?.id !== campaign.modelId) return model;
+  const campaignModelIds = campaign.modelIds || [campaign.modelId];
+  if (!campaign.active || !campaignModelIds.includes(model?.id)) return model;
   return {
     ...model,
     campaignActive: true,

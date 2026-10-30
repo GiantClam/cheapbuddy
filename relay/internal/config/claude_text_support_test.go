@@ -7,7 +7,7 @@ func TestDefaultTextPathsIncludeClaudeTokenCounting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/v1/messages", "/v1/messages/count_tokens", "/v1/chat/completions", "/v1/responses"} {
+	for _, path := range []string{"/v1/messages", "/v1/messages/count_tokens", "/v1/chat/completions", "/v1/responses", "/v1/systemone"} {
 		if _, ok := cfg.TextPaths[path]; !ok {
 			t.Errorf("default text route missing %s", path)
 		}
