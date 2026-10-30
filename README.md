@@ -260,16 +260,16 @@ $env:VITE_TURNSTILE_REQUIRED = "true"
 
 ## Billing and recharge tiers
 
-CheapBuddy uses pay-as-you-go balance rather than a monthly subscription. New registrations receive a one-time ¥1 trial balance through Sub2API's `default.user_balance` setting. The customer-facing tiers are defined in `src/pricing.js` and the selected `amount` is sent to Sub2API when an order is created:
+CheapBuddy uses a pay-as-you-go USD wallet rather than a monthly subscription. New registrations receive a one-time USD 0.20 credit through Sub2API's `default.user_balance` setting. The amounts below are CNY payment examples; the authenticated checkout quote controls the exact USD wallet credit. With settlement rate 1 USD = 6.5 CNY and recharge multiplier 1:
 
-| Tier | Payment | CheapBuddy balance added |
-| --- | ---: | ---: | ---: |
-| Trial | ¥3 | ¥3 |
-| Standard | ¥15 | ¥15 |
-| Regular | ¥30 | ¥30 |
-| Heavy | ¥90 | ¥90 |
-| Team | ¥150 | ¥150 |
+| Tier | CNY payment | USD wallet credit |
+| --- | ---: | ---: |
+| Trial | ¥3 | $0.46153846 |
+| Standard | ¥15 | $2.30769231 |
+| Regular | ¥30 | $4.61538462 |
+| Heavy | ¥90 | $13.84615385 |
+| Team | ¥150 | $23.07692308 |
 
-CheapBuddy displays recharge amounts as RMB balance shared across supported models and clients. The final debit is controlled by each production backend route and model rate; no single official-price discount is advertised until those production values are verified. Check the live balance and per-model price details before making cost comparisons.
+Wallet balance, usage charges, signup credit, and refund deductions use USD. CNY payments are divided by the configured settlement rate before applying any promotional recharge multiplier; USD payments are credited at face value before that multiplier. Historical orders retain their original promised credit and are reconciled separately.
 
 公共入口分工：`cheapbuddy.cc` 官网、`console.cheapbuddy.cc` 用户中心、`api.cheapbuddy.cc` 文本与媒体 API。管理入口不挂载到官网或公开 API 路由，也不公开其地址或凭据。
