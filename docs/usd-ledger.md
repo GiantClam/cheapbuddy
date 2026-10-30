@@ -1,5 +1,53 @@
 # CheapBuddy USD ledger
 
+## Currency and recharge review — 2026-10-31
+
+Production settlement already used the USD ledger introduced on October 6.
+An obsolete backend checkout initially suggested otherwise; the live production
+baseline and its frozen-credit, callback and refund tests corrected that diagnosis.
+No second ledger migration or blanket division of customer balances is required.
+
+Backend revisions `b1c89de98` and `452b9fec9` expose the existing settlement FX
+through admin system settings and make payment previews follow settlement:
+native-currency payment labels, eight-decimal USD credit/bonus/refund display,
+fixed-package credit, and USD promotion thresholds before FX rounding.
+`checkout-info.recharge_fixed_credits` carries the configured package bases
+independently of gateway-filtered catalog options, so a hidden package cannot
+incorrectly trigger a discount when its amount is entered manually. Method
+selection and fallback use each method's own currency and limits.
+
+Current business settings are USD/CNY 6.5, recharge multiplier 1, subscription
+FX 6.5, and recharge fee 0. CNY payments remain available. The global default
+signup balance was changed from USD 0.15384615 to USD 0.20; email registration
+was already USD 0.20. A page reload confirmed both saved values. At the business
+rate the USD 0.20 grant corresponds to CNY 1.30. This affects future registration
+defaults and does not alter existing customer balances.
+
+Read-only admin-order reconciliation collected all 402 displayed orders. There
+were 295 completed CNY orders with separately displayed converted USD credit:
+CNY 137,832 paid and USD 21,204.71 summed from two-decimal UI values. This sum
+is display-level evidence, not an exact eight-decimal ledger export. Another
+18 completed legacy CNY orders collected CNY 696 and issued 696 nominal units.
+Their FX reference is USD 107.07692308 and grandfathered excess entitlement is
+approximately USD 588.92307692, consistent with the October 6 cutover record.
+It is not an established cash loss and was not clawed back. No historical order,
+customer balance or usage debit was changed during this review.
+
+Acceptance: 338 backend-frontend test files / 2,606 tests passed; the public
+website's 202 tests passed. Both frontend production builds, targeted ESLint,
+payment service/handler regression tests and Go vet passed. Regression coverage
+includes fixed USD 2.30769231 credit for USD 2.31 / CNY 15 packages, fractional
+USD bonuses, FX/multiplier rounding, unsupported payment currencies and hidden
+packages exceeding gateway limits. The existing broad Go suite retains eight
+unrelated/environment-sensitive failures involving Aliyun captcha, pg_dump
+locking and the large Windows WebSocket frame; it is not reported as green.
+Live customer payment and gateway-refund transactions were not performed.
+
+Sanitized operational evidence and screenshots are under the ignored
+`output/usd-ledger-20261031/` directory. The backend main branch contains the
+current production baseline and both fixes; the obsolete checkout is preserved
+without these duplicate changes. No dependencies were added.
+
 ## Settlement contract
 
 The wallet, usage charges, account procurement costs, recharge credits, referral
