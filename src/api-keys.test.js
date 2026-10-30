@@ -358,6 +358,25 @@ test('accepts the public DeepSeek 1017 model when Relay publishes its exact ID',
   assert.equal(calls[0].options.headers.Authorization, 'Bearer shared-key');
 });
 
+test('accepts Claude Opus 5.5 MAX only when its exact public ID is discoverable', async (t) => {
+  const model = modelCatalog.find(({ id }) => id === 'claude-opus-5-5-MAX');
+  assert.ok(model);
+  assert.equal(model.apiKeyGroupId, 4);
+
+  const calls = mockSharedKeyApi(t, { modelIds: ['claude-opus-5-5-MAX'] });
+  assert.equal(await api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: [model], apiKey: 'shared-key' }), 'shared-key');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, `${sharedBaseUrl}/models`);
+
+  const upstreamOnly = mockSharedKeyApi(t, { modelIds: ['claude-opus-5-5'] });
+  await assert.rejects(
+    api.getOrCreateSharedApiKey({ baseUrl: sharedBaseUrl, models: [model], apiKey: 'shared-key' }),
+    (error) => error.code === 'API_KEY_MODELS_UNAVAILABLE'
+      && error.metadata.missingModels.includes('claude-opus-5-5-MAX'),
+  );
+  assert.equal(upstreamOnly.length, 1);
+});
+
 test('accepts deepseek-flash from the catalog when copying its generated configuration', async (t) => {
   const calls = mockSharedKeyApi(t, { modelIds: ['deepseek-flash'] });
   const deepseek = modelCatalog.find(({ id }) => id === 'deepseek-flash');

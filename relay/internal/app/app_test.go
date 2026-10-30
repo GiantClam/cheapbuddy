@@ -139,10 +139,11 @@ func TestFilterCatalogRowsKeepsOnlyAllowlistedModels(t *testing.T) {
 	rows := []any{
 		map[string]any{"id": "gpt-6-astra"},
 		map[string]any{"id": "deepseek-v4.1-flash"},
+		map[string]any{"id": "claude-opus-5-5-MAX"},
 		map[string]any{"id": "MiniMax-H3"},
 	}
-	filtered := filterCatalogRows(rows, map[string]struct{}{"gpt-6-astra": {}})
-	if len(filtered) != 1 || filtered[0].(map[string]any)["id"] != "gpt-6-astra" {
+	filtered := filterCatalogRows(rows, map[string]struct{}{"claude-opus-5-5-MAX": {}})
+	if len(filtered) != 1 || filtered[0].(map[string]any)["id"] != "claude-opus-5-5-MAX" {
 		t.Fatalf("filtered catalog = %#v", filtered)
 	}
 	if got := filterCatalogRows(rows, nil); len(got) != len(rows) {

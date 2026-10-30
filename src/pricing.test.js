@@ -10,6 +10,7 @@ import {
   pricingPlans,
 } from './pricing.js';
 import * as pricingHelpers from './pricing.js';
+import { modelCatalog } from './models.js';
 
 test('runs the Claude Opus 5.5 campaign for exactly 15 days', () => {
   assert.equal(
@@ -55,8 +56,23 @@ test('applies the three-tenths campaign to both Claude Opus 5.5 comparison IDs',
   const max = applyModelCampaign({ ...opus, id: 'claude-opus-5-5-MAX' }, activeAt);
   assert.equal(max.campaignActive, true);
   assert.equal(max.campaignInput, '$1.20');
+  assert.equal(max.campaignOutput, '$6.00');
+  assert.match(max.campaignPriceUnit, /5m cache write \$1.50/);
+  assert.match(max.campaignPriceUnit, /1h cache write \$2.40/);
+  assert.match(max.campaignPriceUnit, /cache read \$0.06/);
   assert.deepEqual(applyModelCampaign(opus, new Date(MODEL_CAMPAIGN.endAt)), opus);
+  assert.equal(applyModelCampaign({ ...opus, id: 'claude-opus-5-5-MAX' }, new Date(MODEL_CAMPAIGN.endAt)).campaignActive, undefined);
   assert.equal(opus.input, '$4.00');
+});
+
+test('campaign display for the catalog MAX model matches the deployed retail card', () => {
+  const max = modelCatalog.find(({ id }) => id === 'claude-opus-5-5-MAX');
+  assert.ok(max);
+  const active = applyModelCampaign(max, new Date(MODEL_CAMPAIGN.startAt));
+  assert.deepEqual([active.input, active.output], ['$4.00', '$20.00']);
+  assert.deepEqual([active.campaignInput, active.campaignOutput], ['$1.20', '$6.00']);
+  assert.equal(active.campaignMultiplier, 0.3);
+  assert.equal(active.channelId, 'claude');
 });
 
 test('campaign pricing preserves localized currency displays', () => {

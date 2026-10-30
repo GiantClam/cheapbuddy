@@ -66,12 +66,12 @@ func TestLoadReadsPublicURL(t *testing.T) {
 
 func TestLoadReadsCatalogModelAllowlist(t *testing.T) {
 	cfg, err := Load(testEnv(map[string]string{
-		"RELAY_MODEL_CATALOG_ALLOWLIST": " gpt-6-astra, claude-sonnet-5, gpt-6-astra ",
+		"RELAY_MODEL_CATALOG_ALLOWLIST": " gpt-6-astra, claude-sonnet-5, claude-opus-5-5-MAX, gpt-6-astra ",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.CatalogModelAllowlist) != 2 {
+	if len(cfg.CatalogModelAllowlist) != 3 {
 		t.Fatalf("catalog allowlist = %#v", cfg.CatalogModelAllowlist)
 	}
 	if _, ok := cfg.CatalogModelAllowlist["gpt-6-astra"]; !ok {
@@ -79,6 +79,9 @@ func TestLoadReadsCatalogModelAllowlist(t *testing.T) {
 	}
 	if _, ok := cfg.CatalogModelAllowlist["claude-sonnet-5"]; !ok {
 		t.Fatal("catalog allowlist omitted Claude model")
+	}
+	if _, ok := cfg.CatalogModelAllowlist["claude-opus-5-5-MAX"]; !ok {
+		t.Fatal("catalog allowlist omitted Claude Opus 5.5 MAX")
 	}
 }
 
