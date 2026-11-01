@@ -254,6 +254,7 @@ const messages = {
     jsonCopied: '配置 JSON 已复制',
     missingApiKey: '尚未获取到用户 API Key',
     badModelResponse: 'CheapBuddy 返回了无效的模型响应',
+    streamingResponseRequired: '模型未返回流式 SSE 响应，请检查接口是否支持 stream=true',
     connectionTestFailed: '连接测试失败',
     loggedOut: '已退出登录',
     languageLabel: '语言',
@@ -288,6 +289,7 @@ Object.assign(messages.zh, {
 });
 
 Object.assign(messages.en, {
+  streamingResponseRequired: 'The model did not return an SSE streaming response. Check that the endpoint supports stream=true.',
   campaignTitle: 'Claude Opus 5.5 · 15 days only',
   campaignSavingsLabel: 'SAVE',
   campaignSavings: '70%',

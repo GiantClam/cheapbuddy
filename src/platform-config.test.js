@@ -565,7 +565,8 @@ test('connection probes follow the selected client protocol without unsupported 
     assert.equal(request.url, `https://api.cheapbuddy.cc/v1${endpoint}`);
     assert.equal(request.body.model, claudeModels[0].id);
     assert.equal(request.body.temperature, undefined);
-    assert.equal(request.body.stream, false);
+    assert.equal(request.body.stream, true);
+    assert.equal(request.headers.Accept, 'text/event-stream, application/json');
     assert.equal(request.isValid({}), false);
   }
 
@@ -626,6 +627,43 @@ test('connection probe validators accept only the corresponding model response s
   assert.equal(media.isValid({ data: [{ id: 'different-model' }] }), false);
   assert.throws(() => make('unknown'), /platform/i);
   assert.throws(() => platformHelpers.buildConnectionTestRequest('claude', {}), /model/i);
+});
+
+test('connection probes parse and validate streaming SSE events', () => {
+  const chat = platformHelpers.buildConnectionTestRequest('workbuddy', {
+    baseUrl: options.baseUrl,
+    model: selectedModels[0],
+  });
+  const chatEvent = platformHelpers.parseConnectionTestResponse('data: {"id":"chatcmpl-test","choices":[{"delta":{"content":"OK"}}]}\n\n');
+  assert.equal(chat.isValid(chatEvent), true);
+
+  const messages = platformHelpers.buildConnectionTestRequest('claude', {
+    baseUrl: options.baseUrl,
+    model: claudeModels[0],
+  });
+  const messageEvent = platformHelpers.parseConnectionTestResponse('event: message_start\ndata: {"type":"message_start","message":{"id":"msg_test"}}\n\n');
+  assert.equal(messages.isValid(messageEvent), true);
+
+  const responses = platformHelpers.buildConnectionTestRequest('codex', {
+    baseUrl: options.baseUrl,
+    model: selectedModels[0],
+  });
+  const responseEvent = platformHelpers.parseConnectionTestResponse('data: {"type":"response.created","response":{"id":"resp_test"}}\n\n');
+  assert.equal(responses.isValid(responseEvent), true);
+  assert.deepEqual(platformHelpers.parseConnectionTestResponse('{"id":"json-test"}'), { id: 'json-test' });
+});
+
+test('generated install prompts explain streaming behavior for every client', () => {
+  const expected = {
+    workbuddy: /stream: `?true|stream: true/i,
+    claude: /stream: `?true|stream: true/i,
+    opencode: /stream: `?true|stream: true/i,
+    codex: /wire_api = .*responses.*stream/i,
+  };
+  for (const [platformId, pattern] of Object.entries(expected)) {
+    const prompt = buildInstallPrompt(createPlatformArtifact(platformId, { ...options, models: [claudeModels[0]] }), 'en');
+    assert.match(prompt, pattern);
+  }
 });
 
 test('each Claude public ID is preserved by all four generators', () => {

@@ -10,7 +10,7 @@ import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliat
 import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, getNextModelCampaignBoundaryDelay, MODEL_CAMPAIGN, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
-import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, platformOptions } from './platform-config';
+import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, parseConnectionTestResponse, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
 import { mergeUsageModels } from './usage';
 import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
@@ -1679,10 +1679,15 @@ function HomePage() {
           },
           body: protocolRequest.body ? JSON.stringify(protocolRequest.body) : undefined,
         });
-        const body = await response.json().catch(() => ({}));
+        const rawBody = await response.text().catch(() => '');
+        const body = parseConnectionTestResponse(rawBody);
         if (testVersion !== connectionTestVersion.current) return;
         if (!response.ok) {
           throw new Error(`${model.id}: ${body.error?.message || body.message || t('apiRequestFailed', { status: response.status })}`);
+        }
+        if (protocolRequest.body?.stream === true
+          && !response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
+          throw new Error(`${model.id}: ${t('streamingResponseRequired')}`);
         }
         if (!protocolRequest.isValid(body)) {
           throw new Error(`${model.id}: ${t('badModelResponse')}`);

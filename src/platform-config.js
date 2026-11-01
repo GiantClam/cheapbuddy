@@ -335,6 +335,37 @@ function mediaModelNote(mediaModels, language, platformId) {
     : `已包含媒体模型及其原生接口（${models}）。文本 Agent 客户端不一定提供图片/视频生成界面；请按官网接入文档直接调用对应的 OpenAI 兼容媒体接口。`;
 }
 
+function streamingCompatibilityNote(platformId, language) {
+  if (language === 'en') {
+    if (platformId === 'workbuddy') {
+      return ' Streaming is enabled per request: WorkBuddy sends `stream: true` to the generated Chat Completions URL, and the connection test verifies an SSE response. Do not replace the URL with a synchronous-only endpoint.';
+    }
+    if (platformId === 'claude') {
+      return ' Claude Code controls streaming per request through the Anthropic Messages API; the generated Base URL supports `stream: true` SSE responses.';
+    }
+    if (platformId === 'opencode') {
+      return ' OpenCode controls streaming through its AI SDK provider; the generated provider uses the same endpoint for `stream: true` SSE requests.';
+    }
+    if (platformId === 'codex') {
+      return ' Codex controls streaming per request through the Responses API; keep `wire_api = "responses"` so streamed Responses events are handled by the client.';
+    }
+    return '';
+  }
+  if (platformId === 'workbuddy') {
+    return '流式响应按请求启用：WorkBuddy 会向生成的 Chat Completions 地址发送 `stream: true`，连接测试也会验证 SSE 响应；不要把地址改成只支持同步 JSON 的接口。';
+  }
+  if (platformId === 'claude') {
+    return 'Claude Code 通过 Anthropic Messages API 按请求控制流式响应；生成的 Base URL 支持 `stream: true` 的 SSE。';
+  }
+  if (platformId === 'opencode') {
+    return 'OpenCode 由 AI SDK Provider 按请求控制流式响应；生成的 Provider 使用同一地址发送 `stream: true` 的 SSE 请求。';
+  }
+  if (platformId === 'codex') {
+    return 'Codex 通过 Responses API 按请求控制流式响应；请保留 `wire_api = "responses"`，由客户端处理 Responses 流事件。';
+  }
+  return '';
+}
+
 export function createPlatformArtifact(platformId, options) {
   requireOptions(platformId, options);
   const apiBaseUrl = normalizeBaseUrl(options.baseUrl);
@@ -379,27 +410,58 @@ export function buildConnectionTestRequest(platformId, { baseUrl, model, protoco
   if (!isTextModel(model)) {
     return { method: 'GET', url: `${apiBaseUrl}/models`, isValid: (body) => Array.isArray(body.data) && body.data.some(({ id }) => id === model.id) };
   }
-  const common = { model: modelWireId(model), stream: false };
+  const common = { model: modelWireId(model), stream: true };
+  const streamingHeaders = { Accept: 'text/event-stream, application/json' };
   if (platformId === 'claude' || (platformId === 'opencode' && selectedProtocol === 'anthropic' && isClaudeModel(model))) {
     return {
-      url: `${apiBaseUrl}/messages`, headers: { 'anthropic-version': '2023-06-01' },
+      url: `${apiBaseUrl}/messages`, headers: { ...streamingHeaders, 'anthropic-version': '2023-06-01' },
       body: { ...common, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with OK only.' }] },
-      isValid: (body) => Array.isArray(body.content) && body.content.length > 0,
+      isValid: (body) => (Array.isArray(body?.content) && body.content.length > 0)
+        || body?.type === 'message_start'
+        || body?.type === 'content_block_start'
+        || body?.type === 'content_block_delta'
+        || body?.type === 'message_delta',
     };
   }
   if (platformId === 'codex') {
-    return { url: `${apiBaseUrl}/responses`, body: { ...common, input: 'Reply with OK only.', max_output_tokens: 8 }, isValid: (body) => Boolean(body.id) || (Array.isArray(body.output) && body.output.length > 0) };
+    return {
+      url: `${apiBaseUrl}/responses`, headers: streamingHeaders,
+      body: { ...common, input: 'Reply with OK only.', max_output_tokens: 8 },
+      isValid: (body) => Boolean(body?.id) || Boolean(body?.response?.id) || (Array.isArray(body?.output) && body.output.length > 0)
+        || ['response.created', 'response.in_progress', 'response.output_text.delta', 'response.completed'].includes(body?.type),
+    };
   }
   return {
-    url: `${apiBaseUrl}/chat/completions`,
+    url: `${apiBaseUrl}/chat/completions`, headers: streamingHeaders,
     body: {
       ...common,
       messages: [{ role: 'user', content: 'Reply with OK only.' }],
       max_tokens: 8,
       ...(!isClaudeModel(model) && Number.isFinite(model.temperature) ? { temperature: model.temperature } : {}),
     },
-    isValid: (body) => Array.isArray(body.choices) && body.choices.length > 0,
+    isValid: (body) => Array.isArray(body?.choices) && body.choices.length > 0,
   };
+}
+
+export function parseConnectionTestResponse(source) {
+  const text = String(source || '').trim();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+      try {
+        return JSON.parse(data);
+      } catch {
+        // Continue until the first complete SSE event is found.
+      }
+    }
+  }
+  return {};
 }
 
 export function buildInstallPrompt(artifact, language = 'zh') {
@@ -413,12 +475,12 @@ export function buildInstallPrompt(artifact, language = 'zh') {
     ? `\n4. Set ${artifact.credentialEnvKey} to this API key in your user environment before launching ${platform}: ${artifact.apiKey}\n5. Save the file, keep the API key private, and report the final path.\n6. Fully restart ${platform}.`
     : `\n4. Save the file, keep the API key private, and report the final path.\n5. Fully restart ${platform}.`;
   if (language === 'en') {
-    return `Configure ${platform} to use CheapBuddy. Perform the file operation instead of only explaining it.\n\n1. Open ${artifact.configPath} (Windows: ${artifact.windowsPath}) and create the parent directory if needed.\n2. Back up the existing file if present.\n3. Merge the configuration below into the existing file, preserving unrelated settings. The generated values win on conflicts.${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${mediaModelNote(artifact.mediaModels, language, artifact.platformId)}${credentialStep}\n\nGenerated ${artifact.filename}:\n${artifact.content}`;
+    return `Configure ${platform} to use CheapBuddy. Perform the file operation instead of only explaining it.\n\n1. Open ${artifact.configPath} (Windows: ${artifact.windowsPath}) and create the parent directory if needed.\n2. Back up the existing file if present.\n3. Merge the configuration below into the existing file, preserving unrelated settings. The generated values win on conflicts.${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${streamingCompatibilityNote(artifact.platformId, language)}${mediaModelNote(artifact.mediaModels, language, artifact.platformId)}${credentialStep}\n\nGenerated ${artifact.filename}:\n${artifact.content}`;
   }
   const chineseCredentialStep = artifact.credentialEnvKey
     ? `\n4. 在启动 ${platform} 前，将用户环境变量 ${artifact.credentialEnvKey} 设置为此 API Key：${artifact.apiKey}\n5. 保存文件、保护好 API Key，并告知最终路径。\n6. 完全退出并重新启动 ${platform}。`
     : `\n4. 保存文件、保护好 API Key，并告知最终路径。\n5. 完全退出并重新启动 ${platform}。`;
-  return `请将 ${platform} 配置为使用 CheapBuddy，并直接执行文件操作，不要只解释步骤。\n\n1. 打开 ${artifact.configPath}（Windows：${artifact.windowsPath}），目录不存在时先创建。\n2. 如果已有配置文件，先创建备份。\n3. 将下面的配置合并到现有文件中，保留无关设置；字段冲突时以新配置为准。${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${mediaModelNote(artifact.mediaModels, language, artifact.platformId)}${chineseCredentialStep}\n\n生成的 ${artifact.filename}：\n${artifact.content}`;
+  return `请将 ${platform} 配置为使用 CheapBuddy，并直接执行文件操作，不要只解释步骤。\n\n1. 打开 ${artifact.configPath}（Windows：${artifact.windowsPath}），目录不存在时先创建。\n2. 如果已有配置文件，先创建备份。\n3. 将下面的配置合并到现有文件中，保留无关设置；字段冲突时以新配置为准。${workBuddyNote}${platformCompatibilityNote(artifact.platformId, language)}${streamingCompatibilityNote(artifact.platformId, language)}${mediaModelNote(artifact.mediaModels, language, artifact.platformId)}${chineseCredentialStep}\n\n生成的 ${artifact.filename}：\n${artifact.content}`;
 }
 
 function mediaMcpNpxArgs() {
