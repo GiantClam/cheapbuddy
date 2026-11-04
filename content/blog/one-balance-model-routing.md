@@ -39,6 +39,8 @@ Claude 稳定通道的有序回退、粘性会话和文本计费由 Sub2API 负�
 
 你可以先用小额余额验证工作流，再决定是否扩展到更多模型。这个顺序把试错成本控制在可见范围内。
 
+另见：[DeepSeek Harness（dsh）接 CheapBuddy](/blog/deepseek-harness-cheapbuddy)。在 dsh 的 Settings 里添加 Custom model API，OpenAI Chat Completions 的 Base URL 使用 `https://api.cheapbuddy.cc/v1`。
+
 <!-- en -->
 Updated October 14, 2026. Keep the endpoint and USD wallet, but remember that each ordinary API key belongs to one Sub2API group. A Claude-authorized group key can access six Claude models through either Anthropic or OpenAI-compatible requests; the config center reuses or creates the matching key, while permissions and billing remain group-defined.
 
@@ -65,3 +67,5 @@ Sub2API owns Claude account fallback, sticky sessions, and text billing. The Rel
 A shared balance is a direct usage-based settlement model. Each model is charged at its active rate, while the account center shows balance, requests, and token usage.
 
 Start with a small balance to validate a workflow, then expand to more models. The cost of experimentation stays visible.
+
+See also: [Connect DeepSeek Harness (dsh) to CheapBuddy](/blog/deepseek-harness-cheapbuddy). In dsh Settings, add a custom model API and set the OpenAI Chat Completions base URL to `https://api.cheapbuddy.cc/v1`.
