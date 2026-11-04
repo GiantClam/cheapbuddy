@@ -94,6 +94,8 @@ Messages 的多轮 / system、工具、图片输入、Thinking 和缓存按 Sub2
 
 图片、视频与 ComfyUI 仍使用具备媒体权限的现有 Key，素材字段、任务轮询和结果下载流程不变。继续参照 [API 文档](/api-docs/) 与 [ComfyUI 指南](/comfyui/)，不要把媒体任务发送到 Claude Messages。
 
+另见：[DeepSeek Harness（dsh）接 CheapBuddy](/blog/deepseek-harness-cheapbuddy)。dsh 走 OpenAI-compatible 时，Base URL 用 `https://api.cheapbuddy.cc/v1`，模型 ID 使用 CheapBuddy 公开 ID。
+
 <!-- en -->
 ## Keep the endpoint and use a matching group key
 
@@ -156,3 +158,5 @@ Multi-turn / system input, tools, image input, Thinking, and caching pass throug
 Sub2API manages fallback and sticky sessions, without a 100% availability or zero-failure SLA. Avoid blind retries after partial streaming output, cancellation, or timeouts. Keep sanitized errors and request identifiers, then check account usage.
 
 Existing image, video, and ComfyUI workflows keep their media-authorized key, input fields, polling, and downloads. Follow the [API reference](/api-docs/) and [ComfyUI guide](/comfyui/); do not submit media jobs to Claude Messages.
+
+See also: [Connect DeepSeek Harness (dsh) to CheapBuddy](/blog/deepseek-harness-cheapbuddy). For dsh’s OpenAI-compatible provider, use base URL `https://api.cheapbuddy.cc/v1` and CheapBuddy public model IDs.

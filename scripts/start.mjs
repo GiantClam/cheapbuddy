@@ -21,6 +21,13 @@ const mimeTypes = {
 
 const appPaths = new Set(['/', '/api-docs', '/api-docs/', '/comfyui', '/comfyui/', '/hypit', '/hypit/', '/payment/result']);
 
+function isSpaDocumentRoute(pathname) {
+  if (appPaths.has(pathname) || pathname === '/en' || pathname.startsWith('/en/')) return true;
+  // /blog and /blog/{slug} are React routes. Extensioned misses such as /blog.js stay 404s.
+  if (pathname === '/blog' || pathname === '/blog/') return true;
+  return pathname.startsWith('/blog/') && extname(pathname) === '';
+}
+
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
 
@@ -49,18 +56,9 @@ const server = createServer(async (request, response) => {
     }
   }
 
-  const isBlogPath = requestedPath === '/blog' || requestedPath.startsWith('/blog/');
   const isModelLandingPath = requestedPath.startsWith('/model/') || requestedPath.startsWith('/en/model/');
-  const isAppRoute = appPaths.has(requestedPath) || requestedPath === '/en' || requestedPath.startsWith('/en/');
+  const isAppRoute = isSpaDocumentRoute(requestedPath);
   if (!servedPath && isModelLandingPath) {
-    response.writeHead(404, {
-      'Cache-Control': 'no-store',
-      'Content-Type': mimeTypes['.html'],
-    });
-    createReadStream(resolve(root, '404.html')).on('error', () => response.destroy()).pipe(response);
-    return;
-  }
-  if (!servedPath && isBlogPath) {
     response.writeHead(404, {
       'Cache-Control': 'no-store',
       'Content-Type': mimeTypes['.html'],

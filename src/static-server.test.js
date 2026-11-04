@@ -50,7 +50,7 @@ test('production static server serves model pages and preserves missing-resource
     });
   });
 
-  for (const path of ['/', '/api-docs', '/comfyui', '/hypit', '/payment/result', '/model/deepseek-v4-1-flash-1017/', '/model/claude-opus-5-5/', '/en/model/deepseek-v4-1-flash-1017/', '/en/model/claude-opus-5-5/']) {
+  for (const path of ['/', '/api-docs', '/comfyui', '/hypit', '/payment/result', '/blog', '/blog/', '/blog/one-balance-model-routing', '/model/deepseek-v4-1-flash-1017/', '/model/claude-opus-5-5/', '/en/model/deepseek-v4-1-flash-1017/', '/en/model/claude-opus-5-5/']) {
     await t.test(`${path} serves the React app shell`, async () => {
       const response = await fetch(`http://127.0.0.1:${port}${path}`);
       assert.equal(response.status, 200);
@@ -84,7 +84,7 @@ test('production static server serves model pages and preserves missing-resource
     });
   }
 
-  for (const path of ['/blog', '/blog/', '/blog/one-balance-model-routing', '/blogger', '/blog.js', '/assets/missing.js']) {
+  for (const path of ['/blogger', '/blog.js', '/assets/missing.js']) {
     await t.test(`${path} remains a 404`, async () => {
       const response = await fetch(`http://127.0.0.1:${port}${path}`);
       assert.equal(response.status, 404);
