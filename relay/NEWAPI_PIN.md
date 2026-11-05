@@ -1,5 +1,47 @@
 # NewAPI staging pin
 
+## 2026-11-05 gpt-image-2.6 media launch
+
+Production NewAPI now serves `gpt-image-2.5` and `gpt-image-2.6` from channel 4
+(`CheapBuddy gpt-image-2.5 (PPToken GPT)`, priority 100, `https://api.pptoken.cc`),
+`grok-imagine-image-2.0` from channel 1, and `MiniMax-H3` from channels 2 and 3.
+Channel 1 still lists `gpt-image-2.5`, but its grok credential exposes no
+`gpt-image` model upstream, so channel 4 remains the only working image route and
+`gpt-image-2.6` was deliberately not added to channel 1.
+
+Operation `cb-gpt-image-26-newapi-launch-20261105-v1` was dry-run under
+`ROLLBACK` and then committed. It extended `channels.models`, mirrored the
+channel-4 `abilities` row (group `default`, priority 100, weight 1), and appended
+the id to the 27 live shadow tokens that already allow `gpt-image-2.5`. The one
+live token without `gpt-image-2.5` was left untouched, so the new model reaches
+exactly the customers who already have the baseline. No pricing option was
+written; the dry run recorded the option byte lengths and the apply re-checked
+them.
+
+A read-only `GET /api/pricing` refreshed NewAPI's in-process pricing cache and
+published `supported_endpoint_types` `["image-generation","openai"]` for the new
+id. Relay derives `type: image` and `text_to_image` from those endpoints, so no
+`RELAY_MEDIA_CAPABILITIES_BY_MODEL` override was needed and the catalog metadata
+is now identical to `gpt-image-2.5`.
+
+`relay-prod` deployment `a3e27985-5dcd-4ed5-b523-df86bae04de8`, image digest
+`sha256:3d6f4082fd43c6bc6106880047546779cd909d20b0e3fd1c763d53807e675145`,
+carries the six extended variables: verified models, visible media models,
+catalog allowlist, billing mode, multiplier, and reservation quota. Every value
+for the new id was copied from the live `gpt-image-2.5` entry, the remaining
+variable bytes were preserved by splicing rather than re-serializing, and all
+other variables were verified unchanged by hash before and after. The deployment
+reported `reason: redeploy` with the same stored `cliMessage`
+(`DeepSeek canonical routing 6d6aaf5`), so no new source was uploaded; only the
+digest differs from the previous build.
+
+The running `/usr/local/bin/relay` still contains no `allow_over_hold` symbol, so
+the media settlement repair from `f831c0f` is still absent from production and
+over-hold image captures still strand for `gpt-image-2.5` and `gpt-image-2.6`
+alike. Pricing equality, acceptance evidence, and the settlement defect are
+recorded in `docs/usd-ledger.md` (2026-11-05) and
+`.omx/logs/gpt-image-26-20261105-*`.
+
 ## 2026-10-20 rc.45 production promotion
 
 NewAPI `v1.0.0-rc.45+cheapbuddy.20261019` is live in production on deployment

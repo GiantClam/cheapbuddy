@@ -526,14 +526,14 @@ Object.assign(messages.zh, {
   mediaDocsIntro: '媒体任务走独立接口，不要把图片/视频请求发送到 /chat/completions。生成配置时仍可选择媒体模型；桌面 Agent 是否提供媒体 UI 取决于客户端本身。',
   imageDocsSummary: '图片生成与编辑',
   imageDocsStepOne: '将用户 API Key 放入 Authorization: Bearer 请求头。',
-  imageDocsStepTwo: '使用 gpt-image-2.5 和 prompt、size、n 等参数提交任务。',
+  imageDocsStepTwo: '使用 gpt-image-2.6 或 gpt-image-2.5 和 prompt、size、n 等参数提交任务。',
   imageDocsStepThree: '按返回格式读取图片结果；需要编辑时按上游接口增加图片输入。',
   videoDocsSummary: '异步视频生成：文生、图生与参考素材',
   videoDocsStepOne: 'H3 支持 text-to-video、image-to-video 和 reference-to-video；按模式提交 prompt、图片、视频或音频输入。',
   videoDocsStepTwo: '保存返回的 video_id，并轮询 GET /v1/videos/{video_id} 直到完成。',
   videoDocsStepThree: '完成后通过 /content 下载视频；结果地址受上游保留时间限制。',
   mediaDocsConfigTitle: '与配置中心的关系',
-  mediaDocsConfigText: '配置中心会展示 gpt-image-2.5 和 MiniMax-H3，但 WorkBuddy 的 models.json 只写入文本模型，避免把媒体模型识别为文本模型；媒体任务请使用对应的 API 示例。Claude Code、OpenCode、Codex 等文本 Agent 也可能不会直接提供媒体生成按钮。',
+  mediaDocsConfigText: '配置中心会展示 gpt-image-2.6、gpt-image-2.5 和 MiniMax-H3，但 WorkBuddy 的 models.json 只写入文本模型，避免把媒体模型识别为文本模型；媒体任务请使用对应的 API 示例。Claude Code、OpenCode、Codex 等文本 Agent 也可能不会直接提供媒体生成按钮。',
   mediaDocsOpenGenerator: '打开配置中心选择模型',
 });
 
@@ -652,14 +652,14 @@ Object.assign(messages.en, {
   mediaDocsIntro: 'Media tasks use dedicated endpoints. Do not send image/video requests to /chat/completions. The config center still lets you select media models; whether a desktop Agent exposes media UI depends on that client.',
   imageDocsSummary: 'Image generation and editing',
   imageDocsStepOne: 'Put your user API key in the Authorization: Bearer header.',
-  imageDocsStepTwo: 'Submit gpt-image-2.5 with prompt, size, n, and other supported parameters.',
+  imageDocsStepTwo: 'Submit gpt-image-2.6 or gpt-image-2.5 with prompt, size, n, and other supported parameters.',
   imageDocsStepThree: 'Read the image result from the returned format; add image input for editing as supported by the upstream endpoint.',
   videoDocsSummary: 'Async text, image, and reference video generation',
   videoDocsStepOne: 'H3 supports text-to-video, image-to-video, and reference-to-video; send prompt, image, video, or audio inputs for the selected mode.',
   videoDocsStepTwo: 'Save video_id and poll GET /v1/videos/{video_id} until the task completes.',
   videoDocsStepThree: 'Download the finished asset through /content; upstream retention limits how long it remains available.',
   mediaDocsConfigTitle: 'How this relates to the config center',
-  mediaDocsConfigText: 'The config center shows gpt-image-2.5 and MiniMax-H3, but WorkBuddy\'s models.json writes text models only so media models are not treated as text models; use the API examples above for media tasks. Text Agents such as Claude Code, OpenCode, and Codex may also not expose a media-generation button.',
+  mediaDocsConfigText: 'The config center shows gpt-image-2.6, gpt-image-2.5, and MiniMax-H3, but WorkBuddy\'s models.json writes text models only so media models are not treated as text models; use the API examples above for media tasks. Text Agents such as Claude Code, OpenCode, and Codex may also not expose a media-generation button.',
   mediaDocsOpenGenerator: 'Open the config center',
 });
 

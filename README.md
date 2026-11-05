@@ -180,7 +180,7 @@ Linux：打开或创建 `~/.workbuddy`，按相同方式合并 `models.json`。
 
 下载或复制的文本配置使用同一把已验证的 composite 分组 Key 和全部选中模型。旧单平台 Key 仍按原授权使用；媒体模型继续要求对应媒体授权，不会因为文本模型混选而自动开放。
 
-配置文件包含当前用户的 API Key，只应在自己的电脑上使用，不要转发给他人。OpenAI 通道文本模型使用 `https://api.cheapbuddy.cc/v1/chat/completions`；Claude 稳定通道可用原生 `/v1/messages` 或经服务端转换的 `/v1/chat/completions`、`/v1/responses`；图片模型 `gpt-image-2.5` 使用 `/v1/images/generations`，视频模型 `MiniMax-H3` 使用 `/v1/videos`，视频任务完成后通过 `/v1/videos/{video_id}/content` 下载。生产环境由 Railway API 服务承载，Cloudflare Worker 不是业务链路必需组件；部署到其他环境时通过 `VITE_WORKBUDDY_BASE_URL` 覆盖。
+配置文件包含当前用户的 API Key，只应在自己的电脑上使用，不要转发给他人。OpenAI 通道文本模型使用 `https://api.cheapbuddy.cc/v1/chat/completions`；Claude 稳定通道可用原生 `/v1/messages` 或经服务端转换的 `/v1/chat/completions`、`/v1/responses`；图片模型 `gpt-image-2.6` 和 `gpt-image-2.5` 使用 `/v1/images/generations`，视频模型 `MiniMax-H3` 使用 `/v1/videos`，视频任务完成后通过 `/v1/videos/{video_id}/content` 下载。生产环境由 Railway API 服务承载，Cloudflare Worker 不是业务链路必需组件；部署到其他环境时通过 `VITE_WORKBUDDY_BASE_URL` 覆盖。
 
 ## Media API quick reference
 

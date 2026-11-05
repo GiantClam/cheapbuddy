@@ -804,3 +804,58 @@ recorded group 4, channel 3, PPToken account 9, requested model
 upstream endpoint. The supplier preflight independently verified that PPToken
 accounts 9, 10, and 11 expose the model and accept native Anthropic Messages
 requests.
+
+## GPT Image 2.6 launch at the 2.5 rate — 2026-11-05
+
+`gpt-image-2.6` was published on the PPToken GPT credential that already serves
+`gpt-image-2.5`. The supplier catalog probe returned `gpt-image-2`,
+`gpt-image-2.5`, `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`,
+`gpt-image-2.6`, `gpt-image-2.6-flare`, and `gpt-image-2.6-sunburst` on channel
+4's credential. Channel 1's grok credential exposes no `gpt-image` model at all,
+so the new id was added to channel 4 only and channel 1 was left as it is.
+
+No price was configured for either image model, and none was added. NewAPI
+resolves both through the same fallback — `model_ratio` 37.5 with the `gpt-`
+family `completion_ratio` 2 — and `GET /api/pricing` now reports identical rows
+for the two ids: `quota_type` 0, `model_ratio` 37.5, `model_price` 0,
+`completion_ratio` 2, endpoints `image-generation,openai`, group `default`. The
+Relay customer multiplier is 1.0 for both, so the retail rate is unchanged at
+37.5 quota per effective token: USD 75 per million input tokens and USD 150 per
+million output tokens at 500,000 quota per USD. `gpt-image-2.6` still has no
+verified supplier cost, exactly like `gpt-image-2.5`, so neither model has a
+public billing card and both settle from native NewAPI usage.
+
+Operation `cb-gpt-image-26-newapi-launch-20261105-v1` added the model to channel
+4, mirrored the channel-4 ability row, and appended the id to the 27 live shadow
+tokens that already allow `gpt-image-2.5`. Six `relay-prod` variables were
+extended, each new value copied from the live `gpt-image-2.5` entry, and every
+other variable was verified unchanged by hash before and after the write.
+
+Production acceptance returned HTTP 200 with a 558,942-byte PNG for a 1024x1024
+request through `https://api.cheapbuddy.cc/v1/images/generations`. NewAPI logged
+124,088 quota for 9 prompt and 1,650 output tokens on channel 4 — an effective
+ratio of 37.5002, matching every historical `gpt-image-2.5` row — which is
+USD 0.248176 at the 1.0 multiplier. A supplier-side request with `quality: low`
+was refused with a chat-style rejection, so the documented request shape for
+this family stays without a `quality` override.
+
+### Over-hold media capture is still broken
+
+The acceptance request did not settle. `cheapbuddy_integration.media_requests`
+holds it at `pending_reconciliation` with `last_error` `capture failed`, because
+Sub2API's capture validation requires `actual_amount <= held_amount` while the
+image hold is a fixed 100,000 quota (USD 0.20) and this request cost 124,088
+quota. The repair that allows a capture above the hold (`allow_over_hold`, commit
+`f831c0f` "Prevent successful media jobs from stranding results and funds") is
+not in the running relay binary — `/usr/local/bin/relay` contains no
+`allow_over_hold` symbol — and that commit lives only on
+`codex/media-relay-repair-20261019` and `codex/rc45-media-promotion-20261020`.
+
+This is not specific to the new model. Any `gpt-image-2.5` or `gpt-image-2.6`
+request above USD 0.20 strands its hold and bills nothing, and the historical
+`gpt-image-2.5` rows that did settle above the hold (158,813 and 124,163 quota)
+settled on 2026-10-19 while the repair build was live. Until that repair is
+redeployed, or the image reservation is raised above the real per-image cost,
+image settlement stays broken for both ids. The verification hold of USD 0.20 on
+operator account 4 is deliberately left pending so a repaired relay settles it
+exactly once instead of a manual adjustment double-charging or forgiving it.
