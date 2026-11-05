@@ -56,7 +56,7 @@ test('production static server serves model pages and preserves missing-resource
     });
   });
 
-  for (const path of ['/', '/api-docs', '/comfyui', '/hypit', '/payment/result', '/blog', '/blog/', '/blog/one-balance-model-routing', '/model/deepseek-v4-1-flash-1017/', '/model/claude-opus-5-5/', '/en/model/deepseek-v4-1-flash-1017/', '/en/model/claude-opus-5-5/']) {
+  for (const path of ['/', '/api-docs', '/comfyui', '/hypit', '/payment/result', '/blog', '/blog/', '/blog/one-balance-model-routing', '/blog/gpt-image-2-6-guide', '/model/deepseek-v4-1-flash-1017/', '/model/claude-opus-5-5/', '/en/model/deepseek-v4-1-flash-1017/', '/en/model/claude-opus-5-5/']) {
     await t.test(`${path} serves the React app shell`, async () => {
       const response = await fetch(`http://127.0.0.1:${port}${path}`);
       assert.equal(response.status, 200);

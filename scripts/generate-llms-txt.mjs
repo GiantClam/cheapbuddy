@@ -22,6 +22,7 @@ const DOC_LINKS = [
   ['Claude access', `${SITE}/blog/claude-stable-channel-guide`, 'Authorized Claude ids over Anthropic Messages or the OpenAI-compatible API.'],
   ['One balance', `${SITE}/blog/one-balance-model-routing`, 'Why one key and one USD balance can reach many authorized models.'],
   ['Media API', `${SITE}/blog/cheapbuddy-media-api-guide`, 'Image generation and asynchronous video download.'],
+  ['GPT Image 2.6 guide', `${SITE}/blog/gpt-image-2-6-guide`, 'Prompt structure and OpenAI-compatible image generation API examples for GPT Image 2.6.'],
   ['ComfyUI workflows', `${SITE}/blog/comfyui-cheapbuddy-workflows`, 'Text, image, and video nodes inside a ComfyUI workflow.'],
 ];
 
