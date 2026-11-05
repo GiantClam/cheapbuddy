@@ -14,9 +14,9 @@ Operation `cb-gpt-image-26-newapi-launch-20261105-v1` was dry-run under
 channel-4 `abilities` row (group `default`, priority 100, weight 1), and appended
 the id to the 27 live shadow tokens that already allow `gpt-image-2.5`. The one
 live token without `gpt-image-2.5` was left untouched, so the new model reaches
-exactly the customers who already have the baseline. No pricing option was
-written; the dry run recorded the option byte lengths and the apply re-checked
-them.
+exactly the customers who already have the baseline. The initial operation
+preserved pricing; the fixed-price correction below supersedes that inherited
+token-based price.
 
 A read-only `GET /api/pricing` refreshed NewAPI's in-process pricing cache and
 published `supported_endpoint_types` `["image-generation","openai"]` for the new
@@ -24,23 +24,39 @@ id. Relay derives `type: image` and `text_to_image` from those endpoints, so no
 `RELAY_MEDIA_CAPABILITIES_BY_MODEL` override was needed and the catalog metadata
 is now identical to `gpt-image-2.5`.
 
-`relay-prod` deployment `a3e27985-5dcd-4ed5-b523-df86bae04de8`, image digest
-`sha256:3d6f4082fd43c6bc6106880047546779cd909d20b0e3fd1c763d53807e675145`,
-carries the six extended variables: verified models, visible media models,
-catalog allowlist, billing mode, multiplier, and reservation quota. Every value
-for the new id was copied from the live `gpt-image-2.5` entry, the remaining
-variable bytes were preserved by splicing rather than re-serializing, and all
-other variables were verified unchanged by hash before and after. The deployment
-reported `reason: redeploy` with the same stored `cliMessage`
-(`DeepSeek canonical routing 6d6aaf5`), so no new source was uploaded; only the
-digest differs from the previous build.
+Both exact image IDs now have NewAPI `ModelPrice: 0.015384`, `quota_type: 1`,
+default group ratio 1 and Relay multiplier 1. This is a fixed 7,692 quota per
+successful image, USD `0.015384`, approximately CNY `0.10` at 6.5 CNY/USD.
+The quota-aligned value replaces the intermediate `0.0153846` value so batch
+rounding cannot exceed `7,692 * n`.
 
-The running `/usr/local/bin/relay` still contains no `allow_over_hold` symbol, so
-the media settlement repair from `f831c0f` is still absent from production and
-over-hold image captures still strand for `gpt-image-2.5` and `gpt-image-2.6`
-alike. Pricing equality, acceptance evidence, and the settlement defect are
-recorded in `docs/usd-ledger.md` (2026-11-05) and
-`.omx/logs/gpt-image-26-20261105-*`.
+`RELAY_RESERVATION_QUOTA_BY_MODEL` is 7,692 for both IDs. Relay source `f74bd01`
+multiplies that unit by the validated requested image count, including multipart
+edits with `n` after files, and caps the final customer debit at the stored hold.
+Its pricing metadata reports the same count-based estimate. Failure releases
+the hold; partial output settles only the lower native charge. The Sub2API
+capture bound remains enabled, and no `allow_over_hold` flag is sent. All
+unrelated Railway variables were verified unchanged by hash.
+
+Production deployment `1ee40e1f-b0af-445c-afbf-b95556929386` is successful,
+with image digest
+`sha256:6a9887aa67835165cbc0a76044ffbd19b42e2b62b8d91fde9c483e1e18e8ff1b`.
+
+Do not redeploy the old token-price fallback, USD 0.20 fixed hold, or an
+over-hold opt-in as the solution for this fixed-price product. The same source
+also preserves the complete image response above 1 MiB. The website quotes
+the fixed customer price for both image models.
+
+Configuration and acceptance evidence: `docs/usd-ledger.md` (2026-11-05) and
+`.omx/logs/gpt-image-fixed-repair-20261105-*`. Earlier probes remain in
+`.omx/logs/gpt-image-26-20261105-*` as historical diagnostics.
+
+Production acceptance verified both models at 7,692 quota per single image,
+including a complete 1,576,476-byte 2.6 image. A two-image 2.5 request was rejected
+by PPToken and its 15,384-quota hold was fully released. Batch support is not
+verified; send separate single-image requests. October 19 historical pending
+rows remain unchanged. Live pricing metadata, wallet differences and native
+receipt IDs are recorded in the evidence above.
 
 ## 2026-10-20 rc.45 production promotion
 

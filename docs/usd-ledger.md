@@ -814,48 +814,62 @@ requests.
 4's credential. Channel 1's grok credential exposes no `gpt-image` model at all,
 so the new id was added to channel 4 only and channel 1 was left as it is.
 
-No price was configured for either image model, and none was added. NewAPI
-resolves both through the same fallback — `model_ratio` 37.5 with the `gpt-`
-family `completion_ratio` 2 — and `GET /api/pricing` now reports identical rows
-for the two ids: `quota_type` 0, `model_ratio` 37.5, `model_price` 0,
-`completion_ratio` 2, endpoints `image-generation,openai`, group `default`. The
-Relay customer multiplier is 1.0 for both, so the retail rate is unchanged at
-37.5 quota per effective token: USD 75 per million input tokens and USD 150 per
-million output tokens at 500,000 quota per USD. `gpt-image-2.6` still has no
-verified supplier cost, exactly like `gpt-image-2.5`, so neither model has a
-public billing card and both settle from native NewAPI usage.
-
 Operation `cb-gpt-image-26-newapi-launch-20261105-v1` added the model to channel
 4, mirrored the channel-4 ability row, and appended the id to the 27 live shadow
-tokens that already allow `gpt-image-2.5`. Six `relay-prod` variables were
-extended, each new value copied from the live `gpt-image-2.5` entry, and every
-other variable was verified unchanged by hash before and after the write.
+tokens that already allow `gpt-image-2.5`. Both models use the same verified,
+visible, allowlisted media route and multiplier 1. Other model configuration
+was preserved.
 
-Production acceptance returned HTTP 200 with a 558,942-byte PNG for a 1024x1024
-request through `https://api.cheapbuddy.cc/v1/images/generations`. NewAPI logged
-124,088 quota for 9 prompt and 1,650 output tokens on channel 4 — an effective
-ratio of 37.5002, matching every historical `gpt-image-2.5` row — which is
-USD 0.248176 at the 1.0 multiplier. A supplier-side request with `quality: low`
-was refused with a chat-style rejection, so the documented request shape for
-this family stays without a `quality` override.
+### Fixed CNY 0.10 per image
 
-### Over-hold media capture is still broken
+The original launch inherited token-based fallback pricing (`model_ratio` 37.5,
+completion ratio 2) and a 100,000-quota (USD 0.20) hold. That was the wrong
+customer price. Do not restore that fallback or enable captures above the hold
+to compensate for it.
 
-The acceptance request did not settle. `cheapbuddy_integration.media_requests`
-holds it at `pending_reconciliation` with `last_error` `capture failed`, because
-Sub2API's capture validation requires `actual_amount <= held_amount` while the
-image hold is a fixed 100,000 quota (USD 0.20) and this request cost 124,088
-quota. The repair that allows a capture above the hold (`allow_over_hold`, commit
-`f831c0f` "Prevent successful media jobs from stranding results and funds") is
-not in the running relay binary — `/usr/local/bin/relay` contains no
-`allow_over_hold` symbol — and that commit lives only on
-`codex/media-relay-repair-20261019` and `codex/rc45-media-promotion-20261020`.
+Operation `cb-gpt-image-fixed-010-cny-20261105-v1` switched both exact model IDs
+to NewAPI `ModelPrice`. The final quota-aligned price is USD `0.015384` per
+successful image, or 7,692 quota at 500,000 quota/USD. At the platform reference
+rate of 6.5 CNY/USD, this is CNY `0.099996`, displayed as CNY `0.10`. Using an
+integer quota unit also avoids batch rounding differences from the intermediate
+USD `0.0153846` value. `GET /api/pricing` must report `quota_type: 1` and the
+same `model_price` for both IDs; there is no token-based customer charge.
 
-This is not specific to the new model. Any `gpt-image-2.5` or `gpt-image-2.6`
-request above USD 0.20 strands its hold and bills nothing, and the historical
-`gpt-image-2.5` rows that did settle above the hold (158,813 and 124,163 quota)
-settled on 2026-10-19 while the repair build was live. Until that repair is
-redeployed, or the image reservation is raised above the real per-image cost,
-image settlement stays broken for both ids. The verification hold of USD 0.20 on
-operator account 4 is deliberately left pending so a repaired relay settles it
-exactly once instead of a manual adjustment double-charging or forgiving it.
+Relay `f74bd01` reserves `7,692 * n` quota for these two models, defaults omitted
+`n` to 1, validates its 1–128 safety range, and reads multipart counts even
+when they follow input files. The same estimate is exposed through
+`GET /v1/pricing?model=gpt-image-2.6&n=2`. A successful capture is bounded by the
+stored reservation; a lower native bill returns the unused funds, and a failed
+request releases its hold. Sub2API's `actual_amount <= held_amount` validation
+remains in force. No `allow_over_hold` opt-in is sent.
+
+The website quotes the same fixed price in USD and CNY. This is CheapBuddy's
+customer price, not a verified supplier cost. The public image request remains
+without a `quality` override because the supplier rejected `quality: low`.
+
+The earlier token-priced acceptance and the subsequent multiplier-0.062 probe
+are historical diagnostics, not acceptance of the fixed price. Their amounts
+and original evidence are retained in `.omx/logs/gpt-image-26-20261105-*`.
+Current configuration and acceptance evidence are recorded separately under
+`.omx/logs/gpt-image-fixed-repair-20261105-*`.
+
+Production acceptance on deployment `1ee40e1f-b0af-445c-afbf-b95556929386`
+verified three successful image requests. NewAPI consume logs 291 and 293 are
+`gpt-image-2.6`; log 292 is `gpt-image-2.5`. Each native quota, stored hold and
+customer final quota is exactly 7,692, each request is `settled`, and each has
+`allow_over_hold: false`. The verification balance decreased by USD `0.015384`
+per successful request. The explicit base64 probes returned complete images of
+534,046 bytes (2.5) and 1,576,476 bytes (2.6); the latter response exceeds the
+old 1 MiB observation limit and confirms the truncation repair.
+
+A two-image 2.5 request reserved 15,384 quota, but PPToken rejected its `n`
+parameter. Relay marked it `released` and restored the entire hold with zero
+balance change. The safety range is not a claim of supplier batch support;
+use separate single-image requests until that capability is verified. Twelve
+older 2.5 requests from October 19 still require historical reconciliation;
+their uncertain receipts were not rewritten or charged by this repair.
+
+Verification includes 216 frontend tests, the Relay suite and Linux race suite,
+`go vet`, production build, independent code review, and desktop/mobile price
+layout checks. Existing unrelated dependency audit findings remain outside
+this pricing change.
