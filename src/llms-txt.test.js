@@ -1,8 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { modelCatalog } from './models.js';
-import { renderLlmsTxt } from '../scripts/generate-llms-txt.mjs';
+import { llmsTxtPath, renderLlmsTxt } from '../scripts/generate-llms-txt.mjs';
+import { checkCommittedLlmsTxt, llmsTxtDrift } from '../scripts/check-llms-txt.mjs';
 
 test('llms.txt is generated from modelCatalog and matches the committed file', async () => {
   const text = renderLlmsTxt(modelCatalog);
@@ -36,6 +41,39 @@ test('llms.txt is generated from modelCatalog and matches the committed file', a
   assert.ok(blogUrls.some((url) => url.endsWith('/blog/deepseek-harness-cheapbuddy')));
   for (const url of blogUrls) assert.ok(text.includes(url), url);
 
-  const committed = await readFile(new URL('../public/llms.txt', import.meta.url), 'utf8');
+  const committed = await readFile(llmsTxtPath, 'utf8');
   assert.equal(committed, text);
+  assert.equal(llmsTxtDrift(committed), null);
+});
+
+test('llms.txt gate fails when modelCatalog changes without regenerating', () => {
+  const withoutFlash = modelCatalog.filter((model) => model.id !== 'deepseek-flash');
+  const drift = llmsTxtDrift(renderLlmsTxt(modelCatalog), withoutFlash);
+  assert.match(drift, /public\/llms\.txt is stale relative to src\/models\.js modelCatalog/);
+  assert.match(drift, /npm run generate:llms/);
+  assert.equal(llmsTxtDrift(`${renderLlmsTxt(modelCatalog)}stale`), drift);
+});
+
+test('check-llms-txt accepts the committed file and rejects a stale copy', async () => {
+  const fresh = await checkCommittedLlmsTxt(llmsTxtPath);
+  assert.equal(fresh.status, 0);
+
+  const directory = await mkdtemp(join(tmpdir(), 'cheapbuddy-llms-'));
+  try {
+    const stalePath = join(directory, 'llms.txt');
+    await writeFile(stalePath, `${await readFile(llmsTxtPath, 'utf8')}stale`, 'utf8');
+    const stale = await checkCommittedLlmsTxt(stalePath);
+    assert.equal(stale.status, 1);
+    assert.match(stale.message, /npm run generate:llms/);
+
+    const missing = await checkCommittedLlmsTxt(join(directory, 'missing.txt'));
+    assert.equal(missing.status, 1);
+    assert.match(missing.message, /missing/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+
+  const script = fileURLToPath(new URL('../scripts/check-llms-txt.mjs', import.meta.url));
+  const child = spawnSync(process.execPath, [script], { encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
 });

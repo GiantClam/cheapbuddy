@@ -11,8 +11,9 @@
     "generate:llms": "node scripts/generate-llms-txt.mjs",
     "prebuild": "node scripts/generate-llms-txt.mjs",
     "build": "vite build",
+    "pretest": "node scripts/check-llms-txt.mjs",
     "test": "node --test src/*.test.js",
-    "test:coverage": "node --test --experimental-test-coverage src/*.test.js",
+    "test:coverage": "node scripts/check-llms-txt.mjs && node --test --experimental-test-coverage src/*.test.js",
     "preview": "vite preview",
     "start": "node scripts/start.mjs"
   },
