@@ -33,6 +33,7 @@ test('llms.txt is generated from modelCatalog and matches the committed file', a
   assert.match(text, /\[deepseek-v4\.1-flash-1017\]\(https:\/\/cheapbuddy\.cc\/en\/model\/deepseek-v4-1-flash-1017\/\)/);
   assert.match(text, /\[claude-opus-5-5\]\(https:\/\/cheapbuddy\.cc\/en\/model\/claude-opus-5-5\/\)/);
   assert.match(text, /\[gpt-image-2\.5\]\(https:\/\/cheapbuddy\.cc\/api-docs\): id `gpt-image-2\.5`; OpenAI;/);
+  assert.match(text, /\[gpt-image-2\.6\]\(https:\/\/cheapbuddy\.cc\/en\/model\/gpt-image-2-6\/\): id `gpt-image-2\.6`/);
   assert.match(text, /\[MiniMax-H3\]\(https:\/\/cheapbuddy\.cc\/api-docs\): id `MiniMax-H3`; MiniMax;/);
   assert.match(text, /\[grok-4\.7\]\(https:\/\/cheapbuddy\.cc\/#models\).*Not shown on the homepage shelf\./);
 

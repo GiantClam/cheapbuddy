@@ -17,6 +17,10 @@ GPT Image 2.6 适合把自然语言直接变成可用的视觉素材：产品概
 
 CheapBuddy 通过 OpenAI 兼容的图片接口提供这个模型。一次真实请求返回了 2048×2048 图片，接口返回格式与常见的图片生成 SDK 保持一致，客户端不需要改成另一套调用方式。
 
+![GPT Image 2.6 实测生成的红色复古跑车、海岸公路与白色建筑](/gpt-image-2-6-sample.webp)
+
+这张图片来自 2026 年 11 月 5 日的生产请求，用时约 37 秒。单次样本不代表每次生成的速度或输出尺寸。完整调用说明见 [GPT Image 2.6 模型页](/model/gpt-image-2-6/)。
+
 ## 最短调用路径
 
 请求地址是 `POST https://api.cheapbuddy.cc/v1/images/generations`。把模型 ID 写成 `gpt-image-2.6`，并传入 `prompt` 与 `size`：
@@ -67,7 +71,7 @@ GPT Image 2.6 更适合需要快速从文字进入视觉迭代的任务：
 
 ### 可以用 `n` 一次生成多张吗？
 
-不要默认上游一定支持批量参数。当前实测中，PPToken 对该图片路由拒绝了 `n` 参数。需要多张素材时，建议由客户端逐次提交单张请求，并为每次请求生成独立的幂等标识。
+GPT Image 2.6 的多张生成尚未验证；2.5 通道在一次 `n: 2` 测试中拒绝了该参数。本文示例省略 `n`，需要多张素材时建议逐次提交单张请求，并为每次请求生成独立的幂等标识。
 
 ### 为什么图片接口和聊天接口不同？
 
@@ -85,6 +89,10 @@ GPT Image 2.6 更适合需要快速从文字进入视觉迭代的任务：
 GPT Image 2.6 is useful when a visual task should begin with language: product concepts, scene images, social assets, cover drafts, and early brand exploration can all start from one structured prompt.
 
 CheapBuddy exposes the model through an OpenAI-compatible image endpoint. A real production request returned a 2048×2048 image, and the response shape stayed familiar to clients that already support image generation APIs.
+
+![GPT Image 2.6 production sample showing a red vintage sports car, coastal road, and white architecture](/gpt-image-2-6-sample.webp)
+
+This image came from a production request on November 5, 2026 that took about 37 seconds. One sample is not a guarantee of generation time or returned dimensions. See the [GPT Image 2.6 model page](/en/model/gpt-image-2-6/) for the request and integration details.
 
 ## The shortest request path
 
@@ -136,7 +144,7 @@ Check the model ID, `prompt`, `size`, and authorization header first. The PPToke
 
 ### Can `n` generate multiple images?
 
-Do not assume that the upstream route supports batch generation. In a production check, PPToken rejected the `n` field for this image route. For multiple assets, submit separate single-image requests and give each request its own idempotency identity.
+Multiple-image generation has not been verified for GPT Image 2.6. A separate 2.5 request with `n: 2` was rejected by that route. This guide omits `n`; for multiple assets, submit separate single-image requests and give each request its own idempotency identity.
 
 ### Why is the image endpoint separate from chat?
 

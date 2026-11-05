@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/cheapbuddy-mark.svg">
+  <title>GPT Image 2.6 图片生成 API、真实样例与接入 | CheapBuddy</title>
+  <meta name="description" content="GPT Image 2.6 图片生成与编辑接入说明：查看 2026-11-05 真实文字生图样例、已验证的 API 请求和 cURL 示例，了解编辑、可选参数与批量生成的验证边界。">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://cheapbuddy.cc/model/gpt-image-2-6/">
+  <link rel="alternate" hreflang="zh-CN" href="https://cheapbuddy.cc/model/gpt-image-2-6/">
+  <link rel="alternate" hreflang="en" href="https://cheapbuddy.cc/en/model/gpt-image-2-6/">
+  <link rel="alternate" hreflang="x-default" href="https://cheapbuddy.cc/model/gpt-image-2-6/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="CheapBuddy">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:title" content="GPT Image 2.6 图片生成 API、真实样例与接入 | CheapBuddy">
+  <meta property="og:description" content="查看真实文字生图样例与已验证请求，区分图片编辑和其他进阶能力的验证范围。">
+  <meta property="og:url" content="https://cheapbuddy.cc/model/gpt-image-2-6/">
+  <meta property="og:image" content="https://cheapbuddy.cc/gpt-image-2-6-sample.webp">
+  <meta property="og:image:type" content="image/webp">
+  <meta property="og:image:width" content="2048">
+  <meta property="og:image:height" content="2048">
+  <meta property="og:image:alt" content="GPT Image 2.6 真实文字生图样例：海岸公路上的红色复古跑车">
+  <meta property="article:published_time" content="2026-11-05">
+  <meta property="article:modified_time" content="2026-11-05">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="GPT Image 2.6 图片生成 API 与真实样例 | CheapBuddy">
+  <meta name="twitter:description" content="真实文字生图记录、cURL 接入示例，以及编辑与可选参数的验证边界。">
+  <meta name="twitter:image" content="https://cheapbuddy.cc/gpt-image-2-6-sample.webp">
+  <meta name="twitter:image:alt" content="海岸公路上的红色复古跑车，GPT Image 2.6 生成样例">
+  <link rel="stylesheet" href="/model-pages.css">
+  <link rel="stylesheet" href="/gpt-image-model.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Article",
+        "headline": "GPT Image 2.6 图片生成 API、真实样例与接入",
+        "description": "GPT Image 2.6 真实文字生图记录、API 请求示例与图片编辑等进阶能力的验证边界。",
+        "inLanguage": "zh-CN",
+        "datePublished": "2026-11-05",
+        "dateModified": "2026-11-05",
+        "image": "https://cheapbuddy.cc/gpt-image-2-6-sample.webp",
+        "mainEntityOfPage": { "@type": "WebPage", "@id": "https://cheapbuddy.cc/model/gpt-image-2-6/" },
+        "author": { "@type": "Organization", "name": "CheapBuddy", "url": "https://cheapbuddy.cc/" },
+        "publisher": { "@type": "Organization", "name": "CheapBuddy", "url": "https://cheapbuddy.cc/" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "CheapBuddy", "item": "https://cheapbuddy.cc/" },
+          { "@type": "ListItem", "position": 2, "name": "模型", "item": "https://cheapbuddy.cc/#models" },
+          { "@type": "ListItem", "position": 3, "name": "GPT Image 2.6", "item": "https://cheapbuddy.cc/model/gpt-image-2-6/" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "图片编辑是否已经验证？",
+            "acceptedAnswer": { "@type": "Answer", "text": "本页只验证了文字生图。图片编辑、蒙版、参考图和多轮修改尚未在这次生产请求中验证，接入前需按具体路由单独测试。" }
+          },
+          {
+            "@type": "Question",
+            "name": "可以用 n 一次生成多张吗？",
+            "acceptedAnswer": { "@type": "Answer", "text": "GPT Image 2.6 的 n 批量参数支持尚未确认；本页的成功请求没有携带 n。另一次 GPT Image 2.5 请求中的 n=2 曾被拒绝，这不能直接说明 2.6 的支持情况。需要多张图片时，建议分别提交请求。" }
+          },
+          {
+            "@type": "Question",
+            "name": "每次都会在约 37 秒返回 2048×2048 图片吗？",
+            "acceptedAnswer": { "@type": "Answer", "text": "不会据此作出保证。约 37 秒和 2048×2048 PNG 只描述 2026-11-05 的单次结果；该请求的 size 为 1024x1024。耗时、实际尺寸和格式应以每次响应为准。" }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="gpt-image-page">
+  <a class="skip-link" href="#main">跳至正文</a>
+  <header class="site-header">
+    <a class="brand" href="/">CheapBuddy <span>/ MODEL GUIDE</span></a>
+    <nav aria-label="主导航">
+      <a href="/#models">模型目录</a>
+      <a href="/api-docs#api-image">图片 API 文档</a>
+      <a lang="en" hreflang="en" href="/en/model/gpt-image-2-6/">English</a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero" aria-labelledby="model-name">
+      <p class="eyebrow">图片生成与编辑 · 模型接入指南</p>
+      <h1 id="model-name">GPT Image 2.6</h1>
+      <p class="lede">从文字开始构思图片。这里展示 GPT Image 2.6 的真实生成结果与接入方式：文字生图已验证，图片编辑等进阶能力仍需按路由单独确认。</p>
+      <div class="hero-meta">
+        <time datetime="2026-11-05">更新于 2026 年 11 月 5 日</time>
+        <span>模型 ID：<code>gpt-image-2.6</code></span>
+      </div>
+      <div class="hero-actions">
+        <a class="button primary" href="#request">立即调用</a>
+        <a href="/#generator">获取 API Key 与配置</a>
+      </div>
+    </section>
+    <figure class="sample" id="sample" aria-labelledby="sample-caption">
+      <img src="/gpt-image-2-6-sample.webp" width="2048" height="2048" alt="GPT Image 2.6 真实文字生图样例：海岸公路上的红色复古跑车" fetchpriority="high" decoding="async">
+      <figcaption id="sample-caption">
+        <span class="sample-label">01 / 真实生产样例</span>
+        <p>提示词主题：海岸公路上的红色复古跑车。2026-11-05 使用 <code>gpt-image-2.6</code> 请求图片生成接口，HTTP 200，耗时约 37 秒。</p>
+        <p>请求 <code>size: 1024x1024</code>、<code>response_format: b64_json</code>，实际返回 2048×2048 PNG；此处以 WebP 展示。仅为一次生成样例，不构成速度、输出尺寸或格式保证。</p>
+      </figcaption>
+    </figure>
+    <div class="article-layout">
+      <aside class="toc" aria-label="本页目录">
+        <strong>本页目录</strong>
+        <a href="#sample">真实生成样例</a>
+        <a href="#capabilities">生成与编辑边界</a>
+        <a href="#request">API 调用示例</a>
+        <a href="#parameters">参数与响应</a>
+        <a href="#faq">常见问题</a>
+      </aside>
+      <article class="content" aria-label="GPT Image 2.6 接入说明">
+        <section id="capabilities" class="guide-section">
+          <span class="section-number" aria-hidden="true">02</span>
+          <div>
+            <h2>从图片生成开始，逐项确认编辑能力</h2>
+            <p>图片生成把文字描述转成新画面；图片编辑则以已有图片为输入，可能涉及局部修改、参考图或连续迭代。两类工作流需要分别验证接口与参数。</p>
+            <p>本页已验证的路径是通过 <code>/v1/images/generations</code> 进行文字生图。图片编辑、蒙版、参考图、多轮修改及其他进阶能力未在这次请求中测试，不能由生成成功推定为可用。</p>
+            <p>可以从产品概念、文章配图或场景探索等文字生图任务开始评估，按自己的提示词检查画面是否符合需求。查看<a class="source-link" href="/blog/gpt-image-2-6-guide">完整接入指南</a>，再根据具体路由测试所需能力。</p>
+          </div>
+        </section>
+        <section id="request" class="guide-section">
+          <span class="section-number" aria-hidden="true">03</span>
+          <div>
+            <h2>调用 GPT Image 2.6 图片生成 API</h2>
+            <p>使用 <code>POST https://api.cheapbuddy.cc/v1/images/generations</code>，模型 ID 为 <code>gpt-image-2.6</code>。下面沿用已验证的字段组合，提示词以海岸公路上的红色复古跑车为例。</p>
+            <p class="request-note">在本地将 <code>YOUR_CHEAPBUDDY_API_KEY</code> 替换为自己的 API Key。以下为 Bash / POSIX shell cURL 示例。</p>
+            <pre tabindex="0" aria-label="GPT Image 2.6 cURL 请求示例"><code>curl --request POST 'https://api.cheapbuddy.cc/v1/images/generations' \
+  --header 'Authorization: Bearer YOUR_CHEAPBUDDY_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "gpt-image-2.6",
+    "prompt": "A red vintage sports car on a coastal road",
+    "size": "1024x1024",
+    "response_format": "b64_json"
+  }'</code></pre>
+            <p>成功响应的图片数据位于 <code>data[0].b64_json</code>。将 Base64 解码后保存为图片，并检查实际格式和尺寸。示例不携带 <code>n</code> 或 <code>quality</code>。</p>
+            <a class="source-link" href="/api-docs#api-image">查看图片 API 文档</a>
+          </div>
+        </section>
+        <section id="parameters" class="guide-section">
+          <span class="section-number" aria-hidden="true">04</span>
+          <div>
+            <h2>以实际路由与响应为准</h2>
+            <p>本次验证使用了 <code>model</code>、<code>prompt</code>、<code>size</code> 和 <code>response_format</code>。可选参数及其取值取决于具体路由；其他尺寸、质量设置、返回方式或编辑参数不能从这次结果推定为受支持。</p>
+            <p>如果接口拒绝可选字段，先回到本页的字段组合排查，再逐项验证需要的参数。需要多张图片时，建议分别提交单张请求；2.6 的 <code>n</code> 批量支持尚未确认。</p>
+            <p>请求中的 <code>size</code> 与这次返回图片的实际尺寸不同。接收端应读取返回文件的实际尺寸与格式；约 37 秒的单次耗时也不能作为后续请求的响应时间承诺。</p>
+          </div>
+        </section>
+        <section id="faq" class="faq">
+          <h2>常见问题</h2>
+          <details class="faq-item">
+            <summary>图片编辑是否已经验证？</summary>
+            <p>本页只验证了文字生图。图片编辑、蒙版、参考图和多轮修改尚未在这次生产请求中验证，接入前需按具体路由单独测试。</p>
+          </details>
+          <details class="faq-item">
+            <summary>可以用 n 一次生成多张吗？</summary>
+            <p>GPT Image 2.6 的 n 批量参数支持尚未确认；本页的成功请求没有携带 n。另一次 GPT Image 2.5 请求中的 n=2 曾被拒绝，这不能直接说明 2.6 的支持情况。需要多张图片时，建议分别提交请求。</p>
+          </details>
+          <details class="faq-item">
+            <summary>每次都会在约 37 秒返回 2048×2048 图片吗？</summary>
+            <p>不会据此作出保证。约 37 秒和 2048×2048 PNG 只描述 2026-11-05 的单次结果；该请求的 size 为 1024x1024。耗时、实际尺寸和格式应以每次响应为准。</p>
+          </details>
+        </section>
+        <a class="home-link" href="/">返回 CheapBuddy</a>
+      </article>
+    </div>
+  </main>
+  <footer>
+    <a href="/">CheapBuddy</a>
+    <span>GPT Image 2.6 · 文字生图验证记录</span>
+    <a href="/blog/gpt-image-2-6-guide">图片生成接入指南</a>
+  </footer>
+</body>
+</html>

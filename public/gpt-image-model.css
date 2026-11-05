@@ -1,0 +1,194 @@
+.gpt-image-page {
+  letter-spacing: 0;
+}
+
+.gpt-image-page .skip-link {
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  z-index: 1;
+  padding: 8px 12px;
+  background: var(--bg);
+  transform: translateY(-160%);
+}
+
+.gpt-image-page .skip-link:focus {
+  transform: translateY(0);
+}
+
+.gpt-image-page a:focus-visible,
+.gpt-image-page summary:focus-visible,
+.gpt-image-page pre:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
+}
+
+.gpt-image-page .hero {
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+
+.gpt-image-page .eyebrow {
+  margin: 0;
+}
+
+.gpt-image-page .hero h1 {
+  margin: 10px 0 12px;
+  font-size: 52px;
+  line-height: 1.12;
+}
+
+.gpt-image-page .lede {
+  max-width: 920px;
+  margin: 0 0 14px;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.gpt-image-page .hero-meta {
+  column-gap: 18px;
+  row-gap: 6px;
+  line-height: 1.7;
+}
+
+.gpt-image-page .hero-meta code {
+  font-size: inherit;
+}
+
+.gpt-image-page .hero-actions {
+  margin-top: 18px;
+  gap: 12px 20px;
+}
+
+.gpt-image-page .sample {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 28px;
+  scroll-margin-top: 24px;
+}
+
+.gpt-image-page .sample img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  background: var(--panel);
+}
+
+.gpt-image-page .sample figcaption {
+  padding: 16px 0 22px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.gpt-image-page .sample-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--green);
+  font: 12px/1.7 ui-monospace, monospace;
+}
+
+.gpt-image-page .sample figcaption p {
+  margin: 0 0 6px;
+}
+
+.gpt-image-page .sample figcaption p:last-child {
+  margin-bottom: 0;
+}
+
+.gpt-image-page .article-layout {
+  padding-top: 28px;
+}
+
+.gpt-image-page .toc {
+  padding: 0 0 0 17px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.gpt-image-page .content,
+.gpt-image-page .guide-section > div {
+  min-width: 0;
+}
+
+.gpt-image-page .content code {
+  color: #c6e6dc;
+  overflow-wrap: anywhere;
+}
+
+.gpt-image-page .guide-section pre {
+  max-width: 100%;
+  white-space: pre;
+  user-select: text;
+}
+
+.gpt-image-page .guide-section pre code {
+  overflow-wrap: normal;
+}
+
+.gpt-image-page .request-note {
+  font-size: 13px;
+}
+
+.gpt-image-page .faq-item p {
+  padding-top: 10px;
+}
+
+.gpt-image-page footer {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .gpt-image-page .hero h1 {
+    font-size: 40px;
+  }
+
+  .gpt-image-page .site-header nav {
+    gap: 10px 18px;
+  }
+
+  .gpt-image-page .article-layout {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 460px) {
+  .gpt-image-page .site-header,
+  .gpt-image-page .hero,
+  .gpt-image-page .sample,
+  .gpt-image-page .article-layout,
+  .gpt-image-page footer {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .gpt-image-page .hero {
+    padding-top: 22px;
+    padding-bottom: 22px;
+  }
+
+  .gpt-image-page .hero h1 {
+    font-size: 34px;
+  }
+
+  .gpt-image-page .lede {
+    font-size: 15px;
+  }
+
+  .gpt-image-page .guide-section {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .gpt-image-page .guide-section h2,
+  .gpt-image-page .faq h2 {
+    font-size: 22px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+}

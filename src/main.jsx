@@ -9,13 +9,13 @@ import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentO
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
 import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, getNextModelCampaignBoundaryDelay, MODEL_CAMPAIGN, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
-import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
+import { formatPublicationDate, getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, parseConnectionTestResponse, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
 import { getUsageBilledTotal, hasTokenBreakdown, isUsageCostReported, mapUsageRecords, mergeUsageModels } from './usage';
 import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
 
-import { getHomepageFeaturedModels, getHomepageModels, localizeModels, modelCatalog as models } from './models';
+import { getHomepageFeaturedModels, getHomepageModels, isModelRecentlyLaunched, localizeModels, modelCatalog as models } from './models';
 
 const baseUrl = String(import.meta.env.VITE_WORKBUDDY_BASE_URL || 'https://api.cheapbuddy.cc/v1').replace(/\/+$/, '');
 // The public API host can duplicate CORS headers. Browser access checks use
@@ -44,6 +44,7 @@ const adminConsoleUrls = {
   newapi: getAdminConsoleUrl(import.meta.env.VITE_ADMIN_NEWAPI_URL),
 };
 const siteOrigin = 'https://cheapbuddy.cc';
+const imageLaunchModel = models.find(({ id }) => id === 'gpt-image-2.6');
 
 function updateSeoMetadata({ title, description, path, type = 'website' }) {
   document.title = title;
@@ -583,6 +584,10 @@ function ApiDocsPage() {
       path: '/api-docs',
       type: 'article',
     });
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ behavior: 'instant', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [language]);
 
   const videoRequest = [
@@ -618,7 +623,7 @@ function ApiDocsPage() {
     'curl ' + baseUrl + '/images/generations \\',
     '  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \\',
     '  -H "Content-Type: application/json" \\',
-    "  -d '{\"model\":\"gpt-image-2.5\",\"prompt\":\"a cinematic city at night\",\"size\":\"1024x1024\",\"n\":1}'",
+    "  -d '{\"model\":\"gpt-image-2.6\",\"prompt\":\"a cinematic city at night\",\"size\":\"1024x1024\",\"response_format\":\"b64_json\"}'",
   ].join('\n');
   const pricingRequest = [
     'curl -G ' + baseUrl + '/pricing \\',
@@ -672,7 +677,7 @@ function ApiDocsPage() {
 
           <section id="api-download" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">04</span><div><div className="api-method-badge get">GET</div><h2>{t('apiDocsDownloadTitle')}</h2><p>{t('apiDocsDownloadText')}</p></div></div><div className="api-endpoint"><span>GET</span><code>/v1/videos/{'{id}'}/content</code><small>video/mp4</small></div><ApiCodeBlock label="cURL" code={videoDownload} codeId="video-download" copied={copied} onCopy={copyCode} t={t} /><div className="api-download-note"><Icon name="download" size={19} /><p>{t('apiDocsDownloadNote')}</p></div></section>
 
-          <section id="api-image" className="api-doc-section api-image-section"><div className="api-doc-section-heading"><span className="api-doc-number">05</span><div><h2>{t('apiDocsImagesTitle')}</h2><p>{t('apiDocsImagesText')}</p></div></div><div className="api-endpoint"><span>POST</span><code>/v1/images/generations</code><small>application/json</small></div><ApiCodeBlock label="cURL" code={imageRequest} codeId="image-request" copied={copied} onCopy={copyCode} t={t} /><div className="api-image-note"><strong>{t('apiDocsImageNoteTitle')}</strong><p>{t('apiDocsImageNote')}</p></div></section>
+          <section id="api-image" className="api-doc-section api-image-section"><div className="api-doc-section-heading"><span className="api-doc-number">05</span><div><h2>{t('apiDocsImagesTitle')}</h2><p>{t('apiDocsImagesText')}</p></div></div><div className="api-endpoint"><span>POST</span><code>/v1/images/generations</code><small>application/json</small></div><ApiCodeBlock label="cURL" code={imageRequest} codeId="image-request" copied={copied} onCopy={copyCode} t={t} /><p className="api-image-model-link"><a className="text-link" href={language === 'en' ? imageLaunchModel.seoPathEn : imageLaunchModel.seoPath}>{t('imageModelDetails')} <Icon name="arrow" size={14} /></a></p><div className="api-image-note"><strong>{t('apiDocsImageNoteTitle')}</strong><p>{t('apiDocsImageNote')}</p></div></section>
 
           <section id="api-pricing" className="api-doc-section"><div className="api-doc-section-heading"><span className="api-doc-number">06</span><div><div className="api-method-badge get">GET</div><h2>{t('apiDocsPricingTitle')}</h2><p>{t('apiDocsPricingText')}</p></div></div><div className="api-endpoint"><span>GET</span><code>/v1/pricing?model={'{model}'}</code><small>application/json · read-only</small></div><ApiCodeBlock label="cURL" code={pricingRequest} codeId="pricing-request" copied={copied} onCopy={copyCode} t={t} /><div className="api-response-grid"><article className="api-response-card"><div className="api-response-label">{t('apiDocsPricingTitle')}</div><pre>{pricingResponse}</pre></article></div><div className="api-callout"><strong>{t('apiDocsImportant')}</strong><p>{t('apiDocsPricingNote')}</p></div></section>
         </article>
@@ -915,7 +920,7 @@ function BlogPage() {
     });
   }, [language, isDetail, post]);
 
-  const formatDate = (date) => new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(date));
+  const formatDate = (date) => formatPublicationDate(date, language);
 
   return <div className="blog-shell">
     <header className="site-header api-docs-header blog-header">
@@ -934,8 +939,8 @@ function BlogPage() {
   </div>;
 }
 
-function MediaDocs({ t }) {
-  const imageRequest = `curl ${baseUrl}/images/generations \\\n  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gpt-image-2.5","prompt":"a cinematic city at night","size":"1024x1024","n":1}'`;
+function MediaDocs({ t, language = 'zh' }) {
+  const imageRequest = `curl ${baseUrl}/images/generations \\\n  -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gpt-image-2.6","prompt":"a cinematic city at night","size":"1024x1024","response_format":"b64_json"}'`;
   const videoRequest = `curl -X POST ${baseUrl}/videos -H "Authorization: Bearer $CHEAPBUDDY_API_KEY" -F "model=MiniMax-H3" -F "prompt=A slow camera move through a misty forest"`;
   const videoPoll = `curl ${baseUrl}/videos/{video_id} \\
   -H "Authorization: Bearer $CHEAPBUDDY_API_KEY"
@@ -948,7 +953,7 @@ curl ${baseUrl}/videos/{video_id}/content \\
     <div className="section-heading compact"><span className="section-index">06</span><div><h2>{t('mediaDocsTitle')}</h2><p>{t('mediaDocsLead')}</p></div></div>
     <div className="media-docs-intro"><span className="media-docs-badge">OPENAI COMPATIBLE MEDIA</span><p>{t('mediaDocsIntro')}</p><code>{baseUrl}</code></div>
     <div className="media-doc-grid">
-      <article className="media-doc-card media-doc-image"><div className="media-doc-card-head"><span className="media-doc-mark">IMG</span><div><h3>gpt-image-2.5</h3><p>{t('imageDocsSummary')}</p></div></div><div className="media-doc-meta"><span>POST</span><code>/v1/images/generations</code></div><div className="media-doc-meta"><span>EDIT</span><code>/v1/images/edits</code></div><pre><code>{imageRequest}</code></pre><ol><li>{t('imageDocsStepOne')}</li><li>{t('imageDocsStepTwo')}</li><li>{t('imageDocsStepThree')}</li></ol></article>
+      <article className="media-doc-card media-doc-image"><div className="media-doc-card-head"><span className="media-doc-mark">I26</span><div><h3>gpt-image-2.6</h3><p>{t('imageDocsSummary')}</p></div></div><div className="media-doc-meta"><span>POST</span><code>/v1/images/generations</code></div><div className="media-doc-meta"><span>EDIT</span><code>/v1/images/edits</code></div><pre><code>{imageRequest}</code></pre><ol><li>{t('imageDocsStepOne')}</li><li>{t('imageDocsStepTwo')}</li><li>{t('imageDocsStepThree')}</li></ol><a className="text-link" href={language === 'en' ? imageLaunchModel.seoPathEn : imageLaunchModel.seoPath}>{t('imageModelDetails')} <Icon name="arrow" size={14} /></a></article>
       <article className="media-doc-card media-doc-video"><div className="media-doc-card-head"><span className="media-doc-mark">H3</span><div><h3>MiniMax-H3</h3><p>{t('videoDocsSummary')}</p></div></div><div className="media-doc-meta"><span>POST</span><code>/v1/videos</code></div><pre><code>{videoRequest}</code></pre><div className="media-doc-meta"><span>GET</span><code>/v1/videos/{'{video_id}'}</code></div><pre><code>{videoPoll}</code></pre><ol><li>{t('videoDocsStepOne')}</li><li>{t('videoDocsStepTwo')}</li><li>{t('videoDocsStepThree')}</li></ol></article>
     </div>
     <div className="media-doc-note"><strong>{t('mediaDocsConfigTitle')}</strong><p>{t('mediaDocsConfigText')}</p><a href="/comfyui">{t('mediaDocsOpenComfyUI')} <Icon name="arrow" size={14} /></a></div>
@@ -1024,6 +1029,8 @@ function HomePage() {
   const t = (key, variables) => translate(language, key, variables);
   const campaign = getModelCampaignState(campaignNow);
   const campaignEnd = formatCampaignEnd(MODEL_CAMPAIGN.endAt, language);
+  const imageLaunchActive = isModelRecentlyLaunched(imageLaunchModel, campaignNow);
+  const imageModelPath = language === 'en' ? imageLaunchModel.seoPathEn : imageLaunchModel.seoPath;
   const turnstileSiteKey = publicTurnstile.siteKey || configuredTurnstileSiteKey;
   const turnstileEnabled = publicTurnstile.enabled || Boolean(configuredTurnstileSiteKey);
   const turnstileRequired = turnstileRequiredByEnv || turnstileEnabled;
@@ -1784,6 +1791,12 @@ function HomePage() {
     </header>
 
     <main>
+      {imageLaunchActive && <aside className="model-launch-banner" aria-labelledby="image-launch-title">
+        <div className="model-launch-inner section-wrap">
+          <div className="model-launch-copy"><span className="model-new-badge">NEW</span><div><strong id="image-launch-title">{t('imageLaunchTitle')}</strong><p>{t('imageLaunchDescription')}</p></div></div>
+          <div className="model-launch-actions"><a className="model-launch-primary" href={`${imageModelPath}#request`}>{t('imageLaunchStart')} <Icon name="arrow" size={14} /></a><a href="/api-docs#api-image">{t('imageLaunchDocs')}</a></div>
+        </div>
+      </aside>}
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
           <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: models.length })}</div>
@@ -1813,14 +1826,15 @@ function HomePage() {
       <section id="models" className="models-section section-wrap">
         <div className="section-heading"><span className="section-index">01</span><div><h2>{t('modelShelfTitle')}</h2><p>{t('modelShelfLead', { count: models.length })}</p></div><a href="#generator" className="heading-link" onClick={(event) => { event.preventDefault(); openGenerator(); }}>{t('startCombining')} <Icon name="arrow" size={15} /></a></div>
         <p className="model-protocol-note">{t('claudeProtocolSupport')}</p>
-        <div className="model-grid">{homepageModels.map((model) => <article className={`model-card model-card-${model.modality}${model.campaignActive ? ' model-card-campaign' : ''}`} key={model.id}>
-          <div className="model-card-top"><ModelMark model={model} /><span className="model-state"><span className="mini-dot" /> {model.campaignActive ? t('campaignModelBadge') : t('available')}</span></div>
+        <div className="model-grid">{homepageModels.map((model) => <article className={`model-card model-card-${model.modality}${model.campaignActive ? ' model-card-campaign' : ''}${isModelRecentlyLaunched(model, campaignNow) ? ' model-card-new' : ''}`} key={model.id}>
+          <div className="model-card-top"><ModelMark model={model} /><div className="model-card-labels">{isModelRecentlyLaunched(model, campaignNow) && <span className="model-new-badge">NEW</span>}<span className="model-state"><span className="mini-dot" /> {model.campaignActive ? t('campaignModelBadge') : t('available')}</span></div></div>
           <div className="model-card-name"><small>{model.vendor} / {model.short}</small><h3>{model.seoPath ? <a href={language === 'en' ? model.seoPathEn || model.seoPath : model.seoPath}>{model.id}</a> : model.id}</h3></div><p>{model.description}</p>
-          <div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><strong>{t('officialModelPrice')}</strong><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div>
+          {model.showPricing === false ? <div className="model-api-summary"><span>OpenAI-compatible</span><code>POST /v1{model.endpointPath}</code></div> : <div className="model-prices" title={model.priceUnit}>{model.modality === 'text' ? <><strong>{t('officialModelPrice')}</strong><span>{t('input')} <b>{model.input}</b> / M</span><span>{t('output')} <b>{model.output}</b> / M</span></> : <><span>{model.billingUnit}</span><span><b>{model.input}</b> · <b>{model.output}</b></span></>}</div>}
           {model.campaignActive && <div className="model-prices model-campaign-prices" title={model.campaignPriceUnit}><strong>{t('campaignCustomerPrice')}</strong><span>{t('input')} <b>{model.campaignInput}</b> / M</span><span>{t('output')} <b>{model.campaignOutput}</b> / M</span></div>}
           {model.retailInput && <div className="model-prices model-retail-prices" title={model.retailPriceUnit}><strong>{t('retailModelPrice')}</strong><span>{t('input')} <b>{model.retailInput}</b> / M</span><span>{t('output')} <b>{model.retailOutput}</b> / M</span></div>}
           {model.channelId === 'claude' && <div className="model-cache-prices"><span>{t('officialModelPrice')}: {model.priceUnit}</span>{model.campaignPriceUnit && <span>{t('campaignCustomerPrice')}: {model.campaignPriceUnit}</span>}{model.retailPriceUnit && <span>{t('retailModelPrice')}: {model.retailPriceUnit}</span>}<a href={model.priceSourceUrl} target="_blank" rel="noopener noreferrer">{t('officialPricingSource')} ↗ · {model.priceCheckedAt}</a><span>{t('claudePricePolicy')}</span></div>}
           <div className="model-card-meta"><span className={`model-modality model-modality-${model.modality}`}>{model.modality === 'image' ? t('imageModel') : model.modality === 'video' ? t('videoModel') : t('textModel')}</span>{model.seoPath ? <a className="model-detail-link" href={language === 'en' ? model.seoPathEn || model.seoPath : model.seoPath}>{language === 'zh' ? '查看模型页 ↗' : 'Model page ↗'}</a> : <b>{model.endpointPath}</b>}</div>
+          {model.id === imageLaunchModel.id && <a className="model-docs-link" href="/api-docs#api-image">{t('imageLaunchDocs')} <Icon name="arrow" size={14} /></a>}
         </article>)}</div>
         <div className="shelf-note"><span className="shelf-line" /><span>{t('priceNote')}</span><span className="shelf-line" /></div>
       </section>

@@ -1,13 +1,9 @@
 import { USD_TO_CNY_RATE } from './payment.js';
 import { getModelRetailPricing } from './pricing.js';
 
-const fixedImagePricing = {
-  input: '$0.015384', output: '¥0.10', priceStatus: 'verified', priceCheckedAt: '2026-11-05',
-  priceUnit: {
-    zh: '本站固定价：¥0.10/张；美元余额每张扣 $0.015384，按 1 USD = 6.5 CNY 换算并取 quota 精度。',
-    en: 'Fixed CheapBuddy price: CNY 0.10 per image; USD balance debit $0.015384 per image, converted at 1 USD = 6.5 CNY and rounded to quota precision.',
-  },
-  billingUnit: { zh: '本站固定价 · 每张图片', en: 'CheapBuddy fixed price · per image' },
+const imageApiMetadata = {
+  input: '按任务', output: '按图片', showPricing: false,
+  billingUnit: { zh: '图片 API', en: 'Image API' },
 };
 
 const claudeStableModels = [
@@ -169,12 +165,14 @@ export const modelCatalog = [
     supportsToolCall: false, supportsImages: false, supportsReasoning: false, onlyReasoning: false,
   },
   {
-    id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...fixedImagePricing, accent: 'violet', mark: 'IMG', featured: true, modality: 'image', endpointPath: '/images/generations',
+    id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...imageApiMetadata, accent: 'violet', mark: 'IMG', featured: true, modality: 'image', endpointPath: '/images/generations',
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
   {
-    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...fixedImagePricing, accent: 'violet', mark: 'I26', modality: 'image', endpointPath: '/images/generations',
+    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...imageApiMetadata, accent: 'violet', mark: 'I26', modality: 'image', endpointPath: '/images/generations',
+    launchedAt: '2026-11-05T00:00:00+08:00',
+    seoPath: '/model/gpt-image-2-6/', seoPathEn: '/en/model/gpt-image-2-6/',
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
@@ -240,6 +238,13 @@ function localizePriceUnit(value, locale, fromCurrency, toCurrency) {
 
 export function getHomepageModels(models = modelCatalog) {
   return models.filter((model) => model.showOnHomepage !== false);
+}
+
+export function isModelRecentlyLaunched(model, now = new Date()) {
+  const launchedAt = Date.parse(model?.launchedAt);
+  const timestamp = now instanceof Date ? now.getTime() : Date.parse(now);
+  return Number.isFinite(launchedAt) && Number.isFinite(timestamp)
+    && timestamp >= launchedAt && timestamp < launchedAt + 30 * 24 * 60 * 60 * 1000;
 }
 
 export function getHomepageFeaturedModels(models = modelCatalog, limit = 4) {

@@ -24,6 +24,7 @@ test('production static server serves model pages and preserves missing-resource
   await mkdir(join(directory, 'dist'));
   await cp(fileURLToPath(new URL('../public/model', import.meta.url)), join(directory, 'dist', 'model'), { recursive: true });
   await cp(fileURLToPath(new URL('../public/en/model', import.meta.url)), join(directory, 'dist', 'en', 'model'), { recursive: true });
+  await cp(fileURLToPath(new URL('../public/gpt-image-2-6-sample.webp', import.meta.url)), join(directory, 'dist', 'gpt-image-2-6-sample.webp'));
   await writeFile(join(directory, 'dist', 'model-pages.css'), 'model styles', 'utf8');
   const appHtml = '<!doctype html><div id="root">App shell</div>';
   await writeFile(join(directory, 'dist', 'index.html'), appHtml, 'utf8');
@@ -56,7 +57,7 @@ test('production static server serves model pages and preserves missing-resource
     });
   });
 
-  for (const path of ['/', '/api-docs', '/comfyui', '/hypit', '/payment/result', '/blog', '/blog/', '/blog/one-balance-model-routing', '/blog/gpt-image-2-6-guide', '/model/deepseek-v4-1-flash-1017/', '/model/claude-opus-5-5/', '/en/model/deepseek-v4-1-flash-1017/', '/en/model/claude-opus-5-5/']) {
+  for (const path of ['/', '/api-docs', '/comfyui', '/hypit', '/payment/result', '/blog', '/blog/', '/blog/one-balance-model-routing', '/blog/gpt-image-2-6-guide', '/model/deepseek-v4-1-flash-1017/', '/model/claude-opus-5-5/', '/model/gpt-image-2-6/', '/en/model/deepseek-v4-1-flash-1017/', '/en/model/claude-opus-5-5/', '/en/model/gpt-image-2-6/']) {
     await t.test(`${path} serves the React app shell`, async () => {
       const response = await fetch(`http://127.0.0.1:${port}${path}`);
       assert.equal(response.status, 200);
@@ -83,6 +84,17 @@ test('production static server serves model pages and preserves missing-resource
           assert.match(html, /deepseek-flash/);
           assert.match(html, /deepseek-v4\.1-flash-1017/);
           assert.doesNotMatch(html, /pptoken|EcoPhase|aiberm|0\.8/);
+        }
+        if (path.includes('gpt-image-2-6')) {
+          assert.match(html, /<h1[^>]*>GPT Image 2\.6<\/h1>/);
+          assert.match(html, new RegExp(`<link rel="canonical" href="https://cheapbuddy.cc${path}"`));
+          assert.match(html, /hreflang="zh-CN"/);
+          assert.match(html, /hreflang="en"/);
+          assert.match(html, /id="request"/);
+          assert.match(html, /gpt-image-2-6-sample\.webp/);
+          assert.match(html, /\/v1\/images\/generations/);
+          assert.match(html, /response_format/);
+          assert.doesNotMatch(html, /¥|\$0\.|0\.10|售价|成本|"offers"|"price"|per image price/i);
         }
       } else {
         assert.equal(await response.text(), appHtml);
@@ -113,6 +125,16 @@ test('production static server serves model pages and preserves missing-resource
       assert.ok(modelCatalog.some((model) => model.id === id));
       assert.match(body, new RegExp(`id \`${id.replaceAll('.', '\\.')}\``));
     }
+  });
+
+  await t.test('the image sample is a real downloadable WebP image', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/gpt-image-2-6-sample.webp`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/webp');
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.subarray(0, 4).toString(), 'RIFF');
+    assert.equal(bytes.subarray(8, 12).toString(), 'WEBP');
+    assert.ok(bytes.length > 10000);
   });
 
   for (const path of ['/robots.txt', '/sitemap.xml']) {

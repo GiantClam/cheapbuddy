@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getHomepageFeaturedModels, getHomepageModels, localizeModels, modelCatalog } from './models.js';
+import { getHomepageFeaturedModels, getHomepageModels, isModelRecentlyLaunched, localizeModels, modelCatalog } from './models.js';
 import { CLAUDE_API_KEY_GROUP_ID, getModelApiKeyGroupId } from './key-groups.js';
 
 test('model catalog contains unique ids and generator metadata', () => {
@@ -133,7 +133,10 @@ test('model SEO page links have localized alternates', () => {
   assert.equal(opus.seoPathEn, '/en/model/claude-opus-5-5/');
   assert.equal(deepseek.seoPath, '/model/deepseek-v4-1-flash-1017/');
   assert.equal(deepseek.seoPathEn, '/en/model/deepseek-v4-1-flash-1017/');
-  assert.equal(modelCatalog.filter((model) => model.seoPath).length, 2);
+  const image = modelCatalog.find(({ id }) => id === 'gpt-image-2.6');
+  assert.equal(image.seoPath, '/model/gpt-image-2-6/');
+  assert.equal(image.seoPathEn, '/en/model/gpt-image-2-6/');
+  assert.equal(modelCatalog.filter((model) => model.seoPath).length, 3);
 });
 
 test('verified token rates use official values and unavailable rates stay explicit', () => {
@@ -264,7 +267,7 @@ test('media models expose their native protocol and endpoint metadata', () => {
   assert.equal(video.supportsToolCall, false);
 });
 
-test('GPT Image 2.6 publishes the same billing surface as GPT Image 2.5', () => {
+test('GPT Image models publish their API without presenting supplier cost as a retail price', () => {
   const baseline = modelCatalog.find((model) => model.id === 'gpt-image-2.5');
   const launched = modelCatalog.find((model) => model.id === 'gpt-image-2.6');
   const billingSurface = ({ input, output, priceStatus, priceUnit, billingUnit, modality, endpointPath }) => (
@@ -274,14 +277,26 @@ test('GPT Image 2.6 publishes the same billing surface as GPT Image 2.5', () => 
   assert.deepEqual(billingSurface(launched), billingSurface(baseline));
   assert.equal(launched.short, 'GPT Image 2.6');
   assert.equal(launched.vendor.en, 'OpenAI');
-  assert.equal(localizeModels([launched], 'zh')[0].input, '$0.015384');
-  assert.equal(localizeModels([launched], 'en')[0].output, '¥0.10');
-  assert.match(launched.billingUnit.zh, /每张/);
-  assert.match(launched.priceUnit.en, /Fixed CheapBuddy price/);
+  for (const model of [baseline, launched]) {
+    assert.equal(model.showPricing, false);
+    assert.equal(model.priceStatus, undefined);
+    assert.equal(model.priceUnit, undefined);
+    assert.doesNotMatch(`${model.input} ${model.output}`, /[$¥]|0\.10|0\.015384/);
+  }
   // The hero strip stays unchanged: only the shelf lists the new image model.
   assert.equal(launched.featured, undefined);
   assert.ok(!getHomepageFeaturedModels().some(({ id }) => id === 'gpt-image-2.6'));
   assert.ok(getHomepageModels().some(({ id }) => id === 'gpt-image-2.6'));
+});
+
+test('the launch announcement and NEW badge expire 30 days after the China-local launch date', () => {
+  const image = modelCatalog.find(({ id }) => id === 'gpt-image-2.6');
+  assert.equal(isModelRecentlyLaunched(image, '2026-11-04T23:59:59+08:00'), false);
+  assert.equal(isModelRecentlyLaunched(image, '2026-11-05T00:00:00+08:00'), true);
+  assert.equal(isModelRecentlyLaunched(image, '2026-12-04T23:59:59+08:00'), true);
+  assert.equal(isModelRecentlyLaunched(image, '2026-12-05T00:00:00+08:00'), false);
+  assert.equal(isModelRecentlyLaunched(image, 'invalid'), false);
+  assert.equal(isModelRecentlyLaunched(modelCatalog[0], '2026-11-05'), false);
 });
 
 test('Jev is cataloged as a native System One model and not as chat', () => {
@@ -363,7 +378,7 @@ test('quotes both public DeepSeek Flash IDs in USD with localized cache wording'
   }
 });
 
-test('keeps unverified prices explicit and quotes fixed image rates in both currencies', () => {
+test('localization keeps unverified prices and unpublished image prices out of monetary conversions', () => {
   const unverified = modelCatalog.find((model) => model.id === 'glm-5.3');
   const image = modelCatalog.find((model) => model.id === 'gpt-image-2.5');
   const [unverifiedEn, imageZh] = localizeModels([unverified, image], 'en');
@@ -372,10 +387,10 @@ test('keeps unverified prices explicit and quotes fixed image rates in both curr
   assert.equal(unverifiedEn.input, '待核验');
   assert.equal(unverifiedEn.output, '待核验');
   assert.equal(unverifiedEn.priceUnit, 'Official rate not verified');
-  assert.equal(imageZh.input, '$0.015384');
-  assert.equal(imageZh.output, '¥0.10');
-  assert.equal(imageChinese.input, '$0.015384');
-  assert.equal(imageChinese.output, '¥0.10');
+  assert.equal(imageZh.showPricing, false);
+  assert.equal(imageChinese.showPricing, false);
+  assert.equal(imageZh.priceUnit, undefined);
+  assert.equal(imageChinese.priceUnit, undefined);
 });
 
 test('localizes native currency and time units for media pricing', () => {

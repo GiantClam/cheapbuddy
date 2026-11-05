@@ -53,7 +53,7 @@ Text:
 Image:
 
 - [gpt-image-2.5](https://cheapbuddy.cc/api-docs): id `gpt-image-2.5`; OpenAI; Image generation and editing through the image API. POST /v1/images/generations.
-- [gpt-image-2.6](https://cheapbuddy.cc/api-docs): id `gpt-image-2.6`; OpenAI; Image generation and editing through the image API. POST /v1/images/generations.
+- [gpt-image-2.6](https://cheapbuddy.cc/en/model/gpt-image-2-6/): id `gpt-image-2.6`; OpenAI; Image generation and editing through the image API. POST /v1/images/generations.
 
 Video:
 

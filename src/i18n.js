@@ -1228,6 +1228,12 @@ export function translate(language, key, variables) {
   return interpolate(value, variables);
 }
 
+export function formatPublicationDate(date, language = 'zh') {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
+    year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
+  }).format(new Date(date));
+}
+
 export function localizedModel(model, language) {
   return { ...model, description: translate(language, model.descriptionKey) };
 }
@@ -1238,6 +1244,15 @@ export function localizedPlan(plan, language) {
 
 Object.assign(messages.zh, {
   tokenBreakdown: '入 {input} · 出 {output} · 缓存 {cache}',
+  imageLaunchTitle: 'GPT Image 2.6 已上线',
+  imageLaunchDescription: '通过 OpenAI 兼容图片 API，让创意进入你的工作流。',
+  imageLaunchStart: '立即调用',
+  imageLaunchDocs: '查看 API 文档',
+  imageModelDetails: '查看 GPT Image 2.6 模型页',
+  imageDocsStepTwo: '使用 gpt-image-2.6、prompt、size 和 response_format 提交单张请求；可选字段以当前通道支持范围为准。',
+  apiDocsImagesText: 'GPT Image 2.6 已上线，gpt-image-2.5 继续可用。图片请求使用独立的 OpenAI 兼容接口。',
+  apiDocsImageNoteTitle: '先用单张请求验证',
+  apiDocsImageNote: '示例使用已验证的 GPT Image 2.6 文生图请求。建议省略 n 和 quality；实际尺寸、编辑功能及可选参数以当前通道支持范围为准。图片编辑使用 /v1/images/edits。',
   rangeBilledCost: '区间实际扣费',
   billingRecords: '最近扣费明细',
   recordTokens: '入 {input} / 出 {output} / 缓存 {cache}',
@@ -1247,6 +1262,15 @@ Object.assign(messages.zh, {
 
 Object.assign(messages.en, {
   tokenBreakdown: 'in {input} · out {output} · cache {cache}',
+  imageLaunchTitle: 'GPT Image 2.6 is live',
+  imageLaunchDescription: 'Bring image generation into your workflow with an OpenAI-compatible API.',
+  imageLaunchStart: 'Start building',
+  imageLaunchDocs: 'API documentation',
+  imageModelDetails: 'Explore GPT Image 2.6',
+  imageDocsStepTwo: 'Submit a single image with gpt-image-2.6, prompt, size, and response_format; optional fields depend on the current route.',
+  apiDocsImagesText: 'GPT Image 2.6 is live, and gpt-image-2.5 remains available. Image requests use the separate OpenAI-compatible endpoint.',
+  apiDocsImageNoteTitle: 'Start with a single image',
+  apiDocsImageNote: 'This example follows a verified GPT Image 2.6 text-to-image request. Omit n and quality initially; returned size, editing, and optional fields depend on the current route. Use /v1/images/edits for edits.',
   rangeBilledCost: 'Billed in range',
   billingRecords: 'Recent charges',
   recordTokens: 'in {input} / out {output} / cache {cache}',

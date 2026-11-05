@@ -186,6 +186,33 @@ a { color: inherit; text-decoration: none; }
   .guide-method { padding: 14px; }
 }
 
+.model-launch-banner { border-bottom: 1px solid rgba(80, 227, 164, .22); background: #0b2429; }
+.model-launch-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 18px; padding-bottom: 18px; letter-spacing: 0; }
+.model-launch-copy { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.model-launch-copy strong { color: #e0f4ed; font-size: 16px; line-height: 1.5; }
+.model-launch-copy p { margin: 3px 0 0; color: #9dbab5; font-size: 12px; line-height: 1.6; }
+.model-new-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 37px; height: 22px; padding: 0 6px; border: 1px solid rgba(80, 227, 164, .5); border-radius: 4px; color: #81f0b9; font: 600 10px 'DM Mono', monospace; letter-spacing: 0; }
+.model-launch-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 22px; }
+.model-launch-actions a { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; color: #b4cbc7; font-size: 12px; }
+.model-launch-actions .model-launch-primary { color: #81f0b9; font-weight: 600; }
+.model-launch-actions a:hover, .model-docs-link:hover { color: #e0fff0; }
+.model-launch-actions a:focus-visible, .model-docs-link:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+.model-card-labels { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.model-card-new { border-color: rgba(80, 227, 164, .45); }
+.model-api-summary { display: flex; flex-direction: column; gap: 9px; margin: 19px 0 18px; }
+.model-api-summary span { color: #9db3c1; font-size: 11px; }
+.model-api-summary code { color: #a9d8e4; font: 10px/1.7 'DM Mono', monospace; overflow-wrap: anywhere; letter-spacing: 0; }
+.model-docs-link { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin-top: 13px; color: var(--green); font-size: 11px; }
+.blog-content-section img { display: block; width: 100%; height: auto; margin: 24px 0; }
+@media (max-width: 650px) {
+  .model-launch-inner { align-items: flex-start; flex-direction: column; gap: 10px; padding-top: 14px; padding-bottom: 12px; }
+  .model-launch-copy { align-items: flex-start; gap: 10px; }
+  .model-launch-copy strong { font-size: 15px; }
+  .model-launch-copy p { font-size: 11px; }
+  .model-launch-actions { width: 100%; padding-left: 47px; gap: 18px; }
+  .model-launch-actions a { font-size: 11px; }
+}
+
 /* Blog: an editorial layer for product notes and practical guides. */
 .blog-shell { min-height: 100vh; background: radial-gradient(circle at 78% 4%, rgba(80, 227, 164, .09), transparent 28rem), radial-gradient(circle at 12% 28%, rgba(113, 185, 255, .08), transparent 24rem), #07111f; }
 .blog-header { background: rgba(7, 17, 31, .84); }

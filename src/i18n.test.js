@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getInitialLanguage, setStoredLanguage, translate } from './i18n.js';
+import { formatPublicationDate, getInitialLanguage, setStoredLanguage, translate } from './i18n.js';
+
+test('publication dates preserve their calendar day independently of the browser timezone', () => {
+  assert.equal(formatPublicationDate('2026-11-05', 'zh'), '2026年11月5日');
+  assert.equal(formatPublicationDate('2026-11-05', 'en'), 'Nov 5, 2026');
+});
 
 function installBrowserFixture(t, { storedLanguage = 'zh', hasLocale = true } = {}) {
   let stored = storedLanguage;
