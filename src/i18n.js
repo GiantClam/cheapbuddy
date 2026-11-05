@@ -1236,4 +1236,22 @@ export function localizedPlan(plan, language) {
   return { ...plan, name: translate(language, plan.nameKey), description: translate(language, plan.descriptionKey), tag: translate(language, plan.tagKey) };
 }
 
+Object.assign(messages.zh, {
+  tokenBreakdown: '入 {input} · 出 {output} · 缓存 {cache}',
+  rangeBilledCost: '区间实际扣费',
+  billingRecords: '最近扣费明细',
+  recordTokens: '入 {input} / 出 {output} / 缓存 {cache}',
+  noBillingRecords: '暂无扣费明细，产生一次计费请求后会显示在这里。',
+  rateMultiplierLabel: '计费倍率',
+});
+
+Object.assign(messages.en, {
+  tokenBreakdown: 'in {input} · out {output} · cache {cache}',
+  rangeBilledCost: 'Billed in range',
+  billingRecords: 'Recent charges',
+  recordTokens: 'in {input} / out {output} / cache {cache}',
+  noBillingRecords: 'No charge records yet. They appear after your first billed request.',
+  rateMultiplierLabel: 'Billing multiplier',
+});
+
 export { messages };

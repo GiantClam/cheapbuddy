@@ -5,14 +5,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './styles.css';
 import './paywall.css';
-import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, sendVerificationCode, transferAffiliateQuota, verifyAdminAccess } from './api';
+import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, getUsageRecords, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, sendVerificationCode, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
 import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, getNextModelCampaignBoundaryDelay, MODEL_CAMPAIGN, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, parseConnectionTestResponse, platformOptions } from './platform-config';
 import { localizedAnnouncementContent, localizedAnnouncementTitle } from './announcements';
-import { mergeUsageModels } from './usage';
+import { getUsageBilledTotal, hasTokenBreakdown, isUsageCostReported, mapUsageRecords, mergeUsageModels } from './usage';
 import { OPENAI_API_KEY_GROUP_ID } from './key-groups';
 
 import { getHomepageFeaturedModels, getHomepageModels, localizeModels, modelCatalog as models } from './models';
@@ -246,6 +246,14 @@ function formatCompactNumber(value) {
   return number.toLocaleString('en-US');
 }
 
+function formatRecordTime(value, language) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(date);
+}
+
 function formatCampaignEnd(endsAt, language) {
   return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
     timeZone: 'Asia/Shanghai',
@@ -315,16 +323,28 @@ async function writeClipboard(text) {
   if (!copied) throw new Error('Clipboard unavailable');
 }
 
-function AccountPanel({ user, balance, usageSummary, usageModels, usageLoading, usageError, onAffiliate, onOrders, onClose, onRefresh, onRecharge, onConfig, onLogout, t }) {
+function AccountPanel({ user, balance, usageSummary, usageModels, usageRecords, usageLoading, usageError, language, onAffiliate, onOrders, onClose, onRefresh, onRecharge, onConfig, onLogout, t }) {
   const stats = usageSummary || {};
+  const rangeCost = getUsageBilledTotal(usageModels);
+  const costReported = isUsageCostReported(usageModels);
+  // The stats endpoint prefixes breakdown fields with total_ while the
+  // per-model endpoint does not; normalize so one helper reads both shapes.
+  const statsBreakdown = {
+    input_tokens: stats.total_input_tokens,
+    output_tokens: stats.total_output_tokens,
+    cache_creation_tokens: stats.total_cache_creation_tokens,
+    cache_read_tokens: stats.total_cache_read_tokens,
+  };
   return <div className="modal-backdrop" role="presentation" onClick={onClose}>
     <div className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onClick={(event) => event.stopPropagation()}>
       <div className="modal-header"><div><span className="modal-kicker">CHEAPBUDDY ACCOUNT</span><h2 id="account-title">{t('accountTitle')}</h2><p className="account-email">{user?.email || t('cheapbuddyUser')}</p></div><button className="modal-close" onClick={onClose} aria-label={t('close')}>×</button></div>
       <div className="account-balance"><div><span>{t('currentBalance')}</span><strong>{formatLedgerAmount(balance || 0)}</strong><small>{t('sharedBalance')}</small></div><div className="account-actions"><button className="button button-primary" onClick={onRecharge}>{t('recharge')}</button><button className="button button-ghost" onClick={onOrders}>{t('paymentOrders')}</button><button className="button button-ghost" onClick={onConfig}>{t('generate')}</button><button className="button button-ghost" onClick={onAffiliate}>{t('affiliate')}</button></div></div>
-      <div className="account-stats"><div><span>{t('totalRequests')}</span><strong>{formatCompactNumber(stats.total_requests)}</strong></div><div><span>{t('totalTokens')}</span><strong>{formatCompactNumber(stats.total_tokens)}</strong></div><div><span>{t('todayCost')}</span><strong>{formatLedgerAmount(stats.today_actual_cost || 0, 4)}</strong></div></div>
+      <div className="account-stats"><div><span>{t('totalRequests')}</span><strong>{formatCompactNumber(stats.total_requests)}</strong></div><div><span>{t('totalTokens')}</span><strong>{formatCompactNumber(stats.total_tokens)}</strong>{hasTokenBreakdown(statsBreakdown) && <small>{t('tokenBreakdown', { input: formatCompactNumber(statsBreakdown.input_tokens), output: formatCompactNumber(statsBreakdown.output_tokens), cache: formatCompactNumber(Number(statsBreakdown.cache_read_tokens || 0) + Number(statsBreakdown.cache_creation_tokens || 0)) })}</small>}</div><div><span>{t('rangeBilledCost')}</span><strong>{costReported ? formatLedgerAmount(rangeCost, 4) : '—'}</strong><small>{t('todayCost')} {formatLedgerAmount(stats.today_actual_cost || 0, 4)}</small></div></div>
       <div className="account-usage-head"><div><span className="modal-kicker">USAGE</span><h3>{t('recentUsage')}</h3></div><button className="text-button" onClick={onRefresh} disabled={usageLoading}>{usageLoading ? t('syncing') : t('refreshData')}</button></div>
       {usageError && <p className="account-error">{usageError}</p>}
-      {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 7).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = Number(item.total_requests ?? item.requests ?? 0); const mediaUsage = model?.modality === 'image' || model?.modality === 'video'; const usageValue = mediaUsage ? formatLedgerAmount(item.actual_cost || 0, 4) : formatCompactNumber(item.total_tokens); const usageLabel = mediaUsage ? t('mediaUsageCost') : 'tokens'; const maxRequests = Math.max(...usageModels.map((entry) => Number(entry.total_requests ?? entry.requests ?? 0)), 1); return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}</small></div><strong>{usageValue} <small>{usageLabel}</small></strong><i><em style={{ width: `${Math.min(100, Math.max(7, ((requestCount / maxRequests) * 100)))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
+      {usageLoading ? <div className="account-loading"><span /><span /><span /></div> : usageModels.length ? <div className="account-usage-list">{usageModels.slice(0, 7).map((item) => { const model = models.find((entry) => entry.id === item.model); const requestCount = Number(item.total_requests ?? item.requests ?? 0); const breakdown = hasTokenBreakdown(item); const costShare = Number(item.actual_cost || 0); const maxShare = (costReported ? Math.max(...usageModels.map((entry) => Number(entry.actual_cost || 0)), 0) : 0) || Math.max(...usageModels.map((entry) => Number(entry.total_requests ?? entry.requests ?? 0)), 1); const share = costReported ? costShare : requestCount; return <div className="account-usage-row" key={item.model}><span className="account-model-mark">{model?.mark || 'AI'}</span><div><b>{item.model || t('unknownModel')}</b><small>{t('requestCount', { count: formatCompactNumber(requestCount) })}{breakdown ? ` · ${t('tokenBreakdown', { input: formatCompactNumber(item.input_tokens), output: formatCompactNumber(item.output_tokens), cache: formatCompactNumber(Number(item.cache_read_tokens || 0) + Number(item.cache_creation_tokens || 0)) })}` : ''}</small></div><strong>{item.total_tokens > 0 ? `${formatCompactNumber(item.total_tokens)} ` : '— '}<small>tokens</small></strong><strong>{item.cost_reported ? formatLedgerAmount(item.actual_cost, 4) : '—'}</strong><i><em style={{ width: `${Math.min(100, Math.max(7, ((share / maxShare) * 100)))}%` }} /></i></div>; })}</div> : <div className="account-empty">{t('noUsage')}</div>}
+      <div className="account-usage-head"><div><span className="modal-kicker">LEDGER</span><h3>{t('billingRecords')}</h3></div></div>
+      {usageLoading ? <div className="account-loading"><span /><span /></div> : usageRecords.length ? <div className="account-records">{usageRecords.slice(0, 8).map((record) => <div className="account-record-row" key={record.id}><span>{formatRecordTime(record.createdAt, language)}</span><b>{record.model || t('unknownModel')}</b><small>{t('recordTokens', { input: formatCompactNumber(record.inputTokens), output: formatCompactNumber(record.outputTokens), cache: formatCompactNumber(record.cacheReadTokens + record.cacheCreationTokens) })}</small><strong>{formatLedgerAmount(record.actualCost, 6)}</strong>{record.rateMultiplier !== null && <em title={t('rateMultiplierLabel')}>×{record.rateMultiplier}</em>}</div>)}</div> : <div className="account-empty">{t('noBillingRecords')}</div>}
       <div className="account-footer"><p className="account-source">{t('readOnlyData')}</p><button className="text-button account-logout" onClick={onLogout}>{t('logout')}</button></div>
     </div>
   </div>;
@@ -988,6 +1008,7 @@ function HomePage() {
   const [testState, setTestState] = useState('idle');
   const [usageSummary, setUsageSummary] = useState(null);
   const [usageModels, setUsageModels] = useState([]);
+  const [usageRecords, setUsageRecords] = useState([]);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState('');
   const [affiliateDetail, setAffiliateDetail] = useState(null);
@@ -1198,6 +1219,11 @@ function HomePage() {
       const mediaModels = Array.isArray(mediaResult?.models) ? mediaResult.models : [];
       setUsageSummary(stats || {});
       setUsageModels(mergeUsageModels(textModels, mediaModels));
+      const recordResult = await getUsageRecords({ page: 1, page_size: 8, start_date: toDate(startDate), end_date: toDate(endDate) }).catch((error) => {
+        if (error?.status !== 404 && error?.status !== 405) console.warn('Usage records are unavailable', error);
+        return null;
+      });
+      setUsageRecords(mapUsageRecords(recordResult?.items || recordResult?.data || []));
     } catch (error) {
       setUsageError(error.message || t('usageSyncFailed'));
     } finally {
@@ -1713,6 +1739,7 @@ function HomePage() {
     setBalance(null);
     setUsageSummary(null);
     setUsageModels([]);
+    setUsageRecords([]);
     setAffiliateDetail(null);
     setAffiliateError('');
     setShowAccount(false);
@@ -1816,7 +1843,7 @@ function HomePage() {
 
     <footer className="footer section-wrap"><Logo t={t} /><div className="footer-note">{t('footerNote')}<br /><span>{t('poweredBy')}</span></div><div className="footer-links"><a href="#models">{t('footerModels')}</a><a href="#guide">{t('footerGuide')}</a><a href="/blog">Blog</a><a href="/api-docs">{t('footerMediaDocs')}</a><a href="/comfyui">{t('navComfyUI')}</a><a href="/hypit">{t('navHypit')}</a><a href="#" onClick={(event) => { event.preventDefault(); notify(t('serviceStatus')); }}>{t('serviceStatus')}</a></div><div className="footer-contact" aria-label={t('contact')}><div className="footer-contact-info"><span className="footer-contact-label">{t('contact')}</span><a className="footer-x-link" href="https://x.com/dennis_huangbei" target="_blank" rel="noopener noreferrer" aria-label={t('contactOnX')}><span className="footer-x-mark" aria-hidden="true">X</span><span>@dennis_huangbei</span><Icon name="arrow" size={14} /></a></div><img className="footer-qr" src="/wechat-contact-qr.png" width="128" height="128" loading="lazy" decoding="async" alt={t('wechatQr')} /></div><span className="footer-copy">© 2026 CheapBuddy</span></footer>
 
-    {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageLoading={usageLoading} usageError={usageError} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={openPaywall} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
+    {showAccount && <AccountPanel user={session.user} balance={balance} usageSummary={usageSummary} usageModels={usageModels} usageRecords={usageRecords} usageLoading={usageLoading} usageError={usageError} language={language} onAffiliate={() => { setShowAccount(false); openAffiliate(); }} onOrders={openPaymentOrders} onClose={() => setShowAccount(false)} onRefresh={loadUsage} onRecharge={openPaywall} onConfig={() => { setShowAccount(false); openGenerator(); }} onLogout={logout} t={t} />}
     {showPaywall && <PaywallPanel checkoutLoading={checkoutLoading} checkoutError={checkoutError} plans={displayPricingPlans} selectedPlanId={selectedPlanId} paymentLoading={paymentLoading} onRecharge={startRecharge} onClose={() => setShowPaywall(false)} language={language} t={t} />}
     {showPaymentOrders && <PaymentOrdersPanel orders={paymentOrders} error={paymentOrdersError} language={language} loading={paymentOrdersLoading} cancellingId={paymentOrderCancellingId} onClose={() => setShowPaymentOrders(false)} onRefresh={loadPaymentOrders} onCancel={cancelUserPaymentOrder} t={t} />}
 

@@ -169,6 +169,11 @@ export function getUsageDashboardModels(params) {
   return request(`/usage/dashboard/models${query ? `?${query}` : ''}`);
 }
 
+export function getUsageRecords(params) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/usage${query ? `?${query}` : ''}`);
+}
+
 export async function getMediaUsageDashboardModels(apiKey, params) {
   if (!apiKey) return { models: [], summary: {} };
   const query = new URLSearchParams(params).toString();
