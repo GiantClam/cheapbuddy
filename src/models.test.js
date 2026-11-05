@@ -194,9 +194,9 @@ test('Kimi K3.1 Pro localizes official and calculated customer rates separately'
   assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$2.00', '$10.00', '$1.25', '$6.25']);
   assert.match(en.priceUnit, /cache write \$2\.00/);
   assert.match(en.retailPriceUnit, /cache write \$1\.25/);
-  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['¥13.00', '¥65.00', '¥8.125', '¥40.625']);
-  assert.match(zh.priceUnit, /缓存写入 ¥13\.00/);
-  assert.match(zh.retailPriceUnit, /缓存写入 ¥8\.125/);
+  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['$2.00', '$10.00', '$1.25', '$6.25']);
+  assert.match(zh.priceUnit, /缓存写入 \$2\.00/);
+  assert.match(zh.retailPriceUnit, /缓存写入 \$1\.25/);
 });
 
 test('GPT-6.1 Terra publishes verified pricing, vision and reasoning metadata', () => {
@@ -240,9 +240,9 @@ test('GPT-6.1 Terra localizes official and inherited customer rates separately',
   assert.match(en.priceUnit, /cache read \$0\.05, 30m cache write \$1\.25, 12h cache write \$2\.50/);
   assert.match(en.retailPriceUnit, /cache read \$0\.036, 30m cache write \$0\.90, 12h cache write \$1\.80/);
   assert.match(en.retailPriceUnit, /above 272K input tokens: input\/cache 2x, output 1\.5x/);
-  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['¥6.50', '¥32.50', '¥4.68', '¥23.40']);
-  assert.match(zh.priceUnit, /缓存读取 ¥0\.325，30m 缓存写入 ¥8\.125，12h 缓存写入 ¥16\.25/);
-  assert.match(zh.retailPriceUnit, /缓存读取 ¥0\.234，30m 缓存写入 ¥5\.85，12h 缓存写入 ¥11\.70/);
+  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['$1.00', '$5.00', '$0.72', '$3.60']);
+  assert.match(zh.priceUnit, /缓存读取 \$0\.05，30m 缓存写入 \$1\.25，12h 缓存写入 \$2\.50/);
+  assert.match(zh.retailPriceUnit, /缓存读取 \$0\.036，30m 缓存写入 \$0\.90，12h 缓存写入 \$1\.80/);
   assert.deepEqual([terra.input, terra.output], ['$1.00', '$5.00']);
 });
 
@@ -290,11 +290,11 @@ test('converts verified USD prices to CNY in Chinese without mutating the catalo
   const grok = modelCatalog.find((model) => model.id === 'grok-4.7');
   const localized = localizeModels([grok], 'zh')[0];
 
-  assert.equal(localized.input, '¥13.00–¥26.00');
-  assert.equal(localized.output, '¥39.00–¥78.00');
-  assert.match(localized.priceUnit, /人民币/);
-  assert.match(localized.priceUnit, /¥3.25/);
-  assert.match(localized.priceUnit, /1 USD = 6.5 CNY/);
+  assert.equal(localized.input, '$2.00–$4.00');
+  assert.equal(localized.output, '$6.00–$12.00');
+  assert.match(localized.priceUnit, /美元/);
+  assert.match(localized.priceUnit, /\$0\.50/);
+  assert.doesNotMatch(localized.priceUnit, /参考汇率/);
   assert.equal(grok.input, '$2.00–$4.00');
 });
 
@@ -314,15 +314,25 @@ test('formats official USD prices and small price ranges in English', () => {
   assert.equal(deepseek.input, '$0.003–$0.006 cached · $0.15–$0.30 uncached');
 });
 
-test('uses the official Chinese DeepSeek rates for both public Flash IDs', () => {
+test('converts native CNY model prices to USD in Chinese', () => {
+  const qwen = modelCatalog.find((model) => model.id === 'qwen3.8-max');
+  const localized = localizeModels([qwen], 'zh')[0];
+
+  assert.deepEqual([localized.input, localized.output], ['$1.8462', '$5.5385']);
+  assert.match(localized.priceUnit, /美元 \/ 百万 Token/);
+  assert.match(localized.priceUnit, /\$0\.2308/);
+  assert.match(localized.priceUnit, /参考汇率：1 USD = 6\.5 CNY/);
+});
+
+test('quotes both public DeepSeek Flash IDs in USD with localized cache wording', () => {
   const models = modelCatalog.filter(({ id }) => id === 'deepseek-flash' || id === 'deepseek-v4.1-flash-1017');
   const localizedModels = localizeModels(models, 'zh');
   assert.equal(localizedModels.length, 2);
   for (const localized of localizedModels) {
-    assert.equal(localized.input, '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存');
-    assert.equal(localized.output, '¥4–¥8');
-    assert.match(localized.priceUnit, /人民币/);
-    assert.match(localized.priceUnit, /¥0\.02\/¥0\.04/);
+    assert.equal(localized.input, '$0.003–$0.006 缓存 · $0.15–$0.30 未缓存');
+    assert.equal(localized.output, '$0.60–$1.20');
+    assert.match(localized.priceUnit, /美元/);
+    assert.match(localized.priceUnit, /\$0\.003\/\$0\.006/);
     assert.doesNotMatch(localized.priceUnit, /参考汇率/);
   }
 });
@@ -346,8 +356,8 @@ test('localizes native currency and time units for media pricing', () => {
   const video = modelCatalog.find((model) => model.id === 'MiniMax-H3');
   const [videoZh, videoEn] = [localizeModels([video], 'zh')[0], localizeModels([video], 'en')[0]];
 
-  assert.equal(videoZh.input, '¥0.52 / 秒');
-  assert.match(videoZh.priceUnit, /2K 官网价 ¥0.845\/秒/);
+  assert.equal(videoZh.input, '$0.08 / 秒');
+  assert.match(videoZh.priceUnit, /2K 官网价 \$0.13\/秒/);
   assert.equal(videoEn.input, '$0.08 / sec');
   assert.match(videoEn.priceUnit, /2K is \$0.13\/sec/);
 });

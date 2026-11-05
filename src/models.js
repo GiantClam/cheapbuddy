@@ -194,7 +194,7 @@ function getPriceCurrency(model) {
 }
 
 function convertMoneyText(value, fromCurrency, toCurrency) {
-  if (fromCurrency === toCurrency || !value) return value;
+  if (!value || !fromCurrency || fromCurrency === toCurrency) return value;
   const fromSymbol = fromCurrency === 'USD' ? '$' : '¥';
   const toSymbol = toCurrency === 'USD' ? '$' : '¥';
   const exchange = fromCurrency === 'USD' ? USD_TO_CNY_RATE : 1 / USD_TO_CNY_RATE;
@@ -208,17 +208,16 @@ function localizePriceText(value, locale) {
   if (!value) return value;
   return locale === 'en'
     ? value.replace(/未缓存/g, 'uncached').replace(/缓存/g, 'cached').replace(/\/\s*秒/g, '/ sec')
-    : value.replace(/\/\s*sec\b/g, '/ 秒');
+    : value.replace(/\/\s*sec\b/g, '/ 秒').replace(/\buncached\b/g, '未缓存').replace(/\bcached\b/g, '缓存');
 }
 
 function localizePriceUnit(value, locale, fromCurrency, toCurrency) {
   if (!value || !fromCurrency || fromCurrency === toCurrency) return value;
-  let localized = convertMoneyText(value, fromCurrency, toCurrency);
-  if (fromCurrency === 'USD') {
-    localized = localized.replace(/\bUSD\b/g, 'CNY').replace(/美元/g, '人民币');
-  } else {
-    localized = localized.replace(/\bCNY\b/g, 'USD');
-  }
+  // Only CNY -> USD conversion remains: the wallet settles in USD, so model
+  // cards must quote USD or the customer rate cannot be compared with the balance.
+  const localized = convertMoneyText(value, fromCurrency, toCurrency)
+    .replace(/\bCNY\b/g, 'USD')
+    .replace(/人民币/g, '美元');
   const note = locale === 'en'
     ? `Reference conversion: 1 USD = ${USD_TO_CNY_RATE} CNY`
     : `参考汇率：1 USD = ${USD_TO_CNY_RATE} CNY`;
@@ -236,6 +235,11 @@ export function getHomepageFeaturedModels(models = modelCatalog, limit = 4) {
   return [...featuredModels, ...otherModels].slice(0, limit);
 }
 
+// Every balance on CheapBuddy settles in USD, so published model prices are
+// quoted in USD in both locales. Native CNY list prices are converted and carry
+// a reference-rate note.
+const SETTLEMENT_CURRENCY = 'USD';
+
 export function localizeModel(model, language = 'zh') {
   const locale = language === 'en' ? 'en' : 'zh';
   const vendor = typeof model.vendor === 'object' ? model.vendor[locale] || model.vendor.zh : model.vendor;
@@ -243,18 +247,9 @@ export function localizeModel(model, language = 'zh') {
   const billingUnit = typeof model.billingUnit === 'object' ? model.billingUnit[locale] || model.billingUnit.zh : model.billingUnit;
   const sourcePriceUnit = typeof model.priceUnit === 'object' ? model.priceUnit[locale] || model.priceUnit.zh : model.priceUnit;
   const fromCurrency = getPriceCurrency(model);
-  const toCurrency = locale === 'en' ? 'USD' : 'CNY';
-  const deepseekFlashChinese = locale === 'zh'
-    && (model.id === 'deepseek-flash' || model.id === 'deepseek-v4.1-flash-1017');
-  const input = deepseekFlashChinese
-    ? '¥0.02–¥0.04 缓存 · ¥1–¥2 未缓存'
-    : localizePriceText(convertMoneyText(model.input, fromCurrency, toCurrency), locale);
-  const output = deepseekFlashChinese
-    ? '¥4–¥8'
-    : localizePriceText(convertMoneyText(model.output, fromCurrency, toCurrency), locale);
-  const priceUnit = deepseekFlashChinese
-    ? '人民币 / 百万 Token；缓存命中输入非高峰/高峰 ¥0.02/¥0.04，缓存未命中输入 ¥1/¥2，输出 ¥4/¥8；每周工作日（不含中国法定节假日）09:00–12:00 和 14:00–18:00（北京时间）为高峰，非高峰为高峰一半；核对于 2026-10-29'
-    : localizePriceUnit(sourcePriceUnit, locale, fromCurrency, toCurrency);
+  const input = localizePriceText(convertMoneyText(model.input, fromCurrency, SETTLEMENT_CURRENCY), locale);
+  const output = localizePriceText(convertMoneyText(model.output, fromCurrency, SETTLEMENT_CURRENCY), locale);
+  const priceUnit = localizePriceUnit(sourcePriceUnit, locale, fromCurrency, SETTLEMENT_CURRENCY);
   const localized = { ...model, vendor, description, billingUnit, input, output, priceUnit };
   const retail = getModelRetailPricing(localized);
   return { ...localized, ...(retail ? { retailInput: retail.input, retailOutput: retail.output, retailPriceUnit: retail.priceUnit } : {}) };
