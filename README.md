@@ -106,6 +106,8 @@ npm install
 npm run dev
 ```
 
+改模型并发布官网时：修改 `src/models.js` 后运行 `npm test`（`public/llms.txt` 过期会失败）或 `npm run generate:llms`，再 `npm run build` 部署。提交生成后的 `public/llms.txt`，不要手改。
+
 首页支持中文和 English 两种界面语言。语言切换位于顶部导航，选择会保存在当前浏览器，下次访问自动恢复；未保存语言偏好时会根据浏览器语言初始化。
 
 ## Sub2API local deployment
@@ -164,7 +166,9 @@ Claude Desktop 普通 JSON 配置不应假定会展开 `${CHEAPBUDDY_API_KEY}`�
 - `showInUsageExample`：是否优先出现在首页价格示例
 - `accent`、`mark`：模型卡片视觉标记
 
-模型文案使用 `vendor.zh/en` 和 `description.zh/en` 内联定义，不需要再修改 `src/i18n.js`。模型数量文案会根据目录长度自动计算。生成 WorkBuddy `models.json` 时会将本地化厂商对象转换为 WorkBuddy 5.5.x 要求的普通字符串；仅文本模型会写入 WorkBuddy 的 `models` 和 `availableModels`，图片/视频模型通过独立媒体 API 使用。同一目录会生成站点根路径的 `/llms.txt`：`npm run build` 的 `prebuild` 会执行 [`scripts/generate-llms-txt.mjs`](./scripts/generate-llms-txt.mjs)，用 `modelCatalog` 覆写 [`public/llms.txt`](./public/llms.txt)。新增或修改模型后运行 `npm run generate:llms`（或直接 `npm run build`），提交生成结果，不要手改该文件。修改后运行 `npm test` 和 `npm run build`，再部署官网即可。
+模型文案使用 `vendor.zh/en` 和 `description.zh/en` 内联定义，不需要再修改 `src/i18n.js`。模型数量文案会根据目录长度自动计算。生成 WorkBuddy `models.json` 时会将本地化厂商对象转换为 WorkBuddy 5.5.x 要求的普通字符串；仅文本模型会写入 WorkBuddy 的 `models` 和 `availableModels`，图片/视频模型通过独立媒体 API 使用。
+
+`/llms.txt` 由 [`scripts/generate-llms-txt.mjs`](./scripts/generate-llms-txt.mjs) 根据 `modelCatalog` 写入 [`public/llms.txt`](./public/llms.txt)。发布步骤：改目录 → `npm test`（文件与目录不一致会失败）或 `npm run generate:llms` → `npm run build` 后部署。提交的 `public/llms.txt` 必须与目录同步，不要手改。`npm run build` 的 `prebuild` 仍会在部署时重写该文件。
 
 Windows：打开文件资源管理器，输入 `%USERPROFILE%`，进入或创建 `.workbuddy`，将 JSON 中的 `models` 数组合并到现有 `models.json`。如果文件不存在，直接创建。
 

@@ -1,5 +1,4 @@
-// Generates public/llms.txt from modelCatalog. Edit src/models.js, then run
-// `node scripts/generate-llms-txt.mjs` (npm prebuild does this) and commit the file.
+// Generates public/llms.txt from modelCatalog. npm test fails if the committed file is stale; prebuild rewrites it on deploy.
 import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
