@@ -1,0 +1,64 @@
+# CheapBuddy
+
+> OpenAI-compatible multi-model API gateway with one balance and one API key. Base URL: https://api.cheapbuddy.cc/v1. Supports WorkBuddy, Claude Code, OpenCode, Codex, and other compatible clients.
+
+Send the public model `id` (for example `deepseek-flash` or `claude-opus-5-5`), not the display name. OpenAI-compatible clients must keep `/v1` on `base_url` (`https://api.cheapbuddy.cc/v1`); the client appends `/chat/completions` or `/responses`. Claude models accept Anthropic Messages (`POST /v1/messages`) or that OpenAI-compatible surface. Prices on model cards are a vendor reference rate or the CheapBuddy customer rate, depending on the card. Read the live card for current rates. This file is not a price list.
+
+CheapBuddy is an independent gateway. It is not operated by DeepSeek, Anthropic, OpenAI, or other model vendors.
+
+The Models list is generated from the site catalog and includes all 25 public ids. A key can call only the models its group authorizes. Check `GET https://api.cheapbuddy.cc/v1/models`.
+
+## Docs
+
+- [API docs](https://cheapbuddy.cc/api-docs): Text, image, and video request shapes. Production base URL is https://api.cheapbuddy.cc/v1.
+- [Homepage](https://cheapbuddy.cc/): Account, model shelf, and the config generator for WorkBuddy, Claude Code, OpenCode, and Codex.
+- [Model shelf](https://cheapbuddy.cc/#models): Live model cards. A card shows either a vendor reference rate or the CheapBuddy customer rate; use the card for current numbers.
+- [Blog](https://cheapbuddy.cc/blog): Client setup notes that point at the same base URL and model ids.
+- [DeepSeek Harness](https://cheapbuddy.cc/blog/deepseek-harness-cheapbuddy): Add an OpenAI-compatible provider in DeepSeek Harness Settings, with /v1 on the base URL. CheapBuddy is not DeepSeek Harness.
+- [CLI base URLs](https://cheapbuddy.cc/blog/cli-base-url-templates): Where Chat Completions, Responses, and Anthropic Messages base URLs should stop.
+- [Claude access](https://cheapbuddy.cc/blog/claude-stable-channel-guide): Authorized Claude ids over Anthropic Messages or the OpenAI-compatible API.
+- [One balance](https://cheapbuddy.cc/blog/one-balance-model-routing): Why one key and one USD balance can reach many authorized models.
+- [Media API](https://cheapbuddy.cc/blog/cheapbuddy-media-api-guide): Image generation and asynchronous video download.
+- [ComfyUI workflows](https://cheapbuddy.cc/blog/comfyui-cheapbuddy-workflows): Text, image, and video nodes inside a ComfyUI workflow.
+
+## Models
+
+Text:
+
+- [glm-5.3](https://cheapbuddy.cc/#models): id `glm-5.3`; Zhipu; Coding, reasoning, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [glm-5.3-flash](https://cheapbuddy.cc/#models): id `glm-5.3-flash`; Zhipu; Multimodal understanding, coding, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [kimi-k3](https://cheapbuddy.cc/#models): id `kimi-k3`; Kimi; Knowledge work and software engineering. OpenAI-compatible POST /v1/chat/completions.
+- [kimi-k3.1-pro](https://cheapbuddy.cc/#models): id `kimi-k3.1-pro`; Kimi; Million-token context, vision understanding, deep reasoning, and Agent tool use. OpenAI-compatible POST /v1/chat/completions.
+- [grok-4.7](https://cheapbuddy.cc/#models): id `grok-4.7`; xAI; Coding, Agent workflows, and knowledge work. OpenAI-compatible POST /v1/chat/completions. Not shown on the homepage shelf.
+- [gpt-6-astra](https://cheapbuddy.cc/#models): id `gpt-6-astra`; OpenAI; Advanced reasoning, coding, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [gpt-6-sol](https://cheapbuddy.cc/#models): id `gpt-6-sol`; OpenAI; High-quality coding, reasoning, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [gpt-6.1-sol](https://cheapbuddy.cc/#models): id `gpt-6.1-sol`; OpenAI; High-quality coding, reasoning, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [gpt-6.1-terra](https://cheapbuddy.cc/#models): id `gpt-6.1-terra`; OpenAI; Coding, vision, computer use, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [gpt-6-luna](https://cheapbuddy.cc/#models): id `gpt-6-luna`; OpenAI; Efficient everyday tasks and high-volume workloads. OpenAI-compatible POST /v1/chat/completions.
+- [gpt-5.6-sol](https://cheapbuddy.cc/#models): id `gpt-5.6-sol`; OpenAI; High-quality coding, reasoning, and Agent workflows. OpenAI-compatible POST /v1/chat/completions.
+- [gpt-5.6-terra](https://cheapbuddy.cc/#models): id `gpt-5.6-terra`; OpenAI; Efficient long-context reasoning and coding. OpenAI-compatible POST /v1/chat/completions.
+- [deepseek-flash](https://cheapbuddy.cc/#models): id `deepseek-flash`; DeepSeek; Million-token context, multimodal understanding, and Agent tool calling. OpenAI-compatible POST /v1/chat/completions.
+- [deepseek-v4.1-flash-1017](https://cheapbuddy.cc/en/model/deepseek-v4-1-flash-1017/): id `deepseek-v4.1-flash-1017`; DeepSeek; Million-token context, multimodal understanding, and Agent tool calling. OpenAI-compatible POST /v1/chat/completions.
+- [qwen3.8-max](https://cheapbuddy.cc/#models): id `qwen3.8-max`; Qwen; Flagship reasoning, vision, and Agent tool use. OpenAI-compatible POST /v1/chat/completions.
+- [jev-latest](https://cheapbuddy.cc/#models): id `jev-latest`; TypeSafe; Structured decisions, classification, and scoring through the native System One API. TypeSafe System One POST /v1/systemone.
+- [claude-fable-5](https://cheapbuddy.cc/#models): id `claude-fable-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-fable-5-1](https://cheapbuddy.cc/#models): id `claude-fable-5-1`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-opus-5](https://cheapbuddy.cc/#models): id `claude-opus-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-opus-5-5](https://cheapbuddy.cc/en/model/claude-opus-5-5/): id `claude-opus-5-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-sonnet-5](https://cheapbuddy.cc/#models): id `claude-sonnet-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-sonnet-5-5](https://cheapbuddy.cc/#models): id `claude-sonnet-5-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-opus-5-5-MAX](https://cheapbuddy.cc/#models): id `claude-opus-5-5-MAX`; Anthropic; Claude Opus 5.5 comparison route; uses multiple PPToken Anthropic accounts. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+
+Image:
+
+- [gpt-image-2.5](https://cheapbuddy.cc/api-docs): id `gpt-image-2.5`; OpenAI; Image generation and editing through the image API. POST /v1/images/generations.
+
+Video:
+
+- [MiniMax-H3](https://cheapbuddy.cc/api-docs): id `MiniMax-H3`; MiniMax; Async text-to-video, image-to-video, and reference-to-video generation. POST /v1/videos.
+
+## Optional
+
+- [ComfyUI nodes](https://cheapbuddy.cc/comfyui): Install page for the text, image, and video nodes.
+- [Hypit provider](https://cheapbuddy.cc/hypit): Install @cheapbuddy/provider and generate MiniMax-H3 video in Hypit.
+- [Examples](https://github.com/GiantClam/cheapbuddy-examples): Sample clients for the public API.

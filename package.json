@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "generate:llms": "node scripts/generate-llms-txt.mjs",
+    "prebuild": "node scripts/generate-llms-txt.mjs",
     "build": "vite build",
     "test": "node --test src/*.test.js",
     "test:coverage": "node --test --experimental-test-coverage src/*.test.js",
