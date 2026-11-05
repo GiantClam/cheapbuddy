@@ -584,10 +584,23 @@ function ApiDocsPage() {
       path: '/api-docs',
       type: 'article',
     });
-    const frame = requestAnimationFrame(() => {
-      document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ behavior: 'instant', block: 'start' });
+    let active = true;
+    let firstFrame = 0;
+    let secondFrame = 0;
+    const scrollToHash = () => {
+      if (!active || !window.location.hash) return;
+      const target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+      target?.scrollIntoView({ behavior: 'instant', block: 'start' });
+    };
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(scrollToHash);
     });
-    return () => cancelAnimationFrame(frame);
+    document.fonts?.ready.then(scrollToHash);
+    return () => {
+      active = false;
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
   }, [language]);
 
   const videoRequest = [
