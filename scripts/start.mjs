@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, join, resolve, sep } from 'node:path';
+import { basename, extname, join, resolve, sep } from 'node:path';
 
 const root = resolve('dist');
 const port = Number(process.env.PORT || 4173);
@@ -20,6 +20,24 @@ const mimeTypes = {
 };
 
 const appPaths = new Set(['/', '/api-docs', '/api-docs/', '/comfyui', '/comfyui/', '/hypit', '/hypit/', '/payment/result']);
+const LONG_CACHE = 'public, max-age=31536000, immutable';
+
+function isContentHashedAsset(filePath) {
+  // Vite fingerprints build output as dist/assets/<name>-<hash>.<ext>.
+  // Public files such as llms.txt stay outside assets/ and must not match.
+  if (!filePath.split(sep).includes('assets')) return false;
+  return /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(basename(filePath));
+}
+
+function cacheControlFor(filePath) {
+  const extension = extname(filePath);
+  // HTML picks the current bundle. llms.txt, robots.txt, and sitemap.xml are
+  // unhashed and change on deploy, so they revalidate. Year-long immutable
+  // caching is only for content-hashed files under assets/.
+  if (extension === '.html' || extension === '.txt' || extension === '.xml') return 'no-cache';
+  if (isContentHashedAsset(filePath)) return LONG_CACHE;
+  return 'public, max-age=3600';
+}
 
 function isSpaDocumentRoute(pathname) {
   if (appPaths.has(pathname) || pathname === '/en' || pathname.startsWith('/en/')) return true;
@@ -88,11 +106,8 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  const isHtmlDocument = extname(servedPath) === '.html';
   response.writeHead(200, {
-    // The HTML shell selects the current hashed bundle, so it must always be
-    // revalidated after a deploy. Only immutable asset files may be cached long-term.
-    'Cache-Control': isHtmlDocument ? 'no-cache' : 'public, max-age=31536000, immutable',
+    'Cache-Control': cacheControlFor(servedPath),
     'Content-Type': mimeTypes[extname(servedPath)] || 'application/octet-stream',
   });
   createReadStream(servedPath).on('error', () => response.destroy()).pipe(response);

@@ -8,6 +8,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { modelCatalog } from './models.js';
 
 test('production static server serves model pages and preserves missing-resource 404s', { timeout: 15000 }, async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'cheapbuddy-static-'));
@@ -27,6 +28,11 @@ test('production static server serves model pages and preserves missing-resource
   const appHtml = '<!doctype html><div id="root">App shell</div>';
   await writeFile(join(directory, 'dist', 'index.html'), appHtml, 'utf8');
   await writeFile(join(directory, 'dist', '404.html'), '<h1>Not found</h1>', 'utf8');
+  await cp(fileURLToPath(new URL('../public/llms.txt', import.meta.url)), join(directory, 'dist', 'llms.txt'));
+  await cp(fileURLToPath(new URL('../public/robots.txt', import.meta.url)), join(directory, 'dist', 'robots.txt'));
+  await cp(fileURLToPath(new URL('../public/sitemap.xml', import.meta.url)), join(directory, 'dist', 'sitemap.xml'));
+  await mkdir(join(directory, 'dist', 'assets'));
+  await writeFile(join(directory, 'dist', 'assets', 'index-AbCdEf12.js'), 'console.log("hashed")\n', 'utf8');
 
   const portProbe = createServer();
   portProbe.listen(0, '127.0.0.1');
@@ -92,6 +98,45 @@ test('production static server serves model pages and preserves missing-resource
       assert.equal(await response.text(), '<h1>Not found</h1>');
     });
   }
+
+  await t.test('/llms.txt is plain text and is not cached as immutable', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/llms.txt`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'text/plain; charset=utf-8');
+    assert.equal(response.headers.get('cache-control'), 'no-cache');
+    assert.doesNotMatch(response.headers.get('cache-control'), /immutable|31536000/);
+    const body = await response.text();
+    assert.match(body, /^# CheapBuddy\b/m);
+    assert.match(body, /deepseek-flash/);
+    assert.match(body, /claude-opus-5-5/);
+    for (const id of ['deepseek-flash', 'claude-opus-5-5', 'gpt-image-2.5']) {
+      assert.ok(modelCatalog.some((model) => model.id === id));
+      assert.match(body, new RegExp(`id \`${id.replaceAll('.', '\\.')}\``));
+    }
+  });
+
+  for (const path of ['/robots.txt', '/sitemap.xml']) {
+    await t.test(`${path} revalidates instead of using a year-long immutable cache`, async () => {
+      const response = await fetch(`http://127.0.0.1:${port}${path}`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('cache-control'), 'no-cache');
+      assert.doesNotMatch(response.headers.get('cache-control'), /immutable|31536000/);
+    });
+  }
+
+  await t.test('content-hashed assets keep the long immutable cache', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/assets/index-AbCdEf12.js`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'text/javascript; charset=utf-8');
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  });
+
+  await t.test('unhashed static files do not use the year-long immutable cache', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/model-pages.css`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=3600');
+    assert.doesNotMatch(response.headers.get('cache-control'), /immutable|31536000/);
+  });
 
   await t.test('API requests preserve their JSON error', async () => {
     const response = await fetch(`http://127.0.0.1:${port}/api/v1/settings`);
