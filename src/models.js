@@ -1,6 +1,15 @@
 import { USD_TO_CNY_RATE } from './payment.js';
 import { getModelRetailPricing } from './pricing.js';
 
+const fixedImagePricing = {
+  input: '$0.015384', output: '¥0.10', priceStatus: 'verified', priceCheckedAt: '2026-11-05',
+  priceUnit: {
+    zh: '本站固定价：¥0.10/张；美元余额每张扣 $0.015384，按 1 USD = 6.5 CNY 换算并取 quota 精度。',
+    en: 'Fixed CheapBuddy price: CNY 0.10 per image; USD balance debit $0.015384 per image, converted at 1 USD = 6.5 CNY and rounded to quota precision.',
+  },
+  billingUnit: { zh: '本站固定价 · 每张图片', en: 'CheapBuddy fixed price · per image' },
+};
+
 const claudeStableModels = [
   ['claude-fable-5', 'Claude Fable 5', 'fable', [10, 50, 12.5, 20, 1]],
   ['claude-fable-5-1', 'Claude Fable 5.1', 'fable', [10, 50, 12.5, 20, 0.25]],
@@ -160,14 +169,12 @@ export const modelCatalog = [
     supportsToolCall: false, supportsImages: false, supportsReasoning: false, onlyReasoning: false,
   },
   {
-    id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, input: '按任务', output: '按图片', accent: 'violet', mark: 'IMG', featured: true, modality: 'image', endpointPath: '/images/generations', billingUnit: { zh: '媒体用量计费', en: 'Media usage billing' },
+    id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...fixedImagePricing, accent: 'violet', mark: 'IMG', featured: true, modality: 'image', endpointPath: '/images/generations',
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
   {
-    // Same media billing surface as gpt-image-2.5: identical relay multiplier,
-    // reservation, and NewAPI ratio resolution, so both cards quote the same rate.
-    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, input: '按任务', output: '按图片', accent: 'violet', mark: 'I26', modality: 'image', endpointPath: '/images/generations', billingUnit: { zh: '媒体用量计费', en: 'Media usage billing' },
+    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...fixedImagePricing, accent: 'violet', mark: 'I26', modality: 'image', endpointPath: '/images/generations',
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },

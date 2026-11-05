@@ -278,6 +278,9 @@ func (s *Server) handleUserAPI(w http.ResponseWriter, r *http.Request) {
 	if model == "MiniMax-H3" {
 		r = r.WithContext(context.WithValue(r.Context(), h3SecondsKey{}, prepared.h3Seconds))
 	}
+	if fixedPriceImageModel(model) {
+		r = r.WithContext(context.WithValue(r.Context(), imageCountKey{}, prepared.imageCount))
+	}
 	route := classifyRoute(pathName, model, s.Config)
 	if route == routeNone {
 		writeError(w, http.StatusNotFound, "not_found", "Route or model is not available")
@@ -711,6 +714,9 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request, identity up
 		}
 	}
 	reservation, err := mediaReservation(s.Config, model, h3SecondsFromContext(r.Context()))
+	if fixedPriceImageModel(model) {
+		reservation, err = imageReservation(s.Config, model, imageCountFromContext(r.Context()))
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -1748,15 +1754,10 @@ func (c *mediaCallbacks) onResponse(ctx context.Context, response *http.Response
 	if !strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "json") {
 		return nil
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20+1))
+	body, err := peekMediaJSONBody(response)
 	if err != nil {
 		return err
 	}
-	if len(body) > 1<<20 {
-		response.Body = io.NopCloser(bytes.NewReader(body))
-		return nil
-	}
-	response.Body = io.NopCloser(bytes.NewReader(body))
 	var payload any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil
@@ -1772,6 +1773,22 @@ func (c *mediaCallbacks) onResponse(ctx context.Context, response *http.Response
 		}
 	}
 	return nil
+}
+
+func peekMediaJSONBody(response *http.Response) ([]byte, error) {
+	original := response.Body
+	body, err := io.ReadAll(io.LimitReader(original, 1<<20+1))
+	if err != nil {
+		_ = original.Close()
+		return nil, err
+	}
+	if len(body) > 1<<20 {
+		response.Body = &replayReadCloser{reader: io.MultiReader(bytes.NewReader(body), original), closeFn: original.Close}
+		return nil, nil
+	}
+	_ = original.Close()
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	return body, nil
 }
 
 func (c *mediaCallbacks) persistObservedIDs(nativeID, providerID string) {
@@ -1930,7 +1947,7 @@ func (s *Server) reconcile(ctx context.Context) {
 			_ = s.Store.MarkBilling(ctx, request.RequestID, "pending_reconciliation", 0, bill.ID, "", "media multiplier unavailable")
 			continue
 		}
-		amount, release := settlementAmount(bill, multiplier)
+		amount, release := requestSettlementAmount(request, bill, multiplier)
 		if release {
 			releaseCtx, releaseCancel := context.WithTimeout(ctx, s.Config.Sub2APITimeout)
 			releaseErr := s.release(releaseCtx, upstream.Identity{UserID: request.CheapBuddyUserID, APIKeyID: request.APIKeyID}, request.RequestID, request.ReservationAmount)
@@ -2057,6 +2074,7 @@ type preparedRouteBody struct {
 	hash          string
 	fullyBuffered bool
 	h3Seconds     int
+	imageCount    int
 }
 
 func resolveModelAlias(aliases map[string]string, model string) string {
@@ -2121,7 +2139,7 @@ func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteB
 			return s.spoolMultipartBody(r, contentType)
 		}
 		prepared, err := inspectMultipartBody(r, contentType)
-		if err != nil || prepared.model != "MiniMax-H3" {
+		if err != nil || (prepared.model != "MiniMax-H3" && !fixedPriceImageModel(prepared.model)) {
 			return prepared, err
 		}
 		// H3 duration may follow reference files. Spool its complete body before
@@ -2136,6 +2154,13 @@ func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteB
 	model := extractModel(body, contentType)
 	body = rewriteJSONModelAlias(body, contentType, s.Config.ModelAliases)
 	seconds := 0
+	imageCount := 0
+	if fixedPriceImageModel(model) {
+		imageCount, err = imageJSONCount(body)
+		if err != nil {
+			return preparedRouteBody{}, err
+		}
+	}
 	if model == "MiniMax-H3" {
 		seconds, err = h3JSONSeconds(body)
 		if err != nil {
@@ -2147,6 +2172,7 @@ func (s *Server) readRouteBody(r *http.Request, pathName string) (preparedRouteB
 		length:        int64(len(body)),
 		model:         model,
 		h3Seconds:     seconds,
+		imageCount:    imageCount,
 		hash:          hashRequestBody(body),
 		fullyBuffered: true,
 	}, nil
@@ -2218,6 +2244,18 @@ func (s *Server) spoolMultipartBody(r *http.Request, contentType string) (prepar
 		return preparedRouteBody{}, fmt.Errorf("multipart model field is required")
 	}
 	seconds := 0
+	imageCount := 0
+	if fixedPriceImageModel(model) {
+		if _, err := temporary.Seek(0, io.SeekStart); err != nil {
+			removeTemporary()
+			return preparedRouteBody{}, fmt.Errorf("request body spool unavailable")
+		}
+		imageCount, err = imageMultipartCount(temporary, contentType)
+		if err != nil {
+			removeTemporary()
+			return preparedRouteBody{}, err
+		}
+	}
 	if model == "MiniMax-H3" {
 		if _, err := temporary.Seek(0, io.SeekStart); err != nil {
 			removeTemporary()
@@ -2243,6 +2281,7 @@ func (s *Server) spoolMultipartBody(r *http.Request, contentType string) (prepar
 		length:        written,
 		model:         model,
 		h3Seconds:     seconds,
+		imageCount:    imageCount,
 		hash:          requestHash,
 		fullyBuffered: true,
 	}, nil

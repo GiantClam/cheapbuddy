@@ -274,8 +274,10 @@ test('GPT Image 2.6 publishes the same billing surface as GPT Image 2.5', () => 
   assert.deepEqual(billingSurface(launched), billingSurface(baseline));
   assert.equal(launched.short, 'GPT Image 2.6');
   assert.equal(launched.vendor.en, 'OpenAI');
-  assert.deepEqual(localizeModels([launched], 'zh')[0].input, '按任务');
-  assert.deepEqual(localizeModels([launched], 'en')[0].output, '按图片');
+  assert.equal(localizeModels([launched], 'zh')[0].input, '$0.015384');
+  assert.equal(localizeModels([launched], 'en')[0].output, '¥0.10');
+  assert.match(launched.billingUnit.zh, /每张/);
+  assert.match(launched.priceUnit.en, /Fixed CheapBuddy price/);
   // The hero strip stays unchanged: only the shelf lists the new image model.
   assert.equal(launched.featured, undefined);
   assert.ok(!getHomepageFeaturedModels().some(({ id }) => id === 'gpt-image-2.6'));
@@ -361,7 +363,7 @@ test('quotes both public DeepSeek Flash IDs in USD with localized cache wording'
   }
 });
 
-test('keeps unverified and non-priced models unchanged', () => {
+test('keeps unverified prices explicit and quotes fixed image rates in both currencies', () => {
   const unverified = modelCatalog.find((model) => model.id === 'glm-5.3');
   const image = modelCatalog.find((model) => model.id === 'gpt-image-2.5');
   const [unverifiedEn, imageZh] = localizeModels([unverified, image], 'en');
@@ -370,10 +372,10 @@ test('keeps unverified and non-priced models unchanged', () => {
   assert.equal(unverifiedEn.input, '待核验');
   assert.equal(unverifiedEn.output, '待核验');
   assert.equal(unverifiedEn.priceUnit, 'Official rate not verified');
-  assert.equal(imageZh.input, '按任务');
-  assert.equal(imageZh.output, '按图片');
-  assert.equal(imageChinese.input, '按任务');
-  assert.equal(imageChinese.output, '按图片');
+  assert.equal(imageZh.input, '$0.015384');
+  assert.equal(imageZh.output, '¥0.10');
+  assert.equal(imageChinese.input, '$0.015384');
+  assert.equal(imageChinese.output, '¥0.10');
 });
 
 test('localizes native currency and time units for media pricing', () => {

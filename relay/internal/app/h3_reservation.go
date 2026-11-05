@@ -54,6 +54,29 @@ func h3SecondsFromContext(ctx context.Context) int {
 
 func mediaPricingMetadata(cfg config.Config, model string, query url.Values) (map[string]any, error) {
 	metadata := map[string]any{"billing_mode": mediaBillingMode(cfg, model), "media_multiplier": cfg.MediaMultiplierByModel[model], "quota_per_usd": cfg.QuotaPerUSD, "settlement": "The final debit follows actual successful usage; pending media duration is not estimated."}
+	if fixedPriceImageModel(model) {
+		count := 1
+		if values, ok := query["n"]; ok {
+			if len(values) != 1 {
+				return nil, fmt.Errorf("Image n must be provided once")
+			}
+			var err error
+			count, err = parseImageCount(values[0])
+			if err != nil {
+				return nil, err
+			}
+		}
+		quota, err := imageReservation(cfg, model, count)
+		if err != nil {
+			return nil, err
+		}
+		if cfg.QuotaPerUSD <= 0 || math.IsNaN(cfg.QuotaPerUSD) || math.IsInf(cfg.QuotaPerUSD, 0) {
+			return nil, fmt.Errorf("Image reservation pricing is unavailable")
+		}
+		metadata["settlement"] = "Fixed price per successful image; final debit cannot exceed the reservation."
+		metadata["reservation"] = map[string]any{"basis": "requested_images", "default_n": 1, "estimated_images": count, "estimated_quota": quota, "estimated_amount_usd": float64(quota) / cfg.QuotaPerUSD}
+		return metadata, nil
+	}
 	if model != "MiniMax-H3" {
 		return metadata, nil
 	}
