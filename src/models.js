@@ -165,6 +165,13 @@ export const modelCatalog = [
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
   {
+    // Same media billing surface as gpt-image-2.5: identical relay multiplier,
+    // reservation, and NewAPI ratio resolution, so both cards quote the same rate.
+    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, input: '按任务', output: '按图片', accent: 'violet', mark: 'I26', modality: 'image', endpointPath: '/images/generations', billingUnit: { zh: '媒体用量计费', en: 'Media usage billing' },
+    maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
+    supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
+  },
+  {
     id: 'MiniMax-H3', short: 'MiniMax H3', vendor: { zh: 'MiniMax', en: 'MiniMax' }, description: { zh: '异步视频生成：文生、图生与参考素材生成', en: 'Async text-to-video, image-to-video, and reference-to-video generation' }, input: '$0.08 / 秒', output: '768P', priceStatus: 'verified', priceSourceUrl: 'https://platform.minimax.io/subscribe/token-plan?tab=api-enterprise', priceCheckedAt: '2026-09-26', priceUnit: { zh: '官网 API 参考价：768P 输出；2K 官网价 $0.13/秒。本模型卡展示官网价，不代表本站最终扣款。', en: 'Official API reference: 768P output; 2K is $0.13/sec. This card shows the official rate, not CheapBuddy’s final charge.' }, accent: 'orange', mark: 'H3', featured: true, modality: 'video', endpointPath: '/videos', billingUnit: { zh: '视频生成 · 官网 768P 参考价', en: 'Video generation · official 768P reference rate' },
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,

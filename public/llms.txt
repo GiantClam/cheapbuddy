@@ -6,7 +6,7 @@ Send the public model `id` (for example `deepseek-flash` or `claude-opus-5-5`), 
 
 CheapBuddy is an independent gateway. It is not operated by DeepSeek, Anthropic, OpenAI, or other model vendors.
 
-The Models list is generated from the site catalog and includes all 25 public ids. A key can call only the models its group authorizes. Check `GET https://api.cheapbuddy.cc/v1/models`.
+The Models list is generated from the site catalog and includes all 26 public ids. A key can call only the models its group authorizes. Check `GET https://api.cheapbuddy.cc/v1/models`.
 
 ## Docs
 
@@ -52,6 +52,7 @@ Text:
 Image:
 
 - [gpt-image-2.5](https://cheapbuddy.cc/api-docs): id `gpt-image-2.5`; OpenAI; Image generation and editing through the image API. POST /v1/images/generations.
+- [gpt-image-2.6](https://cheapbuddy.cc/api-docs): id `gpt-image-2.6`; OpenAI; Image generation and editing through the image API. POST /v1/images/generations.
 
 Video:
 

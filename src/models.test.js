@@ -21,6 +21,7 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(!ids.includes('deepseek/deepseek-v4.1-flash'));
   assert.ok(ids.includes('deepseek-v4.1-flash-1017'));
   assert.ok(ids.includes('gpt-image-2.5'));
+  assert.ok(ids.includes('gpt-image-2.6'));
   assert.ok(ids.includes('MiniMax-H3'));
   assert.ok(ids.includes('glm-5.3'));
   assert.ok(ids.includes('glm-5.3-flash'));
@@ -77,6 +78,7 @@ test('model catalog contains published text and media models', () => {
     'qwen3.8-max',
     'jev-latest',
     'gpt-image-2.5',
+    'gpt-image-2.6',
     'MiniMax-H3',
     'claude-fable-5',
     'claude-fable-5-1',
@@ -248,14 +250,36 @@ test('GPT-6.1 Terra localizes official and inherited customer rates separately',
 
 test('media models expose their native protocol and endpoint metadata', () => {
   const image = modelCatalog.find((model) => model.id === 'gpt-image-2.5');
+  const imageNext = modelCatalog.find((model) => model.id === 'gpt-image-2.6');
   const video = modelCatalog.find((model) => model.id === 'MiniMax-H3');
 
   assert.equal(image.modality, 'image');
   assert.equal(image.endpointPath, '/images/generations');
   assert.equal(image.supportsImages, true);
+  assert.equal(imageNext.modality, 'image');
+  assert.equal(imageNext.endpointPath, '/images/generations');
+  assert.equal(imageNext.supportsImages, true);
   assert.equal(video.modality, 'video');
   assert.equal(video.endpointPath, '/videos');
   assert.equal(video.supportsToolCall, false);
+});
+
+test('GPT Image 2.6 publishes the same billing surface as GPT Image 2.5', () => {
+  const baseline = modelCatalog.find((model) => model.id === 'gpt-image-2.5');
+  const launched = modelCatalog.find((model) => model.id === 'gpt-image-2.6');
+  const billingSurface = ({ input, output, priceStatus, priceUnit, billingUnit, modality, endpointPath }) => (
+    { input, output, priceStatus, priceUnit, billingUnit, modality, endpointPath }
+  );
+
+  assert.deepEqual(billingSurface(launched), billingSurface(baseline));
+  assert.equal(launched.short, 'GPT Image 2.6');
+  assert.equal(launched.vendor.en, 'OpenAI');
+  assert.deepEqual(localizeModels([launched], 'zh')[0].input, '按任务');
+  assert.deepEqual(localizeModels([launched], 'en')[0].output, '按图片');
+  // The hero strip stays unchanged: only the shelf lists the new image model.
+  assert.equal(launched.featured, undefined);
+  assert.ok(!getHomepageFeaturedModels().some(({ id }) => id === 'gpt-image-2.6'));
+  assert.ok(getHomepageModels().some(({ id }) => id === 'gpt-image-2.6'));
 });
 
 test('Jev is cataloged as a native System One model and not as chat', () => {
