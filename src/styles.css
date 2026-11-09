@@ -589,14 +589,16 @@ a { color: inherit; text-decoration: none; }
 .account-stats small { color: #66828d; font: 9px/1.6 'DM Mono'; }
 .account-usage-row { grid-template-columns: 32px minmax(150px, 1fr) 84px 96px minmax(70px, .7fr); }
 .account-records { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
-.account-record-row { display: grid; grid-template-columns: 74px minmax(110px, 1fr) minmax(120px, 1.2fr) 92px 46px; align-items: center; gap: 10px; padding: 9px 10px; border-bottom: 1px solid rgba(181, 213, 226, .07); }
+.account-usage-note { max-width: 650px; margin: 8px 0 0; color: #6d8792; font: 9px/1.6 'DM Mono'; }
+.account-record-row { display: grid; grid-template-columns: 74px minmax(110px, 1fr) minmax(120px, 1.2fr) 92px minmax(86px, auto); align-items: center; gap: 10px; padding: 9px 10px; border-bottom: 1px solid rgba(181, 213, 226, .07); }
 .account-record-row span { color: #597582; font: 9px 'DM Mono'; }
 .account-record-row b { overflow: hidden; color: #bdd0d5; font: 10px 'DM Mono'; text-overflow: ellipsis; white-space: nowrap; }
 .account-record-row small { overflow: hidden; color: #6d8792; font: 9px 'DM Mono'; text-overflow: ellipsis; white-space: nowrap; }
 .account-record-row strong { color: #d3e0e2; font: 10px 'DM Mono'; text-align: right; white-space: nowrap; }
 .account-record-row em { color: var(--green); font: 9px 'DM Mono'; font-style: normal; text-align: right; }
+.account-record-row em.unverified { color: #6d8792; }
 @media (max-width: 650px) {
   .account-usage-row { grid-template-columns: 30px minmax(110px, 1fr) 68px 84px; }
-  .account-record-row { grid-template-columns: 62px minmax(90px, 1fr) 82px 40px; }
+  .account-record-row { grid-template-columns: 62px minmax(90px, 1fr) 82px minmax(78px, auto); }
   .account-record-row small { display: none; }
 }

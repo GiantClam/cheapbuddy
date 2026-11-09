@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getUsageBilledTotal, hasTokenBreakdown, isUsageCostReported, mapUsageRecords, mergeUsageModels } from './usage.js';
+import { getUsageBilledTotal, getUsageEffectiveDiscount, getUsageReferenceCost, hasTokenBreakdown, isUsageCostReported, mapUsageRecords, mergeUsageModels } from './usage.js';
 
 test('merges text and NewAPI media usage by model', () => {
   const merged = mergeUsageModels(
@@ -67,8 +67,31 @@ test('maps per-request charge records for the billing ledger list', () => {
     cacheReadTokens: 800,
     totalTokens: 2350,
     actualCost: 0.004123,
+    referenceCost: null,
+    effectiveDiscount: null,
     rateMultiplier: 0.625,
   });
   assert.equal(mapUsageRecords([{ id: 42, rate_multiplier: 0 }])[0].rateMultiplier, null);
   assert.deepEqual(mapUsageRecords(null), []);
+});
+
+test('calculates the final discount from the recorded reference cost, not the group multiplier', () => {
+  const [record] = mapUsageRecords([{
+    id: 43, model: 'glm-5.3-flash', actual_cost: 0.000071,
+    reference_cost: 0.0001251, rate_multiplier: 1.1,
+  }]);
+
+  assert.equal(record.referenceCost, 0.0001251);
+  assert.ok(Math.abs(record.effectiveDiscount - (0.000071 / 0.0001251)) < 1e-12);
+  assert.equal(record.rateMultiplier, 1.1);
+  assert.equal(getUsageReferenceCost({ account_stats_cost: '0.0001251' }), 0.0001251);
+  assert.equal(getUsageEffectiveDiscount(0.000071, 0.0001251), record.effectiveDiscount);
+});
+
+test('does not infer a discount when the official reference cost is unavailable', () => {
+  const [record] = mapUsageRecords([{ id: 44, actual_cost: 0.001, rate_multiplier: 1.1 }]);
+
+  assert.equal(record.referenceCost, null);
+  assert.equal(record.effectiveDiscount, null);
+  assert.equal(getUsageEffectiveDiscount(0.001, null), null);
 });

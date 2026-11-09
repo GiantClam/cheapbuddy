@@ -1255,9 +1255,11 @@ Object.assign(messages.zh, {
   apiDocsImageNote: '示例使用已验证的 GPT Image 2.6 文生图请求。建议省略 n 和 quality；实际尺寸、编辑功能及可选参数以当前通道支持范围为准。图片编辑使用 /v1/images/edits。',
   rangeBilledCost: '区间实际扣费',
   billingRecords: '最近扣费明细',
+  billingRecordsNote: '每条记录展示最终扣费折扣：实际扣费 ÷ 该条官网参考价；缺少官网基准价时不显示估算值。',
   recordTokens: '入 {input} / 出 {output} / 缓存 {cache}',
   noBillingRecords: '暂无扣费明细，产生一次计费请求后会显示在这里。',
-  rateMultiplierLabel: '计费倍率',
+  recordEffectiveDiscountUnavailable: '官网价不可核验',
+  effectiveDiscountLabel: '本条最终扣费 ÷ 官网参考价',
 });
 
 Object.assign(messages.en, {
@@ -1273,9 +1275,11 @@ Object.assign(messages.en, {
   apiDocsImageNote: 'This example follows a verified GPT Image 2.6 text-to-image request. Omit n and quality initially; returned size, editing, and optional fields depend on the current route. Use /v1/images/edits for edits.',
   rangeBilledCost: 'Billed in range',
   billingRecords: 'Recent charges',
+  billingRecordsNote: 'Each row shows the final discount: actual charge ÷ the official reference price for that request; no estimate is shown when the reference is unavailable.',
   recordTokens: 'in {input} / out {output} / cache {cache}',
   noBillingRecords: 'No charge records yet. They appear after your first billed request.',
-  rateMultiplierLabel: 'Billing multiplier',
+  recordEffectiveDiscountUnavailable: 'official rate unavailable',
+  effectiveDiscountLabel: 'Final charge ÷ official reference price for this request',
 });
 
 export { messages };
