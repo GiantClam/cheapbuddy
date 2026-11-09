@@ -4,6 +4,7 @@ function usageNumber(value) {
 }
 
 const TOKEN_BREAKDOWN_FIELDS = ['input_tokens', 'output_tokens', 'cache_creation_tokens', 'cache_read_tokens'];
+const REFERENCE_COST_FIELDS = ['official_cost', 'reference_cost', 'account_stats_cost'];
 
 function emptyUsageModel(model) {
   return {
@@ -61,6 +62,25 @@ export function isUsageCostReported(models = []) {
   return models.some((item) => item?.cost_reported);
 }
 
+function firstPositiveUsageNumber(values) {
+  for (const value of values) {
+    const number = usageNumber(value);
+    if (number > 0) return number;
+  }
+  return null;
+}
+
+export function getUsageReferenceCost(record) {
+  if (!record || typeof record !== 'object') return null;
+  return firstPositiveUsageNumber(REFERENCE_COST_FIELDS.map((field) => record[field]));
+}
+
+export function getUsageEffectiveDiscount(actualCost, referenceCost) {
+  const actual = usageNumber(actualCost);
+  const reference = usageNumber(referenceCost);
+  return actual > 0 && reference > 0 ? actual / reference : null;
+}
+
 // Per-request charge records from GET /usage; tokens and billed USD are shown
 // exactly as the ledger recorded them, never recomputed client-side.
 export function mapUsageRecords(records = []) {
@@ -73,6 +93,7 @@ export function mapUsageRecords(records = []) {
       const cacheCreationTokens = usageNumber(record.cache_creation_tokens);
       const cacheReadTokens = usageNumber(record.cache_read_tokens);
       const multiplier = Number(record.rate_multiplier);
+      const referenceCost = getUsageReferenceCost(record);
       return {
         id: record.id,
         createdAt: record.created_at || '',
@@ -83,6 +104,8 @@ export function mapUsageRecords(records = []) {
         cacheReadTokens,
         totalTokens: inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
         actualCost: usageNumber(record.actual_cost),
+        referenceCost,
+        effectiveDiscount: getUsageEffectiveDiscount(record.actual_cost, referenceCost),
         rateMultiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null,
       };
     });
