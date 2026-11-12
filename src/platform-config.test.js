@@ -668,7 +668,7 @@ test('generated install prompts explain streaming behavior for every client', ()
 
 test('each Claude public ID is preserved by all four generators', () => {
   const claude = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
-  assert.equal(claude.length, 7);
+  assert.equal(claude.length, 8);
   for (const model of claude) {
     for (const { id } of platformOptions) {
       const artifact = createPlatformArtifact(id, { ...claudeOptions, models: [model] });
@@ -676,5 +676,29 @@ test('each Claude public ID is preserved by all four generators', () => {
       assert.ok(artifact.content.includes(model.id));
       assert.deepEqual(artifact.mediaModels, []);
     }
+  }
+});
+
+test('each Gemini Argon public ID is preserved by compatible config generators', () => {
+  const geminiModels = modelCatalog.filter(({ id }) => id.startsWith('gemini-4-argon'));
+  assert.equal(geminiModels.length, 4);
+  for (const model of geminiModels) {
+    for (const platformId of ['workbuddy', 'opencode', 'codex']) {
+      const artifact = createPlatformArtifact(platformId, { ...options, models: [model] });
+      assert.equal(artifact.defaultModelId, model.id);
+      assert.ok(artifact.content.includes(model.id));
+      assert.deepEqual(artifact.mediaModels, []);
+    }
+  }
+});
+
+test('Gemini Carbon is preserved by compatible config generators', () => {
+  const model = modelCatalog.find(({ id }) => id === 'gemini-4-carbon');
+  assert.ok(model);
+  for (const platformId of ['workbuddy', 'opencode', 'codex']) {
+    const artifact = createPlatformArtifact(platformId, { ...options, models: [model] });
+    assert.equal(artifact.defaultModelId, model.id);
+    assert.ok(artifact.content.includes(model.id));
+    assert.deepEqual(artifact.mediaModels, []);
   }
 });

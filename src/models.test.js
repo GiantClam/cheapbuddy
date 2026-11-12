@@ -27,6 +27,10 @@ test('model catalog contains unique ids and generator metadata', () => {
   assert.ok(ids.includes('glm-5.3-flash'));
   assert.ok(ids.includes('qwen3.8-max'));
   assert.ok(ids.includes('jev-latest'));
+  assert.ok(ids.includes('gemini-4-argon'));
+  assert.ok(ids.includes('gemini-4-argon-high'));
+  assert.ok(ids.includes('gemini-4-argon-low'));
+  assert.ok(ids.includes('gemini-4-argon-medium'));
   const glm53 = modelCatalog.find((model) => model.id === 'glm-5.3');
   assert.equal(glm53.short, 'GLM 5.3');
   assert.equal(glm53.supportsToolCall, true);
@@ -77,10 +81,16 @@ test('model catalog contains published text and media models', () => {
     'deepseek-v4.1-flash-1017',
     'qwen3.8-max',
     'jev-latest',
+    'gemini-4-argon',
+    'gemini-4-argon-high',
+    'gemini-4-argon-low',
+    'gemini-4-argon-medium',
+    'gemini-4-carbon',
     'gpt-image-2.5',
     'gpt-image-2.6',
     'MiniMax-H3',
     'claude-fable-5',
+    'claude-fable-5-2',
     'claude-fable-5-1',
     'claude-opus-5',
     'claude-opus-5-5',
@@ -88,6 +98,46 @@ test('model catalog contains published text and media models', () => {
     'claude-sonnet-5-5',
     'claude-opus-5-5-MAX',
   ]));
+});
+
+test('publishes PPToken Gemini Argon variants as OpenAI-compatible text models', () => {
+  const models = modelCatalog.filter(({ id }) => id.startsWith('gemini-4-argon'));
+
+  assert.deepEqual(models.map(({ id }) => id), [
+    'gemini-4-argon',
+    'gemini-4-argon-high',
+    'gemini-4-argon-low',
+    'gemini-4-argon-medium',
+  ]);
+  for (const model of models) {
+    assert.deepEqual(model.vendor, { zh: 'Google Gemini', en: 'Google Gemini' });
+    assert.equal(model.modality, 'text');
+    assert.equal(model.endpointPath, '/chat/completions');
+    assert.equal(model.priceStatus, 'unverified');
+    assert.equal(model.priceSourceUrl, 'https://api.pptoken.cc/');
+    assert.equal(model.input, '待核验');
+    assert.equal(model.output, '待核验');
+    assert.equal(model.supportsImages, false);
+  }
+});
+
+test('publishes PPToken Gemini Carbon as an OpenAI-compatible text model', () => {
+  const model = modelCatalog.find(({ id }) => id === 'gemini-4-carbon');
+  assert.ok(model);
+  assert.deepEqual(model.vendor, { zh: 'Google Gemini', en: 'Google Gemini' });
+  assert.equal(model.modality, 'text');
+  assert.equal(model.endpointPath, '/chat/completions');
+  assert.equal(model.priceStatus, 'verified');
+  assert.equal(model.input, '$2.00');
+  assert.equal(model.output, '$10.00');
+  assert.equal(model.priceMultiplier, 0.7);
+  assert.equal(model.supportsImages, false);
+});
+
+test('homepage model shelf only includes configurable public models', () => {
+  const homepage = getHomepageModels(modelCatalog);
+  assert.ok(homepage.some(({ id }) => id === 'gemini-4-carbon'));
+  assert.ok(!homepage.some(({ id }) => id === 'jev-latest'));
 });
 
 test('DeepSeek V4.1 Flash 1017 keeps its canonical ID and plain localized descriptions', () => {
@@ -114,15 +164,16 @@ test('DeepSeek Flash uses its stable public name in both languages', () => {
   }
 });
 
-test('homepage replaces Grok 4.7 with DeepSeek V4.1 Flash 1017 without removing Grok from client selection', () => {
+test('homepage includes configurable models and excludes native System One models', () => {
   const homepageModels = getHomepageModels(modelCatalog);
   const homepageIds = homepageModels.map(({ id }) => id);
   const heroIds = getHomepageFeaturedModels(modelCatalog).map(({ id }) => id);
 
   assert.ok(homepageIds.includes('deepseek-v4.1-flash-1017'));
-  assert.ok(!homepageIds.includes('grok-4.7'));
+  assert.ok(homepageIds.includes('grok-4.7'));
+  assert.ok(homepageIds.includes('gemini-4-carbon'));
+  assert.ok(!homepageIds.includes('jev-latest'));
   assert.ok(heroIds.includes('deepseek-v4.1-flash-1017'));
-  assert.ok(!heroIds.includes('grok-4.7'));
   assert.ok(modelCatalog.some(({ id }) => id === 'grok-4.7'));
 });
 
@@ -157,7 +208,8 @@ test('verified token rates use official values and unavailable rates stay explic
     assert.equal(model.priceStatus, 'verified');
   }
 
-  for (const id of ['glm-5.3', 'glm-5.3-flash', 'kimi-k3']) {
+  for (const id of ['glm-5.3', 'glm-5.3-flash',
+    'gemini-4-argon', 'gemini-4-argon-high', 'gemini-4-argon-low', 'gemini-4-argon-medium']) {
     const model = modelCatalog.find((item) => item.id === id);
     assert.equal(model.priceStatus, 'unverified');
     assert.equal(model.input, '待核验');
@@ -406,6 +458,7 @@ test('localizes native currency and time units for media pricing', () => {
 test('publishes Claude stable models and the PPToken comparison route with official cache rates', () => {
   const expected = {
     'claude-fable-5': [10, 50, 12.5, 20, 1],
+    'claude-fable-5-2': [8, 40, 10, 16, 0.2],
     'claude-fable-5-1': [10, 50, 12.5, 20, 0.25],
     'claude-opus-5': [5, 25, 6.25, 10, 0.5],
     'claude-opus-5-5': [4, 20, 5, 8, 0.2],
@@ -420,7 +473,7 @@ test('publishes Claude stable models and the PPToken comparison route with offic
     assert.deepEqual([rates.input, rates.output, rates.cacheWrite5m, rates.cacheWrite1h, rates.cacheRead], expected[model.id]);
     assert.equal(model.pricingScope, 'sub2api-group');
     assert.equal(model.priceStatus, 'verified');
-    assert.equal(model.priceCheckedAt, '2026-10-13');
+    assert.equal(model.priceCheckedAt, model.id === 'claude-fable-5-2' ? '2026-11-10' : '2026-10-13');
     assert.equal(model.priceSourceUrl, 'https://platform.claude.com/docs/en/about-claude/pricing');
     assert.equal(model.channelId, 'claude');
     assert.equal(model.modality, 'text');
@@ -431,7 +484,7 @@ test('publishes Claude stable models and the PPToken comparison route with offic
 
 test('Claude models advertise two alternative protocols and resolve to their configured key groups', () => {
   const claude = modelCatalog.filter(({ id }) => id.startsWith('claude-'));
-  assert.equal(claude.length, 7);
+  assert.equal(claude.length, 8);
   for (const model of claude) {
     assert.deepEqual(model.protocols, ['anthropic', 'openai-compatible']);
     if (model.id === 'claude-opus-5-5-MAX') {

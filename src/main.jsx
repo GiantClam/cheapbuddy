@@ -1249,7 +1249,7 @@ function HomePage() {
         if (error?.status !== 404 && error?.status !== 405) console.warn('Usage records are unavailable', error);
         return null;
       });
-      setUsageRecords(mapUsageRecords(recordResult?.items || recordResult?.data || []));
+      setUsageRecords(mapUsageRecords(recordResult?.items || recordResult?.data || [], models));
     } catch (error) {
       setUsageError(error.message || t('usageSyncFailed'));
     } finally {
@@ -1818,7 +1818,7 @@ function HomePage() {
       </aside>}
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
-          <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: models.length })}</div>
+          <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: homepageModels.length })}</div>
           {campaignModel && <aside className="campaign-banner" aria-label={t('campaignTitle')}>
             <div className="campaign-banner-head"><strong>{t('campaignTitle')}</strong><span className="campaign-saving-badge"><small>{t('campaignSavingsLabel')}</small><b>{t('campaignSavings')}</b></span></div>
             <div className="campaign-rates">

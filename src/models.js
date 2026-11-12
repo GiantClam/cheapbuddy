@@ -8,6 +8,7 @@ const imageApiMetadata = {
 
 const claudeStableModels = [
   ['claude-fable-5', 'Claude Fable 5', 'fable', [10, 50, 12.5, 20, 1]],
+  ['claude-fable-5-2', 'Claude Fable 5.2', 'fable', [8, 40, 10, 16, 0.2]],
   ['claude-fable-5-1', 'Claude Fable 5.1', 'fable', [10, 50, 12.5, 20, 0.25]],
   ['claude-opus-5', 'Claude Opus 5', 'opus', [5, 25, 6.25, 10, 0.5]],
   ['claude-opus-5-5', 'Claude Opus 5.5', 'opus', [4, 20, 5, 8, 0.2]],
@@ -19,7 +20,7 @@ const claudeStableModels = [
   description: { zh: '编程、推理与 Agent；与 OpenAI 共用统一 Key，任选 Anthropic 或 OpenAI-compatible', en: 'Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible' },
   input: `$${rates[0].toFixed(2)}`, output: `$${rates[1].toFixed(2)}`,
   officialPricing: { input: rates[0], output: rates[1], cacheWrite5m: rates[2], cacheWrite1h: rates[3], cacheRead: rates[4] },
-  pricingScope: 'sub2api-group', priceStatus: 'verified', priceCheckedAt: '2026-10-13',
+  pricingScope: 'sub2api-group', priceStatus: 'verified', priceCheckedAt: id === 'claude-fable-5-2' ? '2026-11-10' : '2026-10-13',
   priceSourceUrl: 'https://platform.claude.com/docs/en/about-claude/pricing',
   priceUnit: {
     zh: `美元 / 百万 Token；5m 缓存写入 $${rates[2].toFixed(2)}，1h 缓存写入 $${rates[3].toFixed(2)}，缓存读取 $${rates[4].toFixed(2)}`,
@@ -49,6 +50,74 @@ const claudeOpusMaxModel = {
   mark: 'CO+',
 };
 
+const geminiArgonModels = [
+  ['gemini-4-argon', 'Gemini 4 Argon', 'GA', 'base'],
+  ['gemini-4-argon-high', 'Gemini 4 Argon High', 'GAH', 'high'],
+  ['gemini-4-argon-low', 'Gemini 4 Argon Low', 'GAL', 'low'],
+  ['gemini-4-argon-medium', 'Gemini 4 Argon Medium', 'GAM', 'medium'],
+].map(([id, short, mark, profile]) => ({
+  id,
+  short,
+  vendor: { zh: 'Google Gemini', en: 'Google Gemini' },
+  description: {
+    zh: `通过 PPToken 提供的 Gemini 4 Argon 文本生成（${profile} 配置）`,
+    en: `Gemini 4 Argon text generation via PPToken (${profile} profile)`,
+  },
+  input: '待核验',
+  output: '待核验',
+  priceStatus: 'unverified',
+  priceSourceUrl: 'https://api.pptoken.cc/',
+  priceCheckedAt: '2026-11-08',
+  priceUnit: { zh: '上游 PPToken 价格待核验', en: 'Upstream PPToken pricing not verified' },
+  accent: 'cyan',
+  mark,
+  showOnHomepage: false,
+  modality: 'text',
+  endpointPath: '/chat/completions',
+  billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+  maxInputTokens: 128000,
+  maxOutputTokens: 32768,
+  temperature: 1,
+  supportsToolCall: false,
+  supportsImages: false,
+  supportsReasoning: false,
+  onlyReasoning: false,
+}));
+
+const geminiCarbonModel = {
+  id: 'gemini-4-carbon',
+  short: 'Gemini 4 Carbon',
+  vendor: { zh: 'Google Gemini', en: 'Google Gemini' },
+  description: {
+    zh: '通过 PPToken 提供的 Gemini 4 Carbon 文本生成',
+    en: 'Gemini 4 Carbon text generation via PPToken',
+  },
+  input: '$2.00',
+  output: '$10.00',
+  priceStatus: 'verified',
+  priceSourceUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
+  priceCheckedAt: '2026-11-11',
+  officialPricing: { input: 2, output: 10, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0.1 },
+  priceUnit: {
+    zh: '美元 / 百万 Token；当前官网价至 2026-11-30：输入 $2.00，输出 $10.00，缓存读取 $0.10；显式缓存不支持',
+    en: 'USD / MTok; current official rate through 2026-11-30: input $2.00, output $10.00, cache read $0.10; explicit caching is unavailable',
+  },
+  priceMultiplier: 0.7,
+  accent: 'cyan',
+  mark: 'GC',
+  showOnHomepage: false,
+  modality: 'text',
+  endpointPath: '/chat/completions',
+  billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+  maxInputTokens: 128000,
+  maxOutputTokens: 32768,
+  temperature: 1,
+  supportsToolCall: false,
+  supportsImages: false,
+  supportsReasoning: false,
+  onlyReasoning: false,
+};
+
 export const modelCatalog = [
   {
     id: 'glm-5.3', short: 'GLM 5.3', vendor: { zh: '智谱', en: 'Zhipu' }, description: { zh: '编程、推理与 Agent 工作流', en: 'Coding, reasoning, and Agent workflows' }, input: '待核验', output: '待核验', priceStatus: 'unverified', priceSourceUrl: 'https://open.bigmodel.cn/pricing', priceCheckedAt: '2026-09-26', priceUnit: { zh: '官网价格暂不可核验', en: 'Official rate not verified' }, accent: 'blue', mark: 'G53', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
@@ -63,7 +132,7 @@ export const modelCatalog = [
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['high', 'max'], summary: 'auto', canDisableThinking: false },
   },
   {
-    id: 'kimi-k3', short: 'Kimi K3', vendor: { zh: 'Kimi', en: 'Kimi' }, description: { zh: '知识工作与软件工程', en: 'Knowledge work and software engineering' }, input: '待核验', output: '待核验', priceStatus: 'unverified', priceSourceUrl: 'https://platform.kimi.ai/docs/pricing/chat', priceCheckedAt: '2026-09-26', priceUnit: { zh: '官网价格暂不可核验', en: 'Official rate not verified' }, accent: 'pink', mark: 'K3', modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'kimi-k3', short: 'Kimi K3', vendor: { zh: 'Kimi', en: 'Kimi' }, description: { zh: '知识工作与软件工程', en: 'Knowledge work and software engineering' }, input: '$3.00', output: '$15.00', priceStatus: 'verified', priceSourceUrl: 'https://platform.kimi.ai/docs/pricing/chat', priceCheckedAt: '2026-11-11', priceUnit: { zh: '美元 / 百万 Token；缓存读取 $0.30，缓存写入 $3.00', en: 'USD / MTok; cache read $0.30, cache write $3.00' }, officialPricing: { input: 3, output: 15, cacheWrite5m: 3, cacheWrite1h: 3, cacheRead: 0.3 }, priceMultiplier: 0.7, accent: 'pink', mark: 'K3', modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 131072, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: true,
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
@@ -154,6 +223,8 @@ export const modelCatalog = [
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: false,
     reasoning: { effort: 'medium', defaultEffort: 'medium', supportedEfforts: ['low', 'medium', 'high'], summary: 'auto', canDisableThinking: true },
   },
+  ...geminiArgonModels,
+  geminiCarbonModel,
   {
     id: 'jev-latest', short: 'Jev Latest', vendor: { zh: 'TypeSafe', en: 'TypeSafe' },
     description: { zh: '结构化决策、分类与评分；使用原生 System One 接口', en: 'Structured decisions, classification, and scoring through the native System One API' },
@@ -237,7 +308,7 @@ function localizePriceUnit(value, locale, fromCurrency, toCurrency) {
 }
 
 export function getHomepageModels(models = modelCatalog) {
-  return models.filter((model) => model.showOnHomepage !== false);
+  return models.filter((model) => !Array.isArray(model.supportedPlatforms) || model.supportedPlatforms.length > 0);
 }
 
 export function isModelRecentlyLaunched(model, now = new Date()) {

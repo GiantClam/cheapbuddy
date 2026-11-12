@@ -6,7 +6,7 @@ Send the public model `id` (for example `deepseek-flash` or `claude-opus-5-5`), 
 
 CheapBuddy is an independent gateway. It is not operated by DeepSeek, Anthropic, OpenAI, or other model vendors.
 
-The Models list is generated from the site catalog and includes all 26 public ids. A key can call only the models its group authorizes. Check `GET https://api.cheapbuddy.cc/v1/models`.
+The Models list is generated from the site catalog and includes all 32 public ids. A key can call only the models its group authorizes. Check `GET https://api.cheapbuddy.cc/v1/models`.
 
 ## Docs
 
@@ -41,8 +41,14 @@ Text:
 - [deepseek-flash](https://cheapbuddy.cc/#models): id `deepseek-flash`; DeepSeek; Million-token context, multimodal understanding, and Agent tool calling. OpenAI-compatible POST /v1/chat/completions.
 - [deepseek-v4.1-flash-1017](https://cheapbuddy.cc/en/model/deepseek-v4-1-flash-1017/): id `deepseek-v4.1-flash-1017`; DeepSeek; Million-token context, multimodal understanding, and Agent tool calling. OpenAI-compatible POST /v1/chat/completions.
 - [qwen3.8-max](https://cheapbuddy.cc/#models): id `qwen3.8-max`; Qwen; Flagship reasoning, vision, and Agent tool use. OpenAI-compatible POST /v1/chat/completions.
+- [gemini-4-argon](https://cheapbuddy.cc/#models): id `gemini-4-argon`; Google Gemini; Gemini 4 Argon text generation via PPToken (base profile). OpenAI-compatible POST /v1/chat/completions. Not shown on the homepage shelf.
+- [gemini-4-argon-high](https://cheapbuddy.cc/#models): id `gemini-4-argon-high`; Google Gemini; Gemini 4 Argon text generation via PPToken (high profile). OpenAI-compatible POST /v1/chat/completions. Not shown on the homepage shelf.
+- [gemini-4-argon-low](https://cheapbuddy.cc/#models): id `gemini-4-argon-low`; Google Gemini; Gemini 4 Argon text generation via PPToken (low profile). OpenAI-compatible POST /v1/chat/completions. Not shown on the homepage shelf.
+- [gemini-4-argon-medium](https://cheapbuddy.cc/#models): id `gemini-4-argon-medium`; Google Gemini; Gemini 4 Argon text generation via PPToken (medium profile). OpenAI-compatible POST /v1/chat/completions. Not shown on the homepage shelf.
+- [gemini-4-carbon](https://cheapbuddy.cc/#models): id `gemini-4-carbon`; Google Gemini; Gemini 4 Carbon text generation via PPToken. OpenAI-compatible POST /v1/chat/completions. Not shown on the homepage shelf.
 - [jev-latest](https://cheapbuddy.cc/#models): id `jev-latest`; TypeSafe; Structured decisions, classification, and scoring through the native System One API. TypeSafe System One POST /v1/systemone.
 - [claude-fable-5](https://cheapbuddy.cc/#models): id `claude-fable-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
+- [claude-fable-5-2](https://cheapbuddy.cc/#models): id `claude-fable-5-2`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
 - [claude-fable-5-1](https://cheapbuddy.cc/#models): id `claude-fable-5-1`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
 - [claude-opus-5](https://cheapbuddy.cc/#models): id `claude-opus-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.
 - [claude-opus-5-5](https://cheapbuddy.cc/en/model/claude-opus-5-5/): id `claude-opus-5-5`; Anthropic; Coding, reasoning, and agents; share one key with OpenAI using Anthropic or OpenAI-compatible. Anthropic Messages (POST /v1/messages) or OpenAI-compatible.

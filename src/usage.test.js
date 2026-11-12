@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getUsageBilledTotal, getUsageEffectiveDiscount, getUsageReferenceCost, hasTokenBreakdown, isUsageCostReported, mapUsageRecords, mergeUsageModels } from './usage.js';
+import { modelCatalog } from './models.js';
 
 test('merges text and NewAPI media usage by model', () => {
   const merged = mergeUsageModels(
@@ -84,14 +85,22 @@ test('calculates the final discount from the recorded reference cost, not the gr
   assert.equal(record.referenceCost, 0.0001251);
   assert.ok(Math.abs(record.effectiveDiscount - (0.000071 / 0.0001251)) < 1e-12);
   assert.equal(record.rateMultiplier, 1.1);
-  assert.equal(getUsageReferenceCost({ account_stats_cost: '0.0001251' }), 0.0001251);
+  const verifiedModel = modelCatalog.find((model) => model.id === 'claude-fable-5-2');
+  assert.equal(getUsageReferenceCost({ reference_cost: '0.0001251' }, verifiedModel), 0.0001251);
   assert.equal(getUsageEffectiveDiscount(0.000071, 0.0001251), record.effectiveDiscount);
 });
 
 test('does not infer a discount when the official reference cost is unavailable', () => {
-  const [record] = mapUsageRecords([{ id: 44, actual_cost: 0.001, rate_multiplier: 1.1 }]);
+  const glm = modelCatalog.find((model) => model.id === 'glm-5.3');
+  const [record] = mapUsageRecords([{ id: 44, model: 'glm-5.3', actual_cost: 0.001, account_stats_cost: 0.001, rate_multiplier: 1.1 }], [glm]);
 
   assert.equal(record.referenceCost, null);
   assert.equal(record.effectiveDiscount, null);
   assert.equal(getUsageEffectiveDiscount(0.001, null), null);
+});
+
+test('calculates a verified model reference cost from its official token rates', () => {
+  const carbon = modelCatalog.find((model) => model.id === 'gemini-4-carbon');
+  const reference = getUsageReferenceCost({ input_tokens: 1000, output_tokens: 500, cache_read_tokens: 2000 }, carbon);
+  assert.equal(reference, 0.0072);
 });

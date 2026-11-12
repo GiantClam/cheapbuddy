@@ -70,9 +70,28 @@ function firstPositiveUsageNumber(values) {
   return null;
 }
 
-export function getUsageReferenceCost(record) {
+export function getUsageReferenceCost(record, model) {
   if (!record || typeof record !== 'object') return null;
-  return firstPositiveUsageNumber(REFERENCE_COST_FIELDS.map((field) => record[field]));
+  const directReference = firstPositiveUsageNumber(REFERENCE_COST_FIELDS.slice(0, 2).map((field) => record[field]));
+  if (model?.priceStatus !== 'verified' || !model.officialPricing) return model?.priceStatus === 'unverified' ? null : directReference;
+
+  const pricing = model.officialPricing;
+  const inputTokens = usageNumber(record.input_tokens);
+  const outputTokens = usageNumber(record.output_tokens);
+  const cacheReadTokens = usageNumber(record.cache_read_tokens);
+  const cacheCreation5mTokens = usageNumber(record.cache_creation_5m_tokens);
+  const cacheCreation1hTokens = usageNumber(record.cache_creation_1h_tokens);
+  const splitCacheTokens = cacheCreation5mTokens + cacheCreation1hTokens;
+  const unsplitCacheTokens = Math.max(0, usageNumber(record.cache_creation_tokens) - splitCacheTokens);
+  const referenceCost = (
+    inputTokens * Number(pricing.input || 0)
+    + outputTokens * Number(pricing.output || 0)
+    + cacheReadTokens * Number(pricing.cacheRead || 0)
+    + cacheCreation5mTokens * Number(pricing.cacheWrite5m || 0)
+    + cacheCreation1hTokens * Number(pricing.cacheWrite1h || 0)
+    + unsplitCacheTokens * Number(pricing.cacheWrite5m || 0)
+  ) / 1_000_000;
+  return referenceCost > 0 ? referenceCost : directReference;
 }
 
 export function getUsageEffectiveDiscount(actualCost, referenceCost) {
@@ -83,8 +102,9 @@ export function getUsageEffectiveDiscount(actualCost, referenceCost) {
 
 // Per-request charge records from GET /usage; tokens and billed USD are shown
 // exactly as the ledger recorded them, never recomputed client-side.
-export function mapUsageRecords(records = []) {
+export function mapUsageRecords(records = [], models = []) {
   const list = Array.isArray(records) ? records : [];
+  const modelById = new Map((Array.isArray(models) ? models : []).map((model) => [model.id, model]));
   return list
     .filter((record) => record && record.id !== undefined && record.id !== null)
     .map((record) => {
@@ -92,8 +112,9 @@ export function mapUsageRecords(records = []) {
       const outputTokens = usageNumber(record.output_tokens);
       const cacheCreationTokens = usageNumber(record.cache_creation_tokens);
       const cacheReadTokens = usageNumber(record.cache_read_tokens);
+      const modelDefinition = modelById.get(String(record.model || '').trim());
       const multiplier = Number(record.rate_multiplier);
-      const referenceCost = getUsageReferenceCost(record);
+      const referenceCost = getUsageReferenceCost(record, modelDefinition);
       return {
         id: record.id,
         createdAt: record.created_at || '',
