@@ -5,6 +5,7 @@ import {
   applyModelCampaign,
   defaultPricingPlan,
   getCheckoutRechargePlans,
+  getHomepagePromotionState,
   getModelCampaignState,
   getNextModelCampaignBoundaryDelay,
   pricingPlans,
@@ -21,6 +22,14 @@ test('runs the Claude Opus 5.5 campaign for exactly 15 days', () => {
   assert.equal(getModelCampaignState(new Date(MODEL_CAMPAIGN.startAt)).active, true);
   assert.equal(getModelCampaignState(new Date('2026-11-12T14:59:59+08:00')).active, true);
   assert.equal(getModelCampaignState(new Date(MODEL_CAMPAIGN.endAt)).active, false);
+});
+
+test('activates the existing homepage promotion for all-model six-tenths messaging', () => {
+  assert.equal(getHomepagePromotionState(new Date('2026-11-12T23:59:59+08:00')).active, false);
+  const active = getHomepagePromotionState(new Date('2026-11-13T00:00:00+08:00'));
+  assert.equal(active.active, true);
+  assert.equal(active.multiplier, 0.6);
+  assert.equal(active.savingsPercent, 40);
 });
 
 test('schedules each campaign boundary without a stale render window', () => {

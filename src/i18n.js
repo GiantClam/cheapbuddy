@@ -286,6 +286,16 @@ Object.assign(messages.zh, {
   campaignDuration: 'Claude Opus 5.5 系列享受活动价 · 至 {end}（北京时间）',
   campaignModelBadge: '限时 3 折',
   campaignCustomerPrice: '活动价（官网价 3 折）',
+  homepagePromotionTitle: '全模型官网价 6 折',
+  homepagePromotionSavingsLabel: '立省',
+  homepagePromotionSavings: '40%',
+  homepagePromotionSaleRate: '全模型回馈价',
+  homepagePromotionSaleDiscount: '6 折',
+  homepagePromotionSalePrices: '全部模型按官网参考价计费',
+  homepagePromotionRegularRate: '计费方式',
+  homepagePromotionRegularDiscount: '按量',
+  homepagePromotionRegularPrices: '按实际 Token / 媒体用量结算',
+  homepagePromotionDuration: '感谢支持，全部模型按官网参考价 6 折计费。',
 });
 
 Object.assign(messages.en, {
@@ -302,6 +312,16 @@ Object.assign(messages.en, {
   campaignDuration: 'Claude Opus 5.5 models receive this rate · Ends {end} China Standard Time',
   campaignModelBadge: '30% for 15 days',
   campaignCustomerPrice: 'Campaign rate (30% of official)',
+  homepagePromotionTitle: 'All models at 60% of official rates',
+  homepagePromotionSavingsLabel: 'SAVE',
+  homepagePromotionSavings: '40%',
+  homepagePromotionSaleRate: 'Appreciation rate',
+  homepagePromotionSaleDiscount: '60%',
+  homepagePromotionSalePrices: 'All models use official reference pricing',
+  homepagePromotionRegularRate: 'Billing method',
+  homepagePromotionRegularDiscount: 'Usage based',
+  homepagePromotionRegularPrices: 'Billed by actual token / media usage',
+  homepagePromotionDuration: 'Thank you for your support. All models are billed at 60% of official reference pricing.',
 });
 
 Object.assign(messages.en, {

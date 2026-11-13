@@ -7,7 +7,7 @@ import './styles.css';
 import './paywall.css';
 import { buildStripePaymentUrl, cancelPaymentOrder, clearSession, createPaymentOrder, findApiKeyForGroup, getAffiliateDetail, getAuthToken, getCheckoutInfo, getMediaUsageDashboardModels, getOrCreateSharedApiKey, getProfile, getPublicSettings, getSavedUser, getUsageDashboardModels, getUsageDashboardStats, getUsageRecords, listAnnouncements, listApiKeys, listPaymentOrders, loginUser, registerUser, saveSession, sendVerificationCode, transferAffiliateQuota, verifyAdminAccess } from './api';
 import { buildAffiliateInviteLink, getAffiliateCodeFromSearch, normalizeAffiliateDetail } from './affiliate';
-import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getModelCampaignState, getNextModelCampaignBoundaryDelay, MODEL_CAMPAIGN, pricingPlans } from './pricing';
+import { applyModelCampaign, defaultPricingPlan, getCheckoutRechargePlans, getHomepagePromotionState, getModelCampaignState, getNextModelCampaignBoundaryDelay, MODEL_CAMPAIGN, pricingPlans } from './pricing';
 import { formatLedgerAmount, formatPaymentAmount, formatPaymentOrderAmount, getPlanPaymentAmount, getRechargeLedgerAmount, isStripePaymentType, USD_TO_CNY_RATE } from './payment';
 import { formatPublicationDate, getInitialLanguage, languages, setStoredLanguage, translate } from './i18n';
 import { buildConnectionTestRequest, buildInstallPrompt, buildMediaMcpInstallPrompt, createPlatformArtifact, getModelsForPlatform, mediaMcpPlatformOptions, MEDIA_MCPB_DOWNLOAD_PATH, parseConnectionTestResponse, platformOptions } from './platform-config';
@@ -1047,6 +1047,7 @@ function HomePage() {
 
   const t = (key, variables) => translate(language, key, variables);
   const campaign = getModelCampaignState(campaignNow);
+  const homepagePromotion = getHomepagePromotionState(campaignNow);
   const campaignEnd = formatCampaignEnd(MODEL_CAMPAIGN.endAt, language);
   const imageLaunchActive = isModelRecentlyLaunched(imageLaunchModel, campaignNow);
   const imageModelPath = language === 'en' ? imageLaunchModel.seoPathEn : imageLaunchModel.seoPath;
@@ -1819,7 +1820,15 @@ function HomePage() {
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
           <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: homepageModels.length })}</div>
-          {campaignModel && <aside className="campaign-banner" aria-label={t('campaignTitle')}>
+          {homepagePromotion.active ? <aside className="campaign-banner" aria-label={t('homepagePromotionTitle')}>
+            <div className="campaign-banner-head"><strong>{t('homepagePromotionTitle')}</strong><span className="campaign-saving-badge"><small>{t('homepagePromotionSavingsLabel')}</small><b>{t('homepagePromotionSavings')}</b></span></div>
+            <div className="campaign-rates">
+              <div className="campaign-rate sale"><small>{t('homepagePromotionSaleRate')}</small><b>{t('homepagePromotionSaleDiscount')}</b><span>{t('homepagePromotionSalePrices')}</span></div>
+              <span className="campaign-rate-arrow" aria-hidden="true">←</span>
+              <div className="campaign-rate regular"><small>{t('homepagePromotionRegularRate')}</small><b>{t('homepagePromotionRegularDiscount')}</b><span>{t('homepagePromotionRegularPrices')}</span></div>
+            </div>
+            <p>{t('homepagePromotionDuration')}</p>
+          </aside> : campaignModel && <aside className="campaign-banner" aria-label={t('campaignTitle')}>
             <div className="campaign-banner-head"><strong>{t('campaignTitle')}</strong><span className="campaign-saving-badge"><small>{t('campaignSavingsLabel')}</small><b>{t('campaignSavings')}</b></span></div>
             <div className="campaign-rates">
               <div className="campaign-rate sale"><small>{t('campaignSaleRate')}</small><b>{t('campaignSaleDiscount')}</b><span>{t('campaignSalePrices', { input: campaignModel.campaignInput, output: campaignModel.campaignOutput })}</span></div>

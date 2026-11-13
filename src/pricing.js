@@ -30,6 +30,24 @@ export function getNextModelCampaignBoundaryDelay(now = new Date()) {
   return nextDelay ?? null;
 }
 
+export const HOMEPAGE_PROMOTION = Object.freeze({
+  id: 'all-models-six-tenths-2026-11',
+  startAt: '2026-11-13T00:00:00+08:00',
+  endAt: '2099-12-31T23:59:59+08:00',
+  multiplier: 0.6,
+  savingsPercent: 40,
+});
+
+export function getHomepagePromotionState(now = new Date()) {
+  const timestamp = now instanceof Date ? now.getTime() : Date.parse(now);
+  const startsAt = Date.parse(HOMEPAGE_PROMOTION.startAt);
+  const endsAt = Date.parse(HOMEPAGE_PROMOTION.endAt);
+  return {
+    ...HOMEPAGE_PROMOTION,
+    active: Number.isFinite(timestamp) && timestamp >= startsAt && timestamp < endsAt,
+  };
+}
+
 function scaleMoneyText(value, multiplier) {
   if (typeof value !== 'string' || !Number.isFinite(multiplier) || multiplier <= 0) return value;
   return value.replace(/([$¥])\s*(\d+(?:\.\d+)?)/g, (_match, currency, amount) => {
