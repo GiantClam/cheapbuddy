@@ -102,7 +102,7 @@ const geminiCarbonModel = {
     zh: '美元 / 百万 Token；当前官网价至 2026-11-30：输入 $2.00，输出 $10.00，缓存读取 $0.10；显式缓存不支持',
     en: 'USD / MTok; current official rate through 2026-11-30: input $2.00, output $10.00, cache read $0.10; explicit caching is unavailable',
   },
-  priceMultiplier: 0.7,
+  priceMultiplier: 0.6,
   accent: 'cyan',
   mark: 'GC',
   showOnHomepage: false,
@@ -132,7 +132,7 @@ export const modelCatalog = [
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['high', 'max'], summary: 'auto', canDisableThinking: false },
   },
   {
-    id: 'kimi-k3', short: 'Kimi K3', vendor: { zh: 'Kimi', en: 'Kimi' }, description: { zh: '知识工作与软件工程', en: 'Knowledge work and software engineering' }, input: '$3.00', output: '$15.00', priceStatus: 'verified', priceSourceUrl: 'https://platform.kimi.ai/docs/pricing/chat', priceCheckedAt: '2026-11-11', priceUnit: { zh: '美元 / 百万 Token；缓存读取 $0.30，缓存写入 $3.00', en: 'USD / MTok; cache read $0.30, cache write $3.00' }, officialPricing: { input: 3, output: 15, cacheWrite5m: 3, cacheWrite1h: 3, cacheRead: 0.3 }, priceMultiplier: 0.7, accent: 'pink', mark: 'K3', modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    id: 'kimi-k3', short: 'Kimi K3', vendor: { zh: 'Kimi', en: 'Kimi' }, description: { zh: '知识工作与软件工程', en: 'Knowledge work and software engineering' }, input: '$3.00', output: '$15.00', priceStatus: 'verified', priceSourceUrl: 'https://platform.kimi.ai/docs/pricing/chat', priceCheckedAt: '2026-11-11', priceUnit: { zh: '美元 / 百万 Token；缓存读取 $0.30，缓存写入 $3.00', en: 'USD / MTok; cache read $0.30, cache write $3.00' }, officialPricing: { input: 3, output: 15, cacheWrite5m: 3, cacheWrite1h: 3, cacheRead: 0.3 }, priceMultiplier: 0.6, accent: 'pink', mark: 'K3', modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 131072, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: true,
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
@@ -145,7 +145,7 @@ export const modelCatalog = [
       zh: '美元 / 百万 Token；缓存写入 $2.00，缓存读取 $0.20',
       en: 'USD / MTok; cache write $2.00, cache read $0.20',
     },
-    priceMultiplier: 0.625, accent: 'pink', mark: 'K31', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
+    priceMultiplier: 0.6, accent: 'pink', mark: 'K31', showInUsageExample: true, modality: 'text', endpointPath: '/chat/completions', billingUnit: { zh: 'Token 计费', en: 'Token billing' },
     maxInputTokens: 1000000, maxOutputTokens: 131072, temperature: 1,
     supportsToolCall: true, supportsImages: true, supportsReasoning: true, onlyReasoning: true,
     reasoning: { effort: 'max', defaultEffort: 'max', supportedEfforts: ['low', 'high', 'max'], summary: 'auto', canDisableThinking: false },
@@ -257,7 +257,7 @@ export const modelCatalog = [
 ].map((model) => ({
   ...model,
   ...(model.modality === 'text' && model.pricingScope !== 'sub2api-group'
-    ? { priceMultiplier: model.priceMultiplier ?? 0.72 }
+    ? { priceMultiplier: model.priceMultiplier ?? 0.6 }
     : {}),
 }));
 

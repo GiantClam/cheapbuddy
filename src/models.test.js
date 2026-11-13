@@ -130,7 +130,7 @@ test('publishes PPToken Gemini Carbon as an OpenAI-compatible text model', () =>
   assert.equal(model.priceStatus, 'verified');
   assert.equal(model.input, '$2.00');
   assert.equal(model.output, '$10.00');
-  assert.equal(model.priceMultiplier, 0.7);
+  assert.equal(model.priceMultiplier, 0.6);
   assert.equal(model.supportsImages, false);
 });
 
@@ -226,7 +226,7 @@ test('Kimi K3.1 Pro publishes verified official pricing and capability metadata'
   assert.equal(kimi.priceStatus, 'verified');
   assert.equal(kimi.priceSourceUrl, 'https://platform.kimi.ai/docs/pricing/chat');
   assert.equal(kimi.priceCheckedAt, '2026-10-29');
-  assert.equal(kimi.priceMultiplier, 0.625);
+  assert.equal(kimi.priceMultiplier, 0.6);
   assert.equal(kimi.endpointPath, '/chat/completions');
   assert.deepEqual([kimi.maxInputTokens, kimi.maxOutputTokens], [1000000, 131072]);
   assert.deepEqual(
@@ -248,12 +248,12 @@ test('Kimi K3.1 Pro localizes official and calculated customer rates separately'
   const [en] = localizeModels([kimi], 'en');
   const [zh] = localizeModels([kimi], 'zh');
 
-  assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$2.00', '$10.00', '$1.25', '$6.25']);
+  assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$2.00', '$10.00', '$1.20', '$6.00']);
   assert.match(en.priceUnit, /cache write \$2\.00/);
-  assert.match(en.retailPriceUnit, /cache write \$1\.25/);
-  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['$2.00', '$10.00', '$1.25', '$6.25']);
+  assert.match(en.retailPriceUnit, /cache write \$1\.20/);
+  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['$2.00', '$10.00', '$1.20', '$6.00']);
   assert.match(zh.priceUnit, /缓存写入 \$2\.00/);
-  assert.match(zh.retailPriceUnit, /缓存写入 \$1\.25/);
+  assert.match(zh.retailPriceUnit, /缓存写入 \$1\.20/);
 });
 
 test('GPT-6.1 Terra publishes verified pricing, vision and reasoning metadata', () => {
@@ -262,7 +262,7 @@ test('GPT-6.1 Terra publishes verified pricing, vision and reasoning metadata', 
   assert.equal(terra.short, 'GPT-6.1 Terra');
   assert.equal(terra.priceSourceUrl, 'https://developers.openai.com/api/docs/models/gpt-6.1-terra');
   assert.equal(terra.priceCheckedAt, '2026-10-29');
-  assert.equal(terra.priceMultiplier, 0.72);
+  assert.equal(terra.priceMultiplier, 0.6);
   assert.deepEqual([terra.maxInputTokens, terra.maxOutputTokens], [1050000, 128000]);
   assert.deepEqual(
     [terra.supportsToolCall, terra.supportsImages, terra.supportsReasoning, terra.onlyReasoning],
@@ -293,13 +293,13 @@ test('GPT-6.1 Terra localizes official and inherited customer rates separately',
   const [en] = localizeModels([terra], 'en');
   const [zh] = localizeModels([terra], 'zh');
 
-  assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$1.00', '$5.00', '$0.72', '$3.60']);
+  assert.deepEqual([en.input, en.output, en.retailInput, en.retailOutput], ['$1.00', '$5.00', '$0.60', '$3.00']);
   assert.match(en.priceUnit, /cache read \$0\.05, 30m cache write \$1\.25, 12h cache write \$2\.50/);
-  assert.match(en.retailPriceUnit, /cache read \$0\.036, 30m cache write \$0\.90, 12h cache write \$1\.80/);
+  assert.match(en.retailPriceUnit, /cache read \$0\.03, 30m cache write \$0\.75, 12h cache write \$1\.50/);
   assert.match(en.retailPriceUnit, /above 272K input tokens: input\/cache 2x, output 1\.5x/);
-  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['$1.00', '$5.00', '$0.72', '$3.60']);
+  assert.deepEqual([zh.input, zh.output, zh.retailInput, zh.retailOutput], ['$1.00', '$5.00', '$0.60', '$3.00']);
   assert.match(zh.priceUnit, /缓存读取 \$0\.05，30m 缓存写入 \$1\.25，12h 缓存写入 \$2\.50/);
-  assert.match(zh.retailPriceUnit, /缓存读取 \$0\.036，30m 缓存写入 \$0\.90，12h 缓存写入 \$1\.80/);
+  assert.match(zh.retailPriceUnit, /缓存读取 \$0\.03，30m 缓存写入 \$0\.75，12h 缓存写入 \$1\.50/);
   assert.deepEqual([terra.input, terra.output], ['$1.00', '$5.00']);
 });
 
@@ -496,7 +496,7 @@ test('Claude models advertise two alternative protocols and resolve to their con
     }
   }
   const openai = modelCatalog.find(({ id }) => id === 'gpt-6-sol');
-  assert.equal(openai.priceMultiplier, 0.72);
+  assert.equal(openai.priceMultiplier, 0.6);
 });
 
 test('Claude cache prices remain official reference values without a global retail overlay', () => {
