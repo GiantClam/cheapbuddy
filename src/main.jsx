@@ -1816,6 +1816,12 @@ function HomePage() {
           <div className="model-launch-actions"><a className="model-launch-primary" href={`${imageModelPath}#request`}>{t('imageLaunchStart')} <Icon name="arrow" size={14} /></a><a href="/api-docs#api-image">{t('imageLaunchDocs')}</a></div>
         </div>
       </aside>}
+      <aside className="model-launch-banner promotion-launch-banner" aria-labelledby="promotion-banner-title">
+        <div className="model-launch-inner section-wrap">
+          <div className="model-launch-copy"><span className="model-new-badge">60%</span><div><strong id="promotion-banner-title">{t('promotionBannerTitle')}</strong><p>{t('promotionBannerDescription')}</p></div></div>
+          <div className="model-launch-actions"><a className="model-launch-primary" href="#pricing">{t('promotionBannerAction')} <Icon name="arrow" size={14} /></a></div>
+        </div>
+      </aside>
       <section className="hero section-wrap">
         <div className="hero-copy reveal">
           <div className="status-line"><span className="status-dot" />{t('channelOnline', { count: homepageModels.length })}</div>

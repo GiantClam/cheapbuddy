@@ -187,6 +187,10 @@ a { color: inherit; text-decoration: none; }
 }
 
 .model-launch-banner { border-bottom: 1px solid rgba(80, 227, 164, .22); background: #0b2429; }
+.promotion-launch-banner { border-bottom-color: rgba(255, 173, 114, .35); background: #241d18; }
+.promotion-launch-banner .model-new-badge { border-color: rgba(255, 173, 114, .7); color: #ffd0a8; }
+.promotion-launch-banner .model-launch-copy strong { color: #ffe2c9; }
+.promotion-launch-banner .model-launch-copy p { color: #c9aa91; }
 .model-launch-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 18px; padding-bottom: 18px; letter-spacing: 0; }
 .model-launch-copy { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .model-launch-copy strong { color: #e0f4ed; font-size: 16px; line-height: 1.5; }
