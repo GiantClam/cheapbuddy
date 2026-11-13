@@ -236,12 +236,12 @@ export const modelCatalog = [
     supportsToolCall: false, supportsImages: false, supportsReasoning: false, onlyReasoning: false,
   },
   {
-    id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...imageApiMetadata, accent: 'violet', mark: 'IMG', featured: true, modality: 'image', endpointPath: '/images/generations',
+    id: 'gpt-image-2.5', short: 'GPT Image 2.5', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...imageApiMetadata, accent: 'violet', mark: 'IMG', modality: 'image', endpointPath: '/images/generations',
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,
     supportsToolCall: false, supportsImages: true, supportsReasoning: false, onlyReasoning: false,
   },
   {
-    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...imageApiMetadata, accent: 'violet', mark: 'I26', modality: 'image', endpointPath: '/images/generations',
+    id: 'gpt-image-2.6', short: 'GPT Image 2.6', vendor: { zh: 'OpenAI', en: 'OpenAI' }, description: { zh: '图片生成与编辑，使用独立图片接口', en: 'Image generation and editing through the image API' }, ...imageApiMetadata, accent: 'violet', mark: 'I26', featured: true, modality: 'image', endpointPath: '/images/generations',
     launchedAt: '2026-11-05T00:00:00+08:00',
     seoPath: '/model/gpt-image-2-6/', seoPathEn: '/en/model/gpt-image-2-6/',
     maxInputTokens: 128000, maxOutputTokens: 1, temperature: 1,

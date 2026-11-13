@@ -335,9 +335,9 @@ test('GPT Image models publish their API without presenting supplier cost as a r
     assert.equal(model.priceUnit, undefined);
     assert.doesNotMatch(`${model.input} ${model.output}`, /[$¥]|0\.10|0\.015384/);
   }
-  // The hero strip stays unchanged: only the shelf lists the new image model.
-  assert.equal(launched.featured, undefined);
-  assert.ok(!getHomepageFeaturedModels().some(({ id }) => id === 'gpt-image-2.6'));
+  // The homepage hero now promotes the verified 2.6 model while 2.5 remains available.
+  assert.equal(launched.featured, true);
+  assert.ok(getHomepageFeaturedModels().some(({ id }) => id === 'gpt-image-2.6'));
   assert.ok(getHomepageModels().some(({ id }) => id === 'gpt-image-2.6'));
 });
 
