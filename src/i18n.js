@@ -544,7 +544,7 @@ Object.assign(messages.en, {
   pricingTitleAccent: 'with clear savings.',
   pricingLead: 'New accounts receive $0.20 USD trial credit. Recharge payments are converted into one shared USD wallet at the configured order rate; official API reference prices are separate from final customer charges.',
   actualBilling: 'Billing method',
-  officialPriceBilling: 'The customer price depends on the model and production route rate.',
+  officialPriceBilling: 'Public model customer rates target 60% of official pricing; successful requests settle by actual token/media usage and production route.',
   downloadMacos: 'Download macOS script',
   downloadLinux: 'Download Linux script',
   downloadMacosShort: 'macOS .command',
@@ -809,7 +809,7 @@ Object.assign(messages.zh, {
   apiPricingSource: '官方 API 模型价格',
   actualBilling: '扣费方式',
   perModelRates: '按模型计价',
-  officialPriceBilling: '成功请求按实际 Token/媒体用量结算；具体客户价以对应模型和路由费率为准。',
+  officialPriceBilling: '当前公开模型客户价按官网参考价 6 折展示；最终按实际 Token/媒体用量和生产路由结算。',
   inputOutput: '输入 / 输出 · 每百万 Token',
   transparentBilling: '余额共用 · 模型分开计价',
 });
