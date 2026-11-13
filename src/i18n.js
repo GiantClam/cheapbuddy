@@ -20,9 +20,6 @@ const messages = {
     announcementUntitled: '未命名公告',
     noAnnouncements: '暂无公告',
     announcementsLoadFailed: '公告暂时无法加载',
-    promotionBannerTitle: '稳定运行回馈：全模型官网价 6 折',
-    promotionBannerDescription: '感谢支持，全部已上线模型按官网参考价 6 折计费，按实际用量结算。',
-    promotionBannerAction: '查看价格',
     accountOverview: '账户概览',
     account: '账户',
     authAction: '登录 / 注册',
@@ -319,9 +316,6 @@ Object.assign(messages.en, {
   announcementUntitled: 'Untitled announcement',
   noAnnouncements: 'No announcements yet.',
   announcementsLoadFailed: 'Announcements are temporarily unavailable.',
-  promotionBannerTitle: 'Stable service appreciation: 40% off all models',
-  promotionBannerDescription: 'Thank you for your support. All launched models now target 60% of official reference pricing, billed by actual usage.',
-  promotionBannerAction: 'See pricing',
 });
 
 Object.assign(messages.zh, {
